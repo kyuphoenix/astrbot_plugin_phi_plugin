@@ -1,0 +1,8 @@
+﻿name: astrbot_plugin_phi_plugin
+display_name: Phi Plugin Query Core
+desc: AstrBot native Phigros query-core plugin refactored from phi-plugin
+version: v0.1.0
+author: Catrong, AstrBot refactor
+repo: "无"
+support_platforms:
+  - aiocqhttp
