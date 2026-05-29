@@ -13,7 +13,7 @@ phi song <曲名/别名> - 查询曲目信息
 phi search <关键词> - 搜索曲目
 phi rand - 随机曲目
 phi ill <曲名/别名> - 发送本地曲绘
-phi bind <sessionToken|查询ID> - 绑定 Phigros token 或查询平台 ID
+phi bind <sessionToken|查询ID|qrcode> - 绑定 Phigros token、查询平台 ID 或 TapTap 扫码登录
 phi auth <API Token> - 使用查询平台 API Token 登录并保存 sessionToken
 phi unbind - 解绑并清理缓存
 phi clean - 清理当前用户数据
@@ -101,12 +101,12 @@ def render_bind_need_account() -> str:
     return (
         "请提供 sessionToken 或查询 ID。\n"
         "格式：phi bind <sessionToken|查询ID>\n"
-        "扫码登录 qrcode 流程还在迁移中，本轮先支持 token/API ID 绑定。"
+        "扫码登录：phi bind qrcode"
     )
 
 
 def render_qrcode_not_available() -> str:
-    return "TapTap 扫码登录流程还未迁移完成。当前请先使用 phi bind <sessionToken> 或 phi bind <查询ID>。"
+    return "TapTap 扫码登录组件未初始化。当前请先使用 phi bind <sessionToken> 或 phi bind <查询ID>。"
 
 
 def render_auth_need_token() -> str:

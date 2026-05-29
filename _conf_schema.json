@@ -27,6 +27,12 @@
     "default": 10,
     "slider": {"min": 3, "max": 60, "step": 1}
   },
+  "qrcode_timeout": {
+    "description": "TapTap 二维码登录等待时间（秒）",
+    "type": "int",
+    "default": 270,
+    "slider": {"min": 30, "max": 600, "step": 10}
+  },
   "github_proxy": {
     "description": "GitHub 代理地址，当前仅预留",
     "type": "string",

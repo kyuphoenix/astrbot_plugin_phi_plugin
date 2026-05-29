@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -8,7 +9,7 @@ from ..config import PluginConfig
 from ..data import SongCatalog, SongSearcher
 from ..models import SaveSnapshot, Song
 from ..paths import PluginPaths
-from ..save import PhiApiClient, SaveNotAvailable, SaveStore, normalize_save
+from ..save import PhiApiClient, SaveNotAvailable, SaveStore, TapTapQrLogin, normalize_save
 
 ResultKind = Literal["text", "image"]
 
@@ -35,6 +36,8 @@ class CommandContext:
     searcher: SongSearcher
     store: SaveStore
     client: PhiApiClient
+    taptap: TapTapQrLogin | None = None
+    sender: Callable[[CommandResult], Awaitable[None]] | None = None
 
     def load_snapshot(self, user_id: str) -> SaveSnapshot | None:
         raw = self.store.load_snapshot(user_id)

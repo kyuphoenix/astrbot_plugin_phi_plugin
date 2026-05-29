@@ -12,6 +12,7 @@ class PluginConfig:
     max_b30: int = 30
     api_base_url: str = "https://phib19.top:8080"
     request_timeout: int = 10
+    qrcode_timeout: int = 270
     github_proxy: str = ""
 
     @classmethod
@@ -37,5 +38,6 @@ class PluginConfig:
             max_b30=max(1, min(50, int(get("max_b30", 30)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),
             request_timeout=max(3, int(get("request_timeout", 10))),
+            qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),
             github_proxy=str(get("github_proxy", "") or ""),
         )

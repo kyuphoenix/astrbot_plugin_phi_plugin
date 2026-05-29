@@ -11,7 +11,7 @@ from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, load_catalog
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
-from .phi_core.save import PhiApiClient, SaveStore
+from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
 
 class AstrBotPhiPlugin(Star):
@@ -26,6 +26,7 @@ class AstrBotPhiPlugin(Star):
         self.searcher = SongSearcher(self.catalog)
         self.store = SaveStore(self.paths.data_dir)
         self.client = PhiApiClient(self.plugin_config)
+        self.taptap = TapTapQrLogin(self.plugin_config, self.paths)
         self.command_context = CommandContext(
             config=self.plugin_config,
             paths=self.paths,
@@ -33,6 +34,7 @@ class AstrBotPhiPlugin(Star):
             searcher=self.searcher,
             store=self.store,
             client=self.client,
+            taptap=self.taptap,
         )
         logger.info(f"astrbot_plugin_phi_plugin loaded {len(self.catalog)} songs")
 
@@ -41,7 +43,20 @@ class AstrBotPhiPlugin(Star):
         """Phigros 查询核心命令。"""
         event.stop_event()
         command, args = self._parse_native_command(event.get_message_str())
-        result = await dispatch(self.command_context, event.get_sender_id(), command, args)
+        async def send_intermediate(result: CommandResult) -> None:
+            await event.send(self._to_astrbot_result(event, result))
+
+        command_context = CommandContext(
+            config=self.command_context.config,
+            paths=self.command_context.paths,
+            catalog=self.command_context.catalog,
+            searcher=self.command_context.searcher,
+            store=self.command_context.store,
+            client=self.command_context.client,
+            taptap=self.command_context.taptap,
+            sender=send_intermediate,
+        )
+        result = await dispatch(command_context, event.get_sender_id(), command, args)
         yield self._to_astrbot_result(event, result)
 
     @staticmethod
