@@ -98,7 +98,7 @@ async def main() -> None:
         if ROUTE_MODULES.get("pgr") != "pgr":
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
 
-        image_ctx = CommandContext(
+        missing_html_ctx = CommandContext(
             config=PluginConfig(render_mode="image", render_backend="html"),
             paths=paths,
             catalog=catalog,
@@ -106,16 +106,12 @@ async def main() -> None:
             store=SaveStore(paths.data_dir),
             client=PhiApiClient(config),
         )
-        image_result = await dispatch(image_ctx, "smoke-user", "help", "")
-        if image_result.kind != "image" or not Path(image_result.value).exists():
-            raise SystemExit(f"help image render failed: {image_result!r}")
-        with Image.open(image_result.value) as rendered:
-            if rendered.width < 1000 or rendered.height < 500:
-                raise SystemExit(f"help image has unexpected size: {rendered.size}")
-
-        diag_result = await dispatch(image_ctx, "smoke-user", "renderdiag", "")
-        if diag_result.kind != "image" or not Path(diag_result.value).exists():
-            raise SystemExit(f"renderdiag image render failed: {diag_result!r}")
+        try:
+            await dispatch(missing_html_ctx, "smoke-user", "help", "")
+            raise SystemExit("help image render should fail when AstrBot html_render is missing")
+        except RuntimeError as exc:
+            if "html_render is not available" not in str(exc):
+                raise
 
         html_diag = html_renderer.backend_diagnostics(paths)
         if not Path(html_diag["template_dir"]).exists():
@@ -143,6 +139,9 @@ async def main() -> None:
         html_result = await dispatch(html_ctx, "smoke-user", "help", "")
         if html_result.kind != "image" or not Path(html_result.value).exists():
             raise SystemExit(f"official html render path failed: {html_result!r}")
+        with Image.open(html_result.value) as rendered:
+            if rendered.width < 1000 or rendered.height < 500:
+                raise SystemExit(f"help image has unexpected size: {rendered.size}")
         if not html_render_calls or "Phi Plugin Query Core" not in html_render_calls[0][0]:
             raise SystemExit("official html renderer was not called with the help template")
         if html_render_calls[0][2] is not False:
@@ -176,6 +175,10 @@ async def main() -> None:
             raise SystemExit(f"official html render bytes path failed: {byte_result!r}")
         if not Path(byte_result.value).name.startswith("html-help-"):
             raise SystemExit(f"official html render bytes should be saved into render cache: {byte_result.value}")
+
+        diag_result = await dispatch(html_ctx, "smoke-user", "renderdiag", "")
+        if diag_result.kind != "image" or not Path(diag_result.value).exists():
+            raise SystemExit(f"renderdiag image render failed: {diag_result!r}")
 
         pending_body = {"success": False, "data": {"error": "authorization_pending"}}
         if not _is_oauth_waiting_response(pending_body):

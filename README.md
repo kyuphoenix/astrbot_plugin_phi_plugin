@@ -27,7 +27,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
-图片渲染默认优先使用 AstrBot 官方 `Star.html_render`，通过 `HTML + Jinja2` 模板走 AstrBot 内置截图服务，尽量贴近原版 phi-plugin 的 Puppeteer 模板截图流程；如果官方 HTML 渲染不可用，会自动回退到内置 Pillow 面板。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，并会把当前面板需要的字符裁剪成小字体 data URI，避免远端 T2I 服务读取不到本机字体导致中文渲染失败。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`，字体子集缓存写入 `cache/fonts/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
+图片渲染使用 AstrBot 官方 `Star.html_render`，通过 `HTML + Jinja2` 模板走 AstrBot 内置截图服务，尽量贴近原版 phi-plugin 的 Puppeteer 模板截图流程。Pillow 面板回退已移除，方便暴露真实 HTML 渲染问题。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，并会把当前面板需要的字符裁剪成小字体 data URI，避免远端 T2I 服务读取不到本机字体导致中文渲染失败。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`，字体子集缓存写入 `cache/fonts/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
 
 ## 迁移说明
 
