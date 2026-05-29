@@ -13,7 +13,8 @@ phi song <曲名/别名> - 查询曲目信息
 phi search <关键词> - 搜索曲目
 phi rand - 随机曲目
 phi ill <曲名/别名> - 发送本地曲绘
-phi bind <sessionToken> - 绑定 Phigros token
+phi bind <sessionToken|查询ID> - 绑定 Phigros token 或查询平台 ID
+phi auth <API Token> - 使用查询平台 API Token 登录并保存 sessionToken
 phi unbind - 解绑并清理缓存
 phi clean - 清理当前用户数据
 phi update - 拉取并缓存存档
@@ -21,6 +22,8 @@ phi b30 / phi rks / phi pgr - 查询 B30/RKS
 phi score <曲名/别名> - 查询单曲成绩
 phi info - 查询个人统计
 phi data - 查询 Data 数量
+phi id - 查看当前绑定的查询 ID / PlayerId
+phi sessiontoken - 查看当前绑定 token 的脱敏信息
 
 暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、Puppeteer 图片模板。
 """.strip()
@@ -78,19 +81,78 @@ def render_need_query(command: str) -> str:
 
 
 def render_not_bound() -> str:
-    return "你还没有绑定 sessionToken。请使用 phi bind <sessionToken> 后再 phi update。"
+    return "你还没有绑定 sessionToken 或查询 ID。请使用 phi bind <sessionToken|查询ID> 后再 phi update。"
 
 
 def render_no_cached_save() -> str:
     return "还没有可用的本地存档缓存。请先使用 phi update。"
 
 
-def render_bind_ok() -> str:
-    return "绑定成功。接下来可以使用 phi update 拉取存档。"
+def render_bind_ok(api_id: str | None = None, warning: str = "") -> str:
+    lines = ["绑定成功。接下来可以使用 phi update 拉取存档。"]
+    if api_id:
+        lines.append(f"查询 ID: {api_id}")
+    if warning:
+        lines.append(f"提示: {warning}")
+    return "\n".join(lines)
+
+
+def render_bind_need_account() -> str:
+    return (
+        "请提供 sessionToken 或查询 ID。\n"
+        "格式：phi bind <sessionToken|查询ID>\n"
+        "扫码登录 qrcode 流程还在迁移中，本轮先支持 token/API ID 绑定。"
+    )
+
+
+def render_qrcode_not_available() -> str:
+    return "TapTap 扫码登录流程还未迁移完成。当前请先使用 phi bind <sessionToken> 或 phi bind <查询ID>。"
+
+
+def render_auth_need_token() -> str:
+    return (
+        "请提供查询平台 API Token。\n"
+        "格式：phi auth <API Token>\n"
+        "登录成功后会保存 sessionToken，但不会在聊天中明文展示。"
+    )
+
+
+def render_auth_ok(api_id: str | None = None) -> str:
+    lines = ["登录成功，sessionToken 已保存。接下来可以使用 phi update 拉取存档。"]
+    if api_id:
+        lines.append(f"查询 ID: {api_id}")
+    lines.append("出于安全原因，本插件不会在聊天中明文输出完整 token。")
+    return "\n".join(lines)
 
 
 def render_unbind(ok: bool) -> str:
     return "已解绑并清理缓存。" if ok else "当前没有绑定数据。"
+
+
+def render_id_info(api_id: str | None, player_id: str = "", player_name: str = "") -> str:
+    if not api_id and not player_id:
+        return "还没有可用的 ID 信息。请先使用 phi bind <sessionToken|查询ID>，必要时再运行 phi update。"
+    lines = ["当前绑定信息："]
+    lines.append(f"查询 ID: {api_id or '未绑定'}")
+    if player_id:
+        lines.append(f"PlayerId: {player_id}")
+    if player_name and player_name != player_id:
+        lines.append(f"玩家名: {player_name}")
+    return "\n".join(lines)
+
+
+def render_session_token(token: str | None, api_id: str | None = None) -> str:
+    if not token:
+        return "当前没有本地 sessionToken。若已绑定查询 ID，可以继续使用 phi update。"
+    masked = token[:4] + "*" * 17 + token[-4:]
+    lines = [
+        "当前本地 sessionToken（已脱敏）：",
+        masked,
+        "出于安全原因，AstrBot 版不会在聊天中明文输出完整 token。",
+    ]
+    if api_id:
+        lines.append(f"查询 ID: {api_id}")
+    return "\n".join(lines)
 
 
 def render_update_ok(summary: UserSummary) -> str:
@@ -153,7 +215,7 @@ def render_user_info(summary: UserSummary) -> str:
 
 
 def render_unsupported(name: str) -> str:
-    return f"{name} 暂未在 AstrBot 查询核心版中迁移。当前先支持 help/song/search/rand/ill/bind/update/b30/score/info。"
+    return f"{name} 暂未在 AstrBot 查询核心版中迁移。当前先支持 help/song/search/rand/ill/bind/auth/update/b30/score/info/id/sessiontoken。"
 
 
 def _record_line(index: int, record: ScoreRecord, include_song: bool = True) -> str:
