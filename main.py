@@ -2,7 +2,6 @@
 
 import random
 from pathlib import Path
-from typing import AsyncGenerator
 
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.all import AstrBotConfig, logger
@@ -37,28 +36,23 @@ class AstrBotPhiPlugin(Star):
         self.client = PhiApiClient(self.plugin_config)
         logger.info(f"astrbot_plugin_phi_plugin loaded {len(self.catalog)} songs")
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_message(self, event: AstrMessageEvent):
-        parsed = self._parse_command(event.get_message_str())
-        if not parsed:
-            return
+    @filter.command("phi", alias={"pgr", "屁股肉"})
+    async def phi(self, event: AstrMessageEvent):
+        """Phigros 查询核心命令。"""
         event.stop_event()
-        command, args = parsed
+        command, args = self._parse_native_command(event.get_message_str())
         async for result in self._dispatch(event, command, args):
             yield result
 
-    def _parse_command(self, message: str) -> tuple[str, str] | None:
+    @staticmethod
+    def _parse_native_command(message: str) -> tuple[str, str]:
         text = (message or "").strip()
-        if not text or text[0] not in {"/", "#"}:
-            return None
-        body = text[1:].strip()
-        if not body:
-            return None
-        parts = body.split(maxsplit=1)
-        head = parts[0].casefold()
-        aliases = {self.plugin_config.cmdhead.casefold(), "phi", "pgr", "屁股肉"}
-        if head not in aliases:
-            return None
+        if not text:
+            return "help", ""
+
+        # AstrBot has already matched the command. Its message string still
+        # includes the command token, as shown in the plugin guide examples.
+        parts = text.split(maxsplit=1)
         rest = parts[1].strip() if len(parts) > 1 else "help"
         sub_parts = rest.split(maxsplit=1)
         command = sub_parts[0].casefold() if sub_parts else "help"
@@ -193,7 +187,14 @@ class AstrBotPhiPlugin(Star):
     def _find_illustration(self, song) -> Path | None:
         candidates: list[Path] = []
         base_id = song.id.removesuffix(".0")
-        for folder in [self.paths.original_ill, self.paths.original_ill / "ill", self.paths.original_ill / "SP"]:
+        for folder in [
+            self.paths.downloaded_original_ill,
+            self.paths.downloaded_original_ill / "ill",
+            self.paths.downloaded_original_ill / "SP",
+            self.paths.original_ill,
+            self.paths.original_ill / "ill",
+            self.paths.original_ill / "SP",
+        ]:
             candidates.append(folder / f"{base_id}.png")
         if song.illustration:
             candidates.append(self.paths.other_ill / song.illustration)

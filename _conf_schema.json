@@ -1,9 +1,4 @@
 ﻿{
-  "cmdhead": {
-    "description": "命令头，不包含 / 或 #",
-    "type": "string",
-    "default": "phi"
-  },
   "default_global": {
     "description": "默认使用国际服存档接口",
     "type": "bool",

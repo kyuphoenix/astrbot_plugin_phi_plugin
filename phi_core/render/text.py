@@ -8,18 +8,18 @@ HELP_TEXT = """
 Phi Plugin Query Core
 
 可用命令：
-/phi help - 查看帮助
-/phi song <曲名/别名> - 查询曲目信息
-/phi search <关键词> - 搜索曲目
-/phi rand - 随机曲目
-/phi ill <曲名/别名> - 发送本地曲绘
-/phi bind <sessionToken> - 绑定 Phigros token
-/phi unbind - 解绑并清理缓存
-/phi clean - 清理当前用户数据
-/phi update - 拉取并缓存存档
-/phi b30 或 /phi rks - 查询 B30/RKS
-/phi score <曲名/别名> - 查询单曲成绩
-/phi info - 查询个人统计
+phi help - 查看帮助
+phi song <曲名/别名> - 查询曲目信息
+phi search <关键词> - 搜索曲目
+phi rand - 随机曲目
+phi ill <曲名/别名> - 发送本地曲绘
+phi bind <sessionToken> - 绑定 Phigros token
+phi unbind - 解绑并清理缓存
+phi clean - 清理当前用户数据
+phi update - 拉取并缓存存档
+phi b30 或 phi rks - 查询 B30/RKS
+phi score <曲名/别名> - 查询单曲成绩
+phi info - 查询个人统计
 
 暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、Puppeteer 图片模板。
 """.strip()
@@ -73,19 +73,19 @@ def render_missing_illustration(song: Song) -> str:
 
 
 def render_need_query(command: str) -> str:
-    return f"请在命令后添加查询内容，例如：/phi {command} Glaciaxion"
+    return f"请在命令后添加查询内容，例如：phi {command} Glaciaxion"
 
 
 def render_not_bound() -> str:
-    return "你还没有绑定 sessionToken。请使用 /phi bind <sessionToken> 后再 /phi update。"
+    return "你还没有绑定 sessionToken。请使用 phi bind <sessionToken> 后再 phi update。"
 
 
 def render_no_cached_save() -> str:
-    return "还没有可用的本地存档缓存。请先使用 /phi update。"
+    return "还没有可用的本地存档缓存。请先使用 phi update。"
 
 
 def render_bind_ok() -> str:
-    return "绑定成功。接下来可以使用 /phi update 拉取存档。"
+    return "绑定成功。接下来可以使用 phi update 拉取存档。"
 
 
 def render_unbind(ok: bool) -> str:

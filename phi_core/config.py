@@ -7,7 +7,6 @@ from typing import Any, Mapping
 
 @dataclass(slots=True)
 class PluginConfig:
-    cmdhead: str = "phi"
     default_global: bool = False
     render_mode: str = "text"
     max_b30: int = 30
@@ -33,7 +32,6 @@ class PluginConfig:
             return default if value is None else value
 
         return cls(
-            cmdhead=str(get("cmdhead", "phi")).strip() or "phi",
             default_global=bool(get("default_global", False)),
             render_mode=str(get("render_mode", "text") or "text"),
             max_b30=max(1, min(50, int(get("max_b30", 30)))),
