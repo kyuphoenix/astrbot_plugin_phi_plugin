@@ -5,6 +5,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -33,7 +35,7 @@ async def main() -> None:
         paths = PluginPaths.from_root(ROOT, data_dir=data_dir)
         paths.ensure_data_dir()
         catalog = load_catalog(paths.info)
-        config = PluginConfig()
+        config = PluginConfig(render_mode="text")
         ctx = CommandContext(
             config=config,
             paths=paths,
@@ -62,6 +64,21 @@ async def main() -> None:
 
         if ROUTE_MODULES.get("pgr") != "pgr":
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
+
+        image_ctx = CommandContext(
+            config=PluginConfig(render_mode="image"),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=PhiApiClient(config),
+        )
+        image_result = await dispatch(image_ctx, "smoke-user", "help", "")
+        if image_result.kind != "image" or not Path(image_result.value).exists():
+            raise SystemExit(f"help image render failed: {image_result!r}")
+        with Image.open(image_result.value) as rendered:
+            if rendered.width < 1000 or rendered.height < 500:
+                raise SystemExit(f"help image has unexpected size: {rendered.size}")
 
         login_ctx = CommandContext(
             config=config,

@@ -5,9 +5,9 @@
     "default": false
   },
   "render_mode": {
-    "description": "渲染模式；当前版本 text 可用，image 为后续预留",
+    "description": "渲染模式；image 使用内置 Pillow 图片面板，text 返回纯文本",
     "type": "string",
-    "default": "text",
+    "default": "image",
     "options": ["text", "image"]
   },
   "max_b30": {

@@ -14,6 +14,7 @@ class PluginPaths:
     data_dir: Path
     downloads: Path
     cache: Path
+    render_cache: Path
     downloaded_original_ill: Path
 
     @classmethod
@@ -30,6 +31,7 @@ class PluginPaths:
             data_dir=data_root,
             downloads=data_root / "downloads",
             cache=data_root / "cache",
+            render_cache=data_root / "cache" / "render",
             downloaded_original_ill=data_root / "downloads" / "original_ill",
         )
 
@@ -37,4 +39,5 @@ class PluginPaths:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.downloads.mkdir(parents=True, exist_ok=True)
         self.cache.mkdir(parents=True, exist_ok=True)
+        self.render_cache.mkdir(parents=True, exist_ok=True)
         self.downloaded_original_ill.mkdir(parents=True, exist_ok=True)

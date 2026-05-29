@@ -10,6 +10,7 @@ from .phi_core.commands import CommandContext, CommandResult, dispatch
 from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, load_catalog
 from .phi_core.paths import PluginPaths
+from .phi_core.render import image as image_render
 from .phi_core.save import PhiApiClient, SaveStore
 
 
@@ -61,8 +62,13 @@ class AstrBotPhiPlugin(Star):
         args = sub_parts[1].strip() if len(sub_parts) > 1 else ""
         return command, args
 
-    @staticmethod
-    def _to_astrbot_result(event: AstrMessageEvent, result: CommandResult):
+    def _to_astrbot_result(self, event: AstrMessageEvent, result: CommandResult):
         if result.kind == "image":
             return event.image_result(result.value)
+        if self.plugin_config.render_mode == "image":
+            try:
+                path = image_render.render_text_panel(self.paths, result.value)
+                return event.image_result(str(path))
+            except Exception as exc:
+                logger.warning(f"phi image render failed, fallback to text: {exc}")
         return event.plain_result(result.value)
