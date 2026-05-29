@@ -52,6 +52,9 @@ class AstrBotPhiPlugin(Star):
         # AstrBot has already matched the command. Its message string still
         # includes the command token, as shown in the plugin guide examples.
         parts = text.split(maxsplit=1)
+        root = parts[0].casefold()
+        if root in {"pgr", "屁股肉"}:
+            return root, parts[1].strip() if len(parts) > 1 else ""
         rest = parts[1].strip() if len(parts) > 1 else "help"
         sub_parts = rest.split(maxsplit=1)
         command = sub_parts[0].casefold() if sub_parts else "help"

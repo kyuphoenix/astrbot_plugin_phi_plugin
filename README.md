@@ -14,10 +14,14 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi clean`：清理当前用户插件数据
 - `phi update`：尝试从查询 API 拉取并缓存标准化存档
 - `phi b30` / `phi rks`：基于缓存存档输出 B30/RKS 摘要
+- `phi pgr` / 顶层 `pgr`：同样查询 B30/RKS
 - `phi score <曲名或别名>`：查询单曲成绩
 - `phi info`：查询用户统计摘要
+- `phi data`：查询 Data 数量（存档包含 `gameProgress.money` 时）
 
 命令触发使用 AstrBot 原生 `@filter.command("phi")`，实际前缀由 AstrBot 全局唤醒/命令配置处理，本插件不再自行监听 `#` 或 `/`。
+
+命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
 ## 迁移说明
 
@@ -26,3 +30,11 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录；插件包内 `resources/` 只存放随插件发布的静态曲库资源。
 
 如果 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
+
+## 本地验证
+
+```powershell
+python -m compileall .
+python scripts\smoke_command_routes.py
+python scripts\smoke_dispatch.py
+```

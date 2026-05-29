@@ -17,9 +17,10 @@ phi bind <sessionToken> - 绑定 Phigros token
 phi unbind - 解绑并清理缓存
 phi clean - 清理当前用户数据
 phi update - 拉取并缓存存档
-phi b30 或 phi rks - 查询 B30/RKS
+phi b30 / phi rks / phi pgr - 查询 B30/RKS
 phi score <曲名/别名> - 查询单曲成绩
 phi info - 查询个人统计
+phi data - 查询 Data 数量
 
 暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、Puppeteer 图片模板。
 """.strip()
@@ -103,6 +104,16 @@ def render_update_ok(summary: UserSummary) -> str:
 
 def render_update_failed(message: str) -> str:
     return "更新存档失败：" + message
+
+
+def render_data(money: list[int]) -> str:
+    units = ["KiB", "MiB", "GiB", "TiB", "PiB"]
+    parts = [f"{value}{unit}" for value, unit in reversed(list(zip(money, units))) if value]
+    return "你的 Data 数量为：" + (" ".join(parts) if parts else "0KiB")
+
+
+def render_missing_data() -> str:
+    return "缓存存档中没有 Data 信息。请先使用 phi update 获取包含 gameProgress 的存档。"
 
 
 def render_b30(result: Best30Result, limit: int = 30) -> str:

@@ -4,7 +4,7 @@ from .common import CommandContext, CommandResult
 from ..query import summarize_user
 from ..render import text as render
 
-ALIASES = {"info", "data"}
+ALIASES = {"info"}
 
 
 def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
