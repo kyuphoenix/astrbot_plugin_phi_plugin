@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from ..data.loader import SongCatalog
 from ..models import SaveSnapshot, UserSummary

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from .common import CommandContext, CommandResult
 from ..render import text as render

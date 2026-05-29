@@ -1,4 +1,4 @@
-﻿# AstrBot Phi Plugin Query Core Refactor Design
+# AstrBot Phi Plugin Query Core Refactor Design
 
 Date: 2026-05-29
 

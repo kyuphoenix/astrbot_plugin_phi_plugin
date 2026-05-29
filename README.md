@@ -1,4 +1,4 @@
-﻿# AstrBot Phi Plugin Query Core
+# AstrBot Phi Plugin Query Core
 
 AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算法分阶段重构。
 
