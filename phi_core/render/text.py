@@ -142,7 +142,7 @@ def render_user_info(summary: UserSummary) -> str:
 
 
 def render_unsupported(name: str) -> str:
-    return f"/{name} 暂未在 AstrBot 查询核心版中迁移。当前先支持 help/song/search/rand/ill/bind/update/b30/score/info。"
+    return f"{name} 暂未在 AstrBot 查询核心版中迁移。当前先支持 help/song/search/rand/ill/bind/update/b30/score/info。"
 
 
 def _record_line(index: int, record: ScoreRecord, include_song: bool = True) -> str:
