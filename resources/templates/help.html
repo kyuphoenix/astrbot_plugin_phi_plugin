@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <style>
+    {{ base_css }}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1 class="title">Phi Plugin Query Core</h1>
+      <div class="subtitle">{{ subtitle }}</div>
+    </header>
+
+    {% for group in groups %}
+    <section class="section">
+      <div class="section-title">{{ group.group }}</div>
+      <div class="grid">
+        {% for command, desc in group["items"] %}
+        <article class="card">
+          <div class="cmd">{{ command }}</div>
+          <div class="desc">{{ desc }}</div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <footer class="footer">Created with Playwright + Jinja2 renderer</footer>
+  </main>
+</body>
+</html>

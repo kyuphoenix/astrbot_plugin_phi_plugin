@@ -2,3 +2,5 @@ httpx
 PyYAML
 Pillow
 qrcode[pil]
+Jinja2
+fonttools

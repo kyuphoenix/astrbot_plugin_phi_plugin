@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <style>
+    {{ base_css }}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1 class="title">{{ title }}</h1>
+      <div class="subtitle">Phi Plugin / AstrBot</div>
+    </header>
+
+    <section class="panel-card">
+      {% for line in lines %}
+      <div class="panel-line">{{ line }}</div>
+      {% endfor %}
+    </section>
+
+    <footer class="footer">Rendered by HTML template</footer>
+  </main>
+</body>
+</html>

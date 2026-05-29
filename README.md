@@ -27,11 +27,11 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
-图片渲染默认使用内置 Pillow 面板。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，生成文件写入 AstrBot 插件数据目录下的 `cache/render/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
+图片渲染默认优先使用 AstrBot 官方 `Star.html_render`，通过 `HTML + Jinja2` 模板走 AstrBot 内置截图服务，尽量贴近原版 phi-plugin 的 Puppeteer 模板截图流程；如果官方 HTML 渲染不可用，会自动回退到内置 Pillow 面板。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，并会把当前面板需要的字符裁剪成小字体 data URI，避免远端 T2I 服务读取不到本机字体导致中文渲染失败。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`，字体子集缓存写入 `cache/fonts/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
 
 ## 迁移说明
 
-第一阶段不依赖 Node.js、Yunzai、Redis 或 Puppeteer。图片模板、小游戏、排行榜、评论、标签、签到任务、管理命令和插件自更新暂未迁移。
+插件侧不依赖 Node.js、Yunzai、Redis 或自管 Puppeteer；HTML 图片模板交给 AstrBot 官方 `html_render` 渲染。小游戏、排行榜、评论、标签、签到任务、管理命令和插件自更新暂未迁移。
 
 运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录；插件包内 `resources/` 只存放随插件发布的静态曲库资源。
 

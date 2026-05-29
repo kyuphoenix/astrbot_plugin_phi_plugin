@@ -37,6 +37,7 @@ class CommandContext:
     store: SaveStore
     client: PhiApiClient
     taptap: TapTapQrLogin | None = None
+    html_render: Callable[[str, dict, bool, dict | None], Awaitable[str | bytes]] | None = None
     sender: Callable[[CommandResult], Awaitable[None]] | None = None
 
     def load_snapshot(self, user_id: str) -> SaveSnapshot | None:

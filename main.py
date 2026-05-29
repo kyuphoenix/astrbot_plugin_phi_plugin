@@ -12,6 +12,7 @@ from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, load_catalog
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
+from .phi_core.render import panel as panel_render
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
 
@@ -41,6 +42,7 @@ class AstrBotPhiPlugin(Star):
         logger.info(
             "astrbot_plugin_phi_plugin loaded "
             f"{len(self.catalog)} songs; render_mode={self.plugin_config.render_mode}; "
+            f"render_backend={self.plugin_config.render_backend}; "
             f"data_dir={self.paths.data_dir}; font={font_path}; font_exists={Path(font_path).exists()}"
         )
 
@@ -50,7 +52,7 @@ class AstrBotPhiPlugin(Star):
         event.stop_event()
         command, args = self._parse_native_command(event.get_message_str())
         async def send_intermediate(result: CommandResult) -> None:
-            await event.send(self._to_astrbot_result(event, result))
+            await event.send(await self._to_astrbot_result(event, result))
 
         command_context = CommandContext(
             config=self.command_context.config,
@@ -60,10 +62,11 @@ class AstrBotPhiPlugin(Star):
             store=self.command_context.store,
             client=self.command_context.client,
             taptap=self.command_context.taptap,
+            html_render=self.html_render,
             sender=send_intermediate,
         )
         result = await dispatch(command_context, event.get_sender_id(), command, args)
-        yield self._to_astrbot_result(event, result)
+        yield await self._to_astrbot_result(event, result)
 
     @staticmethod
     def _parse_native_command(message: str) -> tuple[str, str]:
@@ -83,17 +86,23 @@ class AstrBotPhiPlugin(Star):
         args = sub_parts[1].strip() if len(sub_parts) > 1 else ""
         return command, args
 
-    def _to_astrbot_result(self, event: AstrMessageEvent, result: CommandResult):
+    async def _to_astrbot_result(self, event: AstrMessageEvent, result: CommandResult):
         if result.kind == "image":
             return event.chain_result([Comp.Image.fromFileSystem(result.value)])
         if self.plugin_config.render_mode == "image":
             try:
-                path = image_render.render_text_panel(self.paths, result.value)
+                path = await panel_render.render_text_panel(
+                    self.plugin_config,
+                    self.paths,
+                    result.value,
+                    html_render=self.html_render,
+                )
                 return event.chain_result([Comp.Image.fromFileSystem(str(path))])
             except Exception as exc:
                 logger.warning(
                     "phi image render failed, fallback to text: "
                     f"{exc}; render_mode={self.plugin_config.render_mode}; "
+                    f"render_backend={self.plugin_config.render_backend}; "
                     f"resources={self.paths.resources}; fonts={image_render.font_diagnostics(self.paths)}"
                 )
         return event.plain_result(result.value)

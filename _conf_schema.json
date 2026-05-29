@@ -10,6 +10,12 @@
     "default": "image",
     "options": ["text", "image"]
   },
+  "render_backend": {
+    "description": "图片渲染后端；html 使用 Playwright/Jinja2，pillow 使用内置备用渲染",
+    "type": "string",
+    "default": "html",
+    "options": ["html", "pillow"]
+  },
   "max_b30": {
     "description": "B30 展示条数",
     "type": "int",

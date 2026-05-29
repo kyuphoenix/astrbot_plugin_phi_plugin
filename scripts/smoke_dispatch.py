@@ -15,6 +15,7 @@ from phi_core.commands import CommandContext, ROUTE_MODULES, dispatch
 from phi_core.config import PluginConfig
 from phi_core.data import SongSearcher, load_catalog
 from phi_core.paths import PluginPaths
+from phi_core.render import html_renderer
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
 from phi_core.save.taptap import _is_oauth_waiting_response
 
@@ -98,7 +99,7 @@ async def main() -> None:
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
 
         image_ctx = CommandContext(
-            config=PluginConfig(render_mode="image"),
+            config=PluginConfig(render_mode="image", render_backend="html"),
             paths=paths,
             catalog=catalog,
             searcher=SongSearcher(catalog),
@@ -115,6 +116,66 @@ async def main() -> None:
         diag_result = await dispatch(image_ctx, "smoke-user", "renderdiag", "")
         if diag_result.kind != "image" or not Path(diag_result.value).exists():
             raise SystemExit(f"renderdiag image render failed: {diag_result!r}")
+
+        html_diag = html_renderer.backend_diagnostics(paths)
+        if not Path(html_diag["template_dir"]).exists():
+            raise SystemExit(f"html template dir missing: {html_diag}")
+        if not Path(html_diag["font"]).exists():
+            raise SystemExit(f"html font missing: {html_diag}")
+
+        html_render_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+        async def fake_html_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+            html_render_calls.append((template, data, return_url, options))
+            path = paths.render_cache / "fake-html-render.png"
+            Image.new("RGB", (1200, 800), (7, 23, 45)).save(path)
+            return str(path)
+
+        html_ctx = CommandContext(
+            config=PluginConfig(render_mode="image", render_backend="html"),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=PhiApiClient(config),
+            html_render=fake_html_render,
+        )
+        html_result = await dispatch(html_ctx, "smoke-user", "help", "")
+        if html_result.kind != "image" or not Path(html_result.value).exists():
+            raise SystemExit(f"official html render path failed: {html_result!r}")
+        if not html_render_calls or "Phi Plugin Query Core" not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer was not called with the help template")
+        if html_render_calls[0][2] is not False:
+            raise SystemExit("official html renderer should return a local file path")
+        if html_render_calls[0][1] != {}:
+            raise SystemExit("official html renderer should receive pre-rendered HTML with an empty data dict")
+        if "data:font/ttf;base64," not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer should receive pre-rendered HTML with embedded font subsets")
+        if html_render_calls[0][3] is None or html_render_calls[0][3].get("type") != "png":
+            raise SystemExit("official html renderer should be asked for png output")
+
+        byte_render_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+        async def fake_html_render_bytes(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> bytes:
+            byte_render_calls.append((template, data, return_url, options))
+            image_path = paths.render_cache / "fake-byte-render-source.png"
+            Image.new("RGB", (320, 180), (9, 42, 77)).save(image_path)
+            return image_path.read_bytes()
+
+        byte_ctx = CommandContext(
+            config=PluginConfig(render_mode="image", render_backend="html"),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=PhiApiClient(config),
+            html_render=fake_html_render_bytes,
+        )
+        byte_result = await dispatch(byte_ctx, "smoke-user", "help", "")
+        if byte_result.kind != "image" or not Path(byte_result.value).exists():
+            raise SystemExit(f"official html render bytes path failed: {byte_result!r}")
+        if not Path(byte_result.value).name.startswith("html-help-"):
+            raise SystemExit(f"official html render bytes should be saved into render cache: {byte_result.value}")
 
         pending_body = {"success": False, "data": {"error": "authorization_pending"}}
         if not _is_oauth_waiting_response(pending_body):

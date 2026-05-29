@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ..render import image
+from ..render import panel
 
 ALIASES = {"renderdiag", "渲染诊断"}
 
 
-def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
-    font_path = image.selected_font_path(ctx.paths)
-    panel = image.render_text_panel(
+async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
+    rendered = await panel.render_text_panel(
+        ctx.config,
         ctx.paths,
         "\n".join(
             [
                 "渲染诊断",
-                f"render_mode: {ctx.config.render_mode}",
-                f"resources: {ctx.paths.resources}",
-                f"data_dir: {ctx.paths.data_dir}",
-                f"font: {font_path}",
+                panel.render_diagnostics(ctx.config, ctx.paths),
                 "中文测试：绑定成功，请使用 phi bind qrcode 扫码登录。",
             ]
         ),
         title="Phi Render Diagnostics",
+        html_render=ctx.html_render,
     )
-    return CommandResult.image(panel)
+    return CommandResult.image(rendered)
