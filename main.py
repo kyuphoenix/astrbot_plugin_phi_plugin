@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 import astrbot.api.message_components as Comp
@@ -88,7 +89,7 @@ class AstrBotPhiPlugin(Star):
 
     async def _to_astrbot_result(self, event: AstrMessageEvent, result: CommandResult):
         if result.kind == "image":
-            return event.chain_result([Comp.Image.fromFileSystem(result.value)])
+            return event.chain_result([self._image_component(result.value)])
         if self.plugin_config.render_mode == "image":
             try:
                 path = await panel_render.render_text_panel(
@@ -97,7 +98,7 @@ class AstrBotPhiPlugin(Star):
                     result.value,
                     html_render=self.html_render,
                 )
-                return event.chain_result([Comp.Image.fromFileSystem(str(path))])
+                return event.chain_result([self._image_component(path)])
             except Exception as exc:
                 logger.warning(
                     "phi image render failed, fallback to text: "
@@ -106,3 +107,11 @@ class AstrBotPhiPlugin(Star):
                     f"resources={self.paths.resources}; fonts={image_render.font_diagnostics(self.paths)}"
                 )
         return event.plain_result(result.value)
+
+    @staticmethod
+    def _image_component(path: str | Path):
+        image_bytes = Path(path).read_bytes()
+        if hasattr(Comp.Image, "fromBytes"):
+            return Comp.Image.fromBytes(image_bytes)
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        return Comp.Image.fromBase64(encoded)
