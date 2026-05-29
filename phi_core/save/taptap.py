@@ -182,13 +182,15 @@ class TapTapQrLogin:
         try:
             async with httpx.AsyncClient(timeout=self.config.request_timeout, verify=False) as client:
                 response = await client.request(method, url, headers=headers, data=data, json=json_body)
-                response.raise_for_status()
                 body = response.json()
         except httpx.HTTPError as exc:
             raise SaveNotAvailable(f"TapTap 请求失败：{exc}") from exc
         except ValueError as exc:
             raise SaveNotAvailable("TapTap 响应不是有效 JSON。") from exc
         if isinstance(body, dict):
+            if response.is_error and not _is_oauth_waiting_response(body):
+                detail = _extract_error_message(body) or response.text[:200]
+                raise SaveNotAvailable(f"TapTap 请求失败：HTTP {response.status_code} {detail}")
             return body
         raise SaveNotAvailable("TapTap 响应不是 JSON 对象。")
 
@@ -229,3 +231,23 @@ class TapTapQrLogin:
     def _leancloud_url(use_global: bool) -> str:
         base = "https://kviehlel.cloud.ap-sg.tapapis.com/1.1" if use_global else "https://rak3ffdi.cloud.tds1.tapapis.cn/1.1"
         return f"{base}/users"
+
+
+def _is_oauth_waiting_response(body: dict[str, Any]) -> bool:
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return False
+    return data.get("error") in {"authorization_pending", "authorization_waiting"}
+
+
+def _extract_error_message(body: dict[str, Any]) -> str:
+    data = body.get("data")
+    if isinstance(data, dict):
+        error = data.get("error") or data.get("msg")
+        description = data.get("error_description")
+        if error and description:
+            return f"{error}: {description}"
+        if error:
+            return str(error)
+    error = body.get("error") or body.get("message") or body.get("msg")
+    return "" if error is None else str(error)

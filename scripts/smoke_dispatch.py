@@ -16,6 +16,7 @@ from phi_core.config import PluginConfig
 from phi_core.data import SongSearcher, load_catalog
 from phi_core.paths import PluginPaths
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
+from phi_core.save.taptap import _is_oauth_waiting_response
 
 
 class FakeLoginClient(PhiApiClient):
@@ -110,6 +111,14 @@ async def main() -> None:
         with Image.open(image_result.value) as rendered:
             if rendered.width < 1000 or rendered.height < 500:
                 raise SystemExit(f"help image has unexpected size: {rendered.size}")
+
+        diag_result = await dispatch(image_ctx, "smoke-user", "renderdiag", "")
+        if diag_result.kind != "image" or not Path(diag_result.value).exists():
+            raise SystemExit(f"renderdiag image render failed: {diag_result!r}")
+
+        pending_body = {"success": False, "data": {"error": "authorization_pending"}}
+        if not _is_oauth_waiting_response(pending_body):
+            raise SystemExit("TapTap authorization_pending should be treated as a waiting response")
 
         login_client = FakeLoginClient(config)
         login_ctx = CommandContext(

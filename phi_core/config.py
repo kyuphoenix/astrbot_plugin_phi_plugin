@@ -29,12 +29,21 @@ class PluginConfig:
                 data = {}
 
         def get(key: str, default: Any) -> Any:
-            value = data.get(key, default)
+            try:
+                value = data.get(key, default)
+            except TypeError:
+                value = data.get(key)  # type: ignore[call-arg]
+                if value is None:
+                    value = default
             return default if value is None else value
+
+        render_mode = str(get("render_mode", "image") or "image").strip().casefold()
+        if render_mode not in {"image", "text"}:
+            render_mode = "image"
 
         return cls(
             default_global=bool(get("default_global", False)),
-            render_mode=str(get("render_mode", "image") or "image"),
+            render_mode=render_mode,
             max_b30=max(1, min(50, int(get("max_b30", 30)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),
             request_timeout=max(3, int(get("request_timeout", 10))),

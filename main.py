@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import astrbot.api.message_components as Comp
 from astrbot.api.all import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools
@@ -36,7 +37,12 @@ class AstrBotPhiPlugin(Star):
             client=self.client,
             taptap=self.taptap,
         )
-        logger.info(f"astrbot_plugin_phi_plugin loaded {len(self.catalog)} songs")
+        font_path = image_render.selected_font_path(self.paths)
+        logger.info(
+            "astrbot_plugin_phi_plugin loaded "
+            f"{len(self.catalog)} songs; render_mode={self.plugin_config.render_mode}; "
+            f"data_dir={self.paths.data_dir}; font={font_path}; font_exists={Path(font_path).exists()}"
+        )
 
     @filter.command("phi", alias={"pgr", "屁股肉"})
     async def phi(self, event: AstrMessageEvent):
@@ -79,11 +85,15 @@ class AstrBotPhiPlugin(Star):
 
     def _to_astrbot_result(self, event: AstrMessageEvent, result: CommandResult):
         if result.kind == "image":
-            return event.image_result(result.value)
+            return event.chain_result([Comp.Image.fromFileSystem(result.value)])
         if self.plugin_config.render_mode == "image":
             try:
                 path = image_render.render_text_panel(self.paths, result.value)
-                return event.image_result(str(path))
+                return event.chain_result([Comp.Image.fromFileSystem(str(path))])
             except Exception as exc:
-                logger.warning(f"phi image render failed, fallback to text: {exc}")
+                logger.warning(
+                    "phi image render failed, fallback to text: "
+                    f"{exc}; render_mode={self.plugin_config.render_mode}; "
+                    f"resources={self.paths.resources}; fonts={image_render.font_diagnostics(self.paths)}"
+                )
         return event.plain_result(result.value)

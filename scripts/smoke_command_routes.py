@@ -39,6 +39,7 @@ EXPECTED_ROUTES = {
     "lvscore": "lvscore",
     "list": "list",
     "hisb30": "hisb30",
+    "renderdiag": "renderdiag",
 }
 
 

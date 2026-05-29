@@ -199,25 +199,47 @@ def _gradient(height: int) -> Image.Image:
     return image
 
 
+def font_diagnostics(paths: PluginPaths) -> list[str]:
+    return [str(path) for path in _font_candidates(paths, title=False)]
+
+
+def selected_font_path(paths: PluginPaths, *, title: bool = False) -> str:
+    font = _font(paths, 24, title=title)
+    return str(getattr(font, "path", "(Pillow default font)"))
+
+
 def _font(paths: PluginPaths, size: int, *, title: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    font_dir = paths.resources / "fonts"
-    candidates = []
-    if title:
-        candidates.append(font_dir / "Aldrich-Regular.ttf")
-    candidates.extend([
-        font_dir / "NotoSansSC-VF.ttf",
-        Path("C:/Windows/Fonts/msyh.ttc"),
-        Path("C:/Windows/Fonts/simhei.ttf"),
-        font_dir / "NotoSansJP.ttf",
-        font_dir / "Aldrich-Regular.ttf",
-    ])
-    for path in candidates:
+    for path in _font_candidates(paths, title=title):
         if path.exists():
             try:
                 return ImageFont.truetype(str(path), size=size)
             except OSError:
                 continue
     return ImageFont.load_default()
+
+
+def _font_candidates(paths: PluginPaths, *, title: bool) -> list[Path]:
+    font_dir = paths.resources / "fonts"
+    candidates = []
+    if title:
+        candidates.append(font_dir / "Aldrich-Regular.ttf")
+    candidates.extend([
+        font_dir / "NotoSansSC-VF.ttf",
+        font_dir / "NotoSansSC-Regular.otf",
+        font_dir / "SourceHanSansSC-Regular.otf",
+        Path("C:/Windows/Fonts/msyh.ttc"),
+        Path("C:/Windows/Fonts/msyh.ttf"),
+        Path("C:/Windows/Fonts/simsun.ttc"),
+        Path("C:/Windows/Fonts/simhei.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf"),
+        Path("/System/Library/Fonts/PingFang.ttc"),
+        Path("/System/Library/Fonts/STHeiti Light.ttc"),
+        font_dir / "NotoSansJP.ttf",
+        font_dir / "Aldrich-Regular.ttf",
+    ])
+    return candidates
 
 
 def _wrap_multiline(
