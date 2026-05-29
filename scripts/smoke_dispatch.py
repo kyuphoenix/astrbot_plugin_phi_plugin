@@ -87,11 +87,18 @@ async def main() -> None:
             ("id", "", "查询 ID: 12345"),
             ("sessiontoken", "", "AAAA"),
             ("auth", "", "请提供查询平台 API Token"),
-            ("best", "", "暂未"),
+            ("best", "", "还没有可用"),
+            ("tips", "", ""),
+            ("alias", "Glaciaxion", "name: Glaciaxion"),
+            ("com", "15.0 99.5", "等效 RKS"),
+            ("table", "15", "定数表 15"),
+            ("newnotice", "", "更新公告"),
+            ("newlog", "", "最新版本"),
+            ("randclg", "30-45", "随机课题"),
         ]
         for command, args, expected in cases:
             result = await dispatch(ctx, "smoke-user", command, args)
-            if expected not in result.value:
+            if expected and expected not in result.value:
                 raise SystemExit(f"{command} expected {expected!r}, got {result.value!r}")
             print(f"{command}: {result.value.splitlines()[0]}")
 

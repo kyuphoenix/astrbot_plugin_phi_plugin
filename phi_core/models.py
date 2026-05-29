@@ -53,6 +53,16 @@ class SearchHit:
 
 
 @dataclass(slots=True)
+class ChartEntry:
+    song_id: str
+    song_title: str
+    rank: str
+    difficulty: float
+    difficulty_text: str = ""
+    combo: int | None = None
+
+
+@dataclass(slots=True)
 class ScoreRecord:
     song_id: str
     song_title: str
@@ -63,6 +73,37 @@ class ScoreRecord:
     rating: str
     difficulty: float
     rks: float
+
+
+@dataclass(slots=True)
+class ScoreListEntry:
+    chart: ChartEntry
+    record: ScoreRecord | None = None
+    suggest_acc: float | None = None
+
+
+@dataclass(slots=True)
+class LevelScoreSummary:
+    range_text: str
+    levels: list[str]
+    total_charts: int
+    played_charts: int
+    phi_count: int
+    fc_count: int
+    avg_acc: float
+    avg_score: float
+    highest_difficulty: float
+    lowest_difficulty: float
+    rank_counts: dict[str, int]
+    rating_counts: dict[str, int]
+
+
+@dataclass(slots=True)
+class SuggestEntry:
+    chart: ChartEntry
+    current: ScoreRecord | None
+    target_acc: float
+    target_rks: float
 
 
 @dataclass(slots=True)

@@ -34,6 +34,8 @@ HELP_GROUPS = [
             ("phi search <关键词>", "搜索曲目与别名"),
             ("phi rand", "随机抽取一首曲目"),
             ("phi ill <曲名/别名>", "发送本地曲绘"),
+            ("phi alias <曲名/别名>", "查询本地别名库"),
+            ("phi tips / newlog", "随机 Tips 或查看本地更新日志"),
         ],
     },
     {
@@ -43,6 +45,14 @@ HELP_GROUPS = [
             ("phi score <曲名/别名>", "查询单曲成绩"),
             ("phi info", "查询个人统计摘要"),
             ("phi data", "查询 Data 数量"),
+            ("phi best [数量]", "文本版 Best 成绩列表"),
+            ("phi p30/fc30/x30", "AP、FC、1 Good 模式列表"),
+            ("phi lmtacc <acc>", "限制最低 ACC 后重算列表"),
+            ("phi list [条件]", "按定数、ACC、评级筛选成绩"),
+            ("phi lvscore [条件]", "统计指定定数/难度范围成绩"),
+            ("phi suggest", "基于缓存成绩估算推分建议"),
+            ("phi randclg [范围]", "随机三曲课题"),
+            ("phi table <定数>", "查询本地定数表"),
         ],
     },
     {

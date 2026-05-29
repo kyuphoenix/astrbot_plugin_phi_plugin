@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..models import Best30Result, ScoreRecord, SearchHit, Song, UserSummary
+from ..data.resources import VersionLog
+from ..models import (
+    Best30Result,
+    ChartEntry,
+    LevelScoreSummary,
+    ScoreListEntry,
+    ScoreRecord,
+    SearchHit,
+    Song,
+    SuggestEntry,
+    UserSummary,
+)
 
 HELP_TEXT = """
 Phi Plugin Query Core
@@ -24,8 +35,21 @@ phi info - 查询个人统计
 phi data - 查询 Data 数量
 phi id - 查看当前绑定的查询 ID / PlayerId
 phi sessiontoken - 查看当前绑定 token 的脱敏信息
+phi tips - 随机 Tips
+phi alias <曲名/别名> - 查询曲目别名
+phi com <定数> <acc> - 计算等效 RKS
+phi table <定数> - 查询定数表
+phi best [数量] - 文本版 Best 列表
+phi p30/fc30/x30 - AP/FC/1 Good 模式成绩列表
+phi list [条件] - 按定数/ACC/评级筛选成绩
+phi lvscore [条件] - 统计指定范围成绩
+phi lmtacc <acc> - 查看 ACC 下限后的 Best 列表
+phi suggest - 推分建议
+phi randclg [范围] - 随机三曲课题
+phi newlog - 查看本地曲库更新日志
+phi newnotice - 查看本地公告
 
-暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、Puppeteer 图片模板。
+暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、完整原版图片模板。
 """.strip()
 
 
@@ -191,12 +215,147 @@ def render_b30(result: Best30Result, limit: int = 30) -> str:
     return "\n".join(lines)
 
 
+def render_records(title: str, records: list[ScoreRecord], *, official_rks: float = 0.0, average_rks: float | None = None) -> str:
+    if not records:
+        return f"{title}\n没有找到符合条件的成绩。"
+    lines = [title]
+    if official_rks:
+        lines.append(f"官方 RKS: {official_rks:.4f}")
+    if average_rks is not None:
+        lines.append(f"列表均值 RKS: {average_rks:.4f}")
+    lines.append("")
+    for index, record in enumerate(records, 1):
+        lines.append(_record_line(index, record))
+    return "\n".join(lines)
+
+
 def render_score(song: Song, records: list[ScoreRecord]) -> str:
     if not records:
         return f"缓存存档中没有「{song.title}」的成绩。"
     lines = [f"{song.title} 成绩："]
     for index, record in enumerate(records, 1):
         lines.append(_record_line(index, record, include_song=False))
+    return "\n".join(lines)
+
+
+def render_alias(song: Song) -> str:
+    lines = [f"name: {song.title}", f"id: {song.id}"]
+    if song.aliases:
+        lines.append("已有别名：")
+        lines.extend(f"- {alias}" for alias in song.aliases)
+    else:
+        lines.append("本地别名库里还没有这首歌的别名。")
+    return "\n".join(lines)
+
+
+def render_com(difficulty: float, acc: float, rks: float) -> str:
+    return f"定数: {difficulty:.1f}\nACC: {acc:.4f}%\n等效 RKS: {rks:.6f}"
+
+
+def render_table(difficulty: float, charts: list[ChartEntry], *, version_label: str = "current", limit: int = 80) -> str:
+    if not charts:
+        return f"没有找到定数 {difficulty:g} 的谱面。"
+    lines = [f"定数表 {difficulty:g} ({version_label})", f"共 {len(charts)} 个谱面"]
+    for chart in sorted(charts, key=lambda item: (item.difficulty, item.rank, item.song_title))[:limit]:
+        combo = f" / {chart.combo} notes" if chart.combo else ""
+        lines.append(f"- {chart.difficulty:.1f} {chart.rank} {chart.song_title}{combo}")
+    if len(charts) > limit:
+        lines.append(f"... 还有 {len(charts) - limit} 个谱面未显示，请缩小范围。")
+    return "\n".join(lines)
+
+
+def render_score_list(entries: list[ScoreListEntry], request_lines: list[str], *, limit: int = 60) -> str:
+    if not entries:
+        return "没有找到符合条件的谱面或成绩。\n" + "\n".join(request_lines)
+    lines = ["成绩筛选", *request_lines, f"结果: {len(entries)} 条", ""]
+    for index, entry in enumerate(entries[:limit], 1):
+        chart = entry.chart
+        if entry.record:
+            record = entry.record
+            lines.append(
+                f"{index}. {chart.difficulty:.1f} {chart.rank} {chart.song_title} "
+                f"{record.score:,} / {record.acc:.4f}% / {record.rating.upper()} / RKS {record.rks:.4f}"
+            )
+        else:
+            lines.append(f"{index}. {chart.difficulty:.1f} {chart.rank} {chart.song_title} NEW")
+    if len(entries) > limit:
+        lines.append(f"... 还有 {len(entries) - limit} 条未显示，请缩小筛选范围。")
+    return "\n".join(lines)
+
+
+def render_level_score(summary: LevelScoreSummary) -> str:
+    return "\n".join([
+        "等级成绩统计",
+        f"范围: 定数 {summary.range_text} / 难度 {'/'.join(summary.levels)}",
+        f"谱面数: {summary.total_charts}",
+        f"已游玩: {summary.played_charts}",
+        f"Phi: {summary.phi_count}",
+        f"FC: {summary.fc_count}",
+        f"平均 ACC: {summary.avg_acc:.4f}%",
+        f"平均分: {summary.avg_score:.0f}",
+        f"定数范围: {summary.lowest_difficulty:.1f}-{summary.highest_difficulty:.1f}",
+        "难度分布: " + " / ".join(f"{k}:{v}" for k, v in summary.rank_counts.items() if v),
+        "评级分布: " + " / ".join(f"{k}:{v}" for k, v in summary.rating_counts.items() if v),
+    ])
+
+
+def render_suggest(entries: list[SuggestEntry]) -> str:
+    if not entries:
+        return "暂时没有找到可推分建议。你可能已经很强了，或者缓存成绩太少。"
+    lines = ["推分建议", "目标 ACC 为估算值，用来帮助挑歌，不等同于原插件 API 平均分建议。", ""]
+    for index, item in enumerate(entries, 1):
+        current = "NEW"
+        if item.current:
+            current = f"{item.current.acc:.4f}% / RKS {item.current.rks:.4f}"
+        lines.append(
+            f"{index}. {item.chart.difficulty:.1f} {item.chart.rank} {item.chart.song_title} "
+            f"当前 {current} -> 目标 {item.target_acc:.4f}%"
+        )
+    return "\n".join(lines)
+
+
+def render_random_challenge(target: int, charts: list[ChartEntry]) -> str:
+    lines = [f"随机课题: {target}", ""]
+    for index, chart in enumerate(charts, 1):
+        lines.append(f"{index}. {chart.rank} {chart.song_title} / 定数 {chart.difficulty:.1f}")
+    total = sum(int(chart.difficulty) for chart in charts)
+    lines.append(f"课题值: {total}")
+    return "\n".join(lines)
+
+
+def render_tip(tip: str | None) -> str:
+    return tip or "本地 tips.yaml 为空，暂时没有 Tips 可以抽。"
+
+
+def render_notice(notice: dict) -> str:
+    if not notice:
+        return "本地 notice.json 为空或不存在。"
+    lines = [str(notice.get("title") or "公告")]
+    if notice.get("code") is not None:
+        lines.append(f"code: {notice.get('code')}")
+    content = notice.get("content")
+    if isinstance(content, list):
+        lines.extend(str(item) for item in content)
+    elif content:
+        lines.append(str(content))
+    return "\n".join(lines)
+
+
+def render_newlog(log: VersionLog | None, *, limit: int = 30) -> str:
+    if log is None:
+        return "没有找到本地版本更新日志。"
+    lines = [
+        f"最新版本: {log.version_label} ({log.version_code})",
+        "更新信息:",
+        log.whatsnew or "无文字更新说明。",
+        "",
+        f"谱面变更: {len(log.changes)} 条",
+    ]
+    for item in log.changes[:limit]:
+        diffs = " / ".join(f"{rank} {item.get(rank)}" for rank in ("EZ", "HD", "IN", "AT") if item.get(rank))
+        lines.append(f"- {item.get('id', 'unknown')}: {diffs}")
+    if len(log.changes) > limit:
+        lines.append(f"... 还有 {len(log.changes) - limit} 条未显示。")
     return "\n".join(lines)
 
 
@@ -215,7 +374,7 @@ def render_user_info(summary: UserSummary) -> str:
 
 
 def render_unsupported(name: str) -> str:
-    return f"{name} 暂未在 AstrBot 查询核心版中迁移。当前先支持 help/song/search/rand/ill/bind/auth/update/b30/score/info/id/sessiontoken。"
+    return f"{name} 暂未在 AstrBot 版中迁移。当前可用命令请查看 phi help。"
 
 
 def _record_line(index: int, record: ScoreRecord, include_song: bool = True) -> str:

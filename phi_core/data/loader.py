@@ -48,6 +48,7 @@ def load_catalog(info_dir: Path) -> SongCatalog:
     nicklist_yaml = info_dir / "nicklist.yaml"
     spinfo_json = info_dir / "spinfo.json"
     otherinfo_yaml = info_dir / "otherinfo.yaml"
+    notes_info_json = info_dir / "notesInfo.json"
 
     if not info_csv.exists() or not difficulty_csv.exists():
         raise CatalogLoadError(f"missing required phi info resources in {info_dir}")
@@ -57,6 +58,7 @@ def load_catalog(info_dir: Path) -> SongCatalog:
     sp_info = _read_json(spinfo_json, {})
     other_info = _read_yaml(otherinfo_yaml, {})
     aliases_raw = _read_yaml(nicklist_yaml, {})
+    notes_info = _read_json(notes_info_json, {})
 
     songs: dict[str, Song] = {}
     with info_csv.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -93,6 +95,7 @@ def load_catalog(info_dir: Path) -> SongCatalog:
 
     _merge_sp_songs(songs, sp_info)
     _merge_other_songs(songs, other_info)
+    _merge_note_counts(songs, notes_info)
 
     alias_to_id: dict[str, str] = {}
     for song in songs.values():
@@ -246,6 +249,29 @@ def _merge_other_songs(songs: dict[str, Song], other_info: Any) -> None:
             is_original=data.get("isOriginal"),
             charts=charts,
         )
+
+
+def _merge_note_counts(songs: dict[str, Song], notes_info: Any) -> None:
+    if not isinstance(notes_info, dict):
+        return
+    for raw_id, ranks in notes_info.items():
+        song_id = normalize_song_id(str(raw_id))
+        song = songs.get(song_id)
+        if song is None or not isinstance(ranks, dict):
+            continue
+        for rank, data in ranks.items():
+            chart = song.charts.get(str(rank))
+            if chart is None or not isinstance(data, dict):
+                continue
+            totals = data.get("t")
+            if isinstance(totals, list):
+                combo = 0
+                for value in totals:
+                    parsed = _parse_int(value)
+                    if parsed is not None:
+                        combo += parsed
+                if combo > 0:
+                    chart.combo = combo
 
 
 def _resolve_alias_target(target: str, songs: dict[str, Song]) -> str | None:

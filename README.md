@@ -22,12 +22,27 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi data`：查询 Data 数量（存档包含 `gameProgress.money` 时）
 - `phi id`：查看已绑定查询 ID 和缓存存档中的 PlayerId
 - `phi sessiontoken`：查看本地 token 脱敏信息
+- `phi tips`：从本地 `tips.yaml` 随机抽取一条 Tips
+- `phi alias <曲名或别名>`：查询本地曲目别名
+- `phi com <定数> <acc>` / `phi 计算 <定数> <acc>`：计算等效 RKS
+- `phi table <定数>` / `phi 定数表 <定数>`：查询当前曲库定数表
+- `phi newlog [版本号]`：查看本地曲库更新日志
+- `phi newnotice`：查看本地公告
+- `phi best [数量]`：文本版 Best 列表
+- `phi p30` / `phi fc30` / `phi x30`：AP、FC、1 Good 模式成绩列表
+- `phi lmtacc <acc>`：限制最低 ACC 后查看 Best 列表
+- `phi list [条件]`：按定数、ACC、难度、评级筛选成绩，例如 `phi list 14-15 IN -acc 98+ FC`
+- `phi lvscore [条件]`：统计指定范围成绩，例如 `phi lvscore 13-15 IN AT`
+- `phi suggest` / `phi 推分建议`：基于缓存成绩估算推分建议
+- `phi randclg [范围]`：随机三曲课题，例如 `phi randclg 30-45`
 
 命令触发使用 AstrBot 原生 `@filter.command("phi")`，实际前缀由 AstrBot 全局唤醒/命令配置处理，本插件不再自行监听 `#` 或 `/`。
 
 命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
 图片渲染使用 AstrBot 官方 `Star.html_render`，通过 `HTML + Jinja2` 模板走 AstrBot 内置截图服务，尽量贴近原版 phi-plugin 的 Puppeteer 模板截图流程。Pillow 面板回退已移除，方便暴露真实 HTML 渲染问题。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，并会把当前面板需要的字符裁剪成小字体 data URI，避免远端 T2I 服务读取不到本机字体导致中文渲染失败。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`，字体子集缓存写入 `cache/fonts/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
+
+原版 `resources/html/` 已复制到当前插件，后续可以逐个把 `b19/list/lvsco/table/suggest/newnotice` 等 HTML 模板接入 AstrBot T2I。当前新增迁移命令先提供文字版逻辑，确保参数解析、曲库资源和缓存存档计算可用。
 
 ## 迁移说明
 
