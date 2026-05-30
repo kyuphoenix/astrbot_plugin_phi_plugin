@@ -13,8 +13,9 @@ from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
-from ..data.illustrations import find_background_illustration_file, find_illustration_file, random_background_source
+from ..data.illustrations import background_source_candidates, find_background_illustration_file, find_illustration_file
 from ..data.resources import latest_version_log, load_version_log
 from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
 from ..paths import PluginPaths
@@ -132,6 +133,10 @@ def asset_uri(paths: PluginPaths, relative: str) -> str:
     if relative:
         base = base / relative
     return _file_data_uri(base)
+
+
+def image_data_uri(paths: PluginPaths, source: str | Path) -> str:
+    return _source_data_uri(paths, source)
 
 
 def _b30_title(
@@ -374,14 +379,10 @@ requestAnimationFrame(phiAdjustFontSize);
 
 
 def _random_background(paths: PluginPaths) -> str:
-    source = random_background_source(paths)
-    if isinstance(source, Path):
-        return _file_data_uri(source)
-    if isinstance(source, str) and source:
-        cached = _remote_image_data_uri(paths, source)
-        if cached:
-            return cached
-        return source
+    for source in background_source_candidates(paths):
+        uri = _source_data_uri(paths, source)
+        if uri:
+            return uri
     fallback = _other_illustration_data_uri(paths)
     if fallback:
         return fallback
@@ -422,11 +423,14 @@ def _css_text(paths: PluginPaths, relative: str) -> str:
     def replace_url(match: re.Match[str]) -> str:
         raw_url = match.group(2).strip()
         lowered = raw_url.lower()
-        if lowered.startswith(("data:", "http:", "https:", "file:", "#")):
+        if lowered.startswith(("data:", "#")):
             return match.group(0)
+        if lowered.startswith(("http:", "https:", "file:")):
+            data_uri = _source_data_uri(paths, raw_url)
+            return f'url("{data_uri}")' if data_uri else 'url("")'
         resolved = (base_dir / raw_url).resolve()
         data_uri = _file_data_uri(resolved)
-        return f'url("{data_uri}")' if data_uri else match.group(0)
+        return f'url("{data_uri}")' if data_uri else 'url("")'
 
     return _CSS_URL_RE.sub(replace_url, css)
 
@@ -446,6 +450,28 @@ def _file_data_uri(path: Path) -> str:
     return f"data:{mime};base64,{payload}"
 
 
+def _source_data_uri(paths: PluginPaths, source: str | Path) -> str:
+    if isinstance(source, Path):
+        return _file_data_uri(source)
+    text = str(source or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered.startswith("data:image/"):
+        return text
+    if lowered.startswith("base64://"):
+        return f"data:image/png;base64,{text[len('base64://'):]}"
+    if lowered.startswith(("http://", "https://")):
+        return _remote_image_data_uri(paths, text)
+    if lowered.startswith("file://"):
+        parsed = urlparse(text)
+        file_path = unquote(parsed.path)
+        if re.match(r"^/[A-Za-z]:/", file_path):
+            file_path = file_path[1:]
+        return _file_data_uri(Path(file_path))
+    return _file_data_uri(Path(text))
+
+
 def _remote_image_data_uri(paths: PluginPaths, url: str) -> str:
     if not url.lower().startswith(("http://", "https://")):
         return ""
@@ -457,8 +483,14 @@ def _remote_image_data_uri(paths: PluginPaths, url: str) -> str:
         if cached.exists() and cached.is_file():
             return _file_data_uri(cached)
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "astrbot-phi-plugin/1.0"})
-        with urllib.request.urlopen(request, timeout=5) as response:
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+                "User-Agent": "astrbot-phi-plugin/1.0",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
             content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
             payload = response.read(8 * 1024 * 1024)
     except Exception:

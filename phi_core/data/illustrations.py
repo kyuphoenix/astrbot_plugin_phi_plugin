@@ -69,18 +69,32 @@ def random_illustration_file(paths: PluginPaths, *, rng: random.Random | None = 
 
 
 def random_background_source(paths: PluginPaths, *, rng: random.Random | None = None) -> Path | str | None:
-    local = _available_background_illustrations(paths)
+    candidates = background_source_candidates(paths, rng=rng, online_limit=1)
+    return candidates[0] if candidates else None
+
+
+def background_source_candidates(
+    paths: PluginPaths,
+    *,
+    rng: random.Random | None = None,
+    online_limit: int = 12,
+) -> list[Path | str]:
     chooser = rng or random.Random()
+    local = _available_background_illustrations(paths)
+    chooser.shuffle(local)
     if local:
-        return chooser.choice(local)
+        return local
+
     ids = _available_online_illustration_ids(paths)
-    if ids:
-        filename = quote(f"{chooser.choice(ids)}.png")
-        return f"{ONLINE_ILL_BASE}/illBlur/{filename}"
+    chooser.shuffle(ids)
+    online = [
+        f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}"
+        for song_id in ids[:max(0, online_limit)]
+    ]
+
     fallback = _available_other_illustrations(paths)
-    if fallback:
-        return chooser.choice(fallback)
-    return None
+    chooser.shuffle(fallback)
+    return [*online, *fallback]
 
 
 def _available_illustrations(paths: PluginPaths) -> list[Path]:

@@ -235,12 +235,14 @@ async def main() -> None:
             raise SystemExit("background picker should fall back to online random blurred illustrations before phigros.png")
         original_remote_loader = original._remote_image_data_uri
         try:
-            original._remote_image_data_uri = lambda _paths, _url: ""
+            original._remote_image_data_uri = lambda _paths, _url: "data:image/png;base64,cmVtb3Rl"
             online_help_html = original.help_html(online_paths)
         finally:
             original._remote_image_data_uri = original_remote_loader
-        if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in online_help_html:
-            raise SystemExit("html background should keep online illustration URL when local prefetch fails")
+        if "data:image/png;base64,cmVtb3Rl" not in online_help_html:
+            raise SystemExit("html background should inline online illustration bytes before rendering")
+        if "raw.githubusercontent.com" in online_help_html or "file:///" in online_help_html:
+            raise SystemExit("html background should not pass remote or local file URLs to t2i")
         trim_source = paths.render_cache / "trim-source.png"
         Image.new("RGB", (1280, 32), (0, 0, 0)).save(trim_source)
         with Image.open(trim_source) as image:
@@ -376,6 +378,16 @@ async def main() -> None:
             raise SystemExit("official html renderer should receive inlined original common css resources")
         if html_render_calls[0][3] is None or html_render_calls[0][3].get("type") != "png":
             raise SystemExit("official html renderer should be asked for png output")
+        ill_result = await dispatch(html_ctx, "smoke-user", "ill", "Glaciaxion")
+        if ill_result.kind != "image" or not Path(ill_result.value).exists():
+            raise SystemExit(f"official ill render path failed: {ill_result!r}")
+        if len(html_render_calls) < 2:
+            raise SystemExit("phi ill should call official html renderer in image mode")
+        ill_html = html_render_calls[-1][0]
+        if "file:///" in ill_html or "http://raw.githubusercontent" in ill_html or "https://raw.githubusercontent" in ill_html:
+            raise SystemExit("phi ill should pass base64 data URIs to t2i, not local or remote URLs")
+        if "data:image/" not in ill_html:
+            raise SystemExit("phi ill should inline illustration images as data URIs")
 
         byte_render_calls: list[tuple[str, dict, bool, dict | None]] = []
 

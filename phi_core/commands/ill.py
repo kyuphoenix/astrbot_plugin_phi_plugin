@@ -17,10 +17,11 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     path = ctx.find_illustration(song)
     if path:
         if ctx.config.render_mode == "image" and ctx.html_render is not None:
+            illustration = original.image_data_uri(ctx.paths, path)
             rendered = await panel.render_html(
                 ctx.config,
                 ctx.paths,
-                original.ill_html(ctx.paths, path.resolve().as_uri(), song.illustrator),
+                original.ill_html(ctx.paths, illustration, song.illustrator),
                 "ill",
                 html_render=ctx.html_render,
             )
