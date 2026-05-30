@@ -374,12 +374,12 @@ async def main() -> None:
             raise SystemExit("help html background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in html_render_calls[0][0]:
             raise SystemExit("help html should remove original common.css phigros body fallback before t2i")
-        if 'background-image: url("data:image/' not in html_render_calls[0][0]:
-            raise SystemExit("help html should inline the selected illustration into reset background css")
+        if '<img src="data:image/' not in html_render_calls[0][0]:
+            raise SystemExit("help html should inline the selected illustration into the contained background layer")
         if 'body {\n  background-image: none !important;' not in html_render_calls[0][0]:
             raise SystemExit("help html should not paint the selected illustration as an unblurred body background")
-        if "filter: blur(20px) brightness(50%) !important" not in html_render_calls[0][0]:
-            raise SystemExit("help html should force the visible background layer to stay blurred")
+        if "overflow: hidden !important" not in html_render_calls[0][0] or "contain: paint !important" not in html_render_calls[0][0]:
+            raise SystemExit("help html background should be contained so the blurred layer does not expand page width")
         if "phiAdjustFontSize" not in html_render_calls[0][0]:
             raise SystemExit("official html renderer should include original auto font sizing script")
         if html_render_calls[0][2] is not False:
@@ -490,12 +490,12 @@ async def main() -> None:
             raise SystemExit("image pgr background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should remove original common.css phigros body fallback before t2i")
-        if 'background-image: url("data:image/' not in b30_render_calls[0][0]:
-            raise SystemExit("image pgr should inline the selected illustration into reset background css")
+        if '<img src="data:image/' not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should inline the selected illustration into the contained background layer")
         if 'body {\n  background-image: none !important;' not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should not paint the selected illustration as an unblurred body background")
-        if "filter: blur(20px) brightness(50%) !important" not in b30_render_calls[0][0]:
-            raise SystemExit("image pgr should force the visible background layer to stay blurred")
+        if "overflow: hidden !important" not in b30_render_calls[0][0] or "contain: paint !important" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr background should be contained so the blurred layer does not expand page width")
         if "phigros.png" in b30_render_calls[0][0]:
             raise SystemExit("image pgr should not fall back to phigros when local illustrations exist")
         if "Real RKS:" not in b30_render_calls[0][0]:

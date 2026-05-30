@@ -319,24 +319,10 @@ def _suggest_type(acc: float) -> str:
 def _render_reset_css(background: str = "") -> str:
     background_css = ""
     if background:
-        safe_background = background.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "")
-        background_css = f"""
-html::before {{
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("{safe_background}");
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  filter: blur(20px) brightness(50%);
-  transform: scale(1.08);
-  z-index: 0;
-  pointer-events: none;
-}}
-body {{
+        background_css = """
+body {
   background-image: none !important;
-}}
+}
 """
     return """
 html {
@@ -370,6 +356,8 @@ body {
   min-height: 100% !important;
   z-index: 0 !important;
   pointer-events: none !important;
+  overflow: hidden !important;
+  contain: paint !important;
 }
 .background img {
   width: 100% !important;
