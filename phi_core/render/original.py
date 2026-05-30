@@ -335,10 +335,7 @@ html::before {{
   pointer-events: none;
 }}
 body {{
-  background-image: url("{safe_background}") !important;
-  background-position: center !important;
-  background-size: cover !important;
-  background-repeat: no-repeat !important;
+  background-image: none !important;
 }}
 """
     return """
@@ -380,6 +377,8 @@ body {
   height: 100% !important;
   min-height: 100% !important;
   object-fit: cover !important;
+  filter: blur(20px) brightness(50%) !important;
+  transform: scale(1.2) !important;
   z-index: 0 !important;
 }
 body > :not(.background) {

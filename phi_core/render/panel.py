@@ -124,6 +124,8 @@ def _options() -> dict:
         "type": "png",
         "device_scale_factor_level": "ultra",
         "timeout": 30000,
+        "viewport_width": 1200,
+        "viewport_height": 1000,
     }
 
 
@@ -152,6 +154,11 @@ def _trim_right_border(paths: PluginPaths, path: Path, name: str) -> Path:
         from PIL import Image
 
         with Image.open(path) as image:
+            if image.width > 1200:
+                paths.render_cache.mkdir(parents=True, exist_ok=True)
+                output = paths.render_cache / f"html-{name}-trim-{uuid.uuid4().hex[:10]}{path.suffix or '.png'}"
+                image.crop((0, 0, 1200, image.height)).save(output)
+                return output
             crop_right = _right_content_edge(image.convert("RGB"))
             if crop_right >= image.width - 1 or crop_right < int(image.width * 0.8):
                 return path
