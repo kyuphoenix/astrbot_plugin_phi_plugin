@@ -514,9 +514,33 @@ async def main() -> None:
             ("x30", ".content-box", "1 Good Mode"),
             ("fc30", ".content-box", "Full Combo Mode"),
             ("info", ".Player_Info", "PLAYER_INFO"),
+            ("lmtacc", ".content-box", "Limit ACC Mode"),
+            ("list", ".list_box", 'class="list_box"'),
+            ("lvscore", ".full-box", 'class="full-box"'),
+            ("table", ".tableBox", 'class="tableBox"'),
+            ("suggest", ".group_list", 'class="group_list"'),
+            ("score", ".scoreHistory", "SCORE_DATA"),
+            ("chap", ".song-box", 'class="song-box"'),
+            ("achievement", ".list_box", "Player Achievements"),
+            ("hisb30", ".main-box", 'class="main-box"'),
+            ("2025history", ".page", 'class="page"'),
+            ("rand", ".box-left", 'class="box-left"'),
+            ("randclg", ".tot-box", 'class="tot-box"'),
+            ("song", ".big-box", 'class="big-box"'),
         ):
             before = len(b30_render_calls)
-            result = await dispatch(image_login_ctx, "login-user", command, "")
+            command_args = {
+                "lmtacc": "98",
+                "list": "12",
+                "lvscore": "12",
+                "table": "12",
+                "score": "Glaciaxion",
+                "chap": "C0",
+                "achievement": "12",
+                "randclg": "30-45",
+                "song": "Glaciaxion",
+            }.get(command, "")
+            result = await dispatch(image_login_ctx, "login-user", command, command_args)
             if result.kind != "image" or not Path(result.value).exists():
                 raise SystemExit(f"image {command} should render an image, got {result!r}")
             if len(b30_render_calls) != before + 1:

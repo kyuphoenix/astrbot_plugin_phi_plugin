@@ -5,15 +5,20 @@ from typing import Any
 import yaml
 
 from .common import CommandContext, CommandResult
+from ._rendering import render_original_html
 from ..query import compute_chapter_summary, iter_score_records
+from ..render import original
 from ..render import text as render
 
 ALIASES = {"chap"}
 
 
-def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
+async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     query = args.strip()
     if not query or query.casefold() == "help":
+        help_img = ctx.paths.resources / "html" / "otherimg" / "chapHelp.png"
+        if ctx.config.render_mode == "image" and help_img.exists():
+            return CommandResult.image(help_img)
         return CommandResult.text(_chapter_help(ctx))
 
     snapshot = ctx.load_snapshot(user_id)
@@ -23,23 +28,26 @@ def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     chapter = _resolve_chapter_alias(ctx, query)
     summary = compute_chapter_summary(iter_score_records(snapshot, ctx.catalog), ctx.catalog, chapter or query)
     if summary is None:
-        return CommandResult.text(f"未找到「{query}」章节。可以使用 phi chap help 查看支持的名称。")
+        return CommandResult.text(f"\u672a\u627e\u5230\u300c{query}\u300d\u7ae0\u8282\u3002\u53ef\u4ee5\u4f7f\u7528 phi chap help \u67e5\u770b\u652f\u6301\u7684\u540d\u79f0\u3002")
+    if ctx.config.render_mode == "image" and ctx.html_render is not None:
+        path = await render_original_html(ctx, original.chap_html(ctx.paths, summary, snapshot=snapshot), "chap")
+        return CommandResult.image(path)
     return CommandResult.text(render.render_chapter_summary(summary))
 
 
 def _chapter_help(ctx: CommandContext) -> str:
     aliases = _load_chapter_aliases(ctx)
-    lines = ["章节成绩查询", "格式：phi chap <章节名|别名|all>", "", "支持章节："]
+    lines = ["\u7ae0\u8282\u6210\u7ee9\u67e5\u8be2", "\u683c\u5f0f\uff1aphi chap <\u7ae0\u8282\u540d|\u522b\u540d|all>", "", "\u652f\u6301\u7ae0\u8282\uff1a"]
     for name, values in aliases.items():
         preview = " / ".join(str(item) for item in values[:4])
         lines.append(f"- {name}" + (f" ({preview})" if preview else ""))
-    lines.append("- all / 全部")
+    lines.append("- all / \u5168\u90e8")
     return "\n".join(lines)
 
 
 def _resolve_chapter_alias(ctx: CommandContext, query: str) -> str | None:
     key = _normalize(query)
-    if key in {"all", "allsong", "全部"}:
+    if key in {"all", "allsong", "\u5168\u90e8"}:
         return "ALL"
     for name, values in _load_chapter_aliases(ctx).items():
         if _normalize(name) == key:

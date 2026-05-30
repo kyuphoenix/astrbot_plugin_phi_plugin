@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
+from ._rendering import render_original_html
 from ..query import random_challenge
+from ..render import original
 from ..render import text as render
 
 ALIASES = {"randclg"}
 
 
-def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
+async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     result = random_challenge(ctx.catalog, args)
     if result is None:
-        return CommandResult.text("未找到符合条件的随机课题。可以试试：phi randclg 30-45")
+        return CommandResult.text("\u672a\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u968f\u673a\u8bfe\u9898\u3002\u53ef\u4ee5\u8bd5\u8bd5\uff1aphi randclg 30-45")
     target, charts = result
+    if ctx.config.render_mode == "image" and ctx.html_render is not None:
+        path = await render_original_html(ctx, original.randclg_html(ctx.paths, target, charts), "randclg")
+        return CommandResult.image(path)
     return CommandResult.text(render.render_random_challenge(target, charts))

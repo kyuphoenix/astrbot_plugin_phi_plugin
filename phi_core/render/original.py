@@ -19,13 +19,24 @@ from urllib.parse import unquote, urlparse
 from ..data.loader import SongCatalog
 from ..data.illustrations import background_source_candidates, find_background_illustration_file, find_illustration_file
 from ..data.resources import VersionLog, latest_version_log, load_version_log
-from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
+from ..models import (
+    Best30Result,
+    ChartEntry,
+    LEVELS,
+    LevelScoreSummary,
+    SaveSnapshot,
+    ScoreListEntry,
+    ScoreRecord,
+    Song,
+    SuggestEntry,
+)
 from ..models import ProgressDay, ProgressScoreChange, UpdateProgressSummary, UserSummary
 from ..paths import PluginPaths
 from ..query.b30 import iter_score_records
 from ..query.progress import extract_modified_datetime, extract_money, format_datetime, money_to_kib
 
 _CSS_URL_RE = re.compile(r"url\((['\"]?)([^)'\"]+)\1\)")
+_CSS_IMPORT_RE = re.compile(r"@import\s+(?:url\()?['\"]([^'\")]+)['\"]\)?\s*;")
 
 
 def help_html(paths: PluginPaths, *, cmd_head: str = "phi") -> str:
@@ -114,6 +125,370 @@ def record_list_html(
         body.append("</div>")
     body.append('<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>')
     return original_page(paths, "b19/dss2.css", "\n".join(body), theme="default", background=background)
+
+
+def list_html(paths: PluginPaths, entries: list[ScoreListEntry], *, title: str = "Score List", limit: int = 80) -> str:
+    rows = []
+    for index, entry in enumerate(entries[:limit], 1):
+        rows.append(_score_list_line(paths, entry, index))
+    if len(entries) > limit:
+        rows.append(_notice_line(f"... 还有 {len(entries) - limit} 条未显示，请缩小筛选范围。"))
+    if not rows:
+        rows.append(_notice_line("没有找到符合条件的谱面或成绩。"))
+    body = f"""
+<div class="head_title"><p>{_esc(title)}</p></div>
+<div class="list_box">
+  {''.join(rows)}
+</div>
+<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+"""
+    return original_page(paths, "list/list.css", body, theme="default", background=_random_background_for_entries(paths, entries))
+
+
+def suggest_html(paths: PluginPaths, entries: list[SuggestEntry], *, title: str = "推分建议") -> str:
+    grouped: dict[str, list[SuggestEntry]] = {str(index): [] for index in range(6)}
+    for entry in entries:
+        grouped[_suggest_type(entry.target_acc)].append(entry)
+    groups = [
+        ("5", "99.85% ~ 100%"),
+        ("4", "99.70% ~ 99.85%"),
+        ("3", "99.50% ~ 99.70%"),
+        ("2", "99.00% ~ 99.50%"),
+        ("1", "98.50% ~ 99.00%"),
+        ("0", "00.00% ~ 98.50%"),
+    ]
+    body_parts = [f'<div class="head_title"><p>{_esc(title)}</p></div>', '<div class="group_list">']
+    for key, label in groups:
+        body_parts.append(f'<div class="group group-kind-{key}"><div class="group_title"><p>{_esc(label)}</p></div><div class="row_box">')
+        if grouped[key]:
+            for index, entry in enumerate(grouped[key], 1):
+                body_parts.append(_suggest_line(paths, entry, index, key))
+        body_parts.append("</div></div>")
+    if not entries:
+        body_parts.append('<div class="group"><div class="row_box">')
+        body_parts.append(_notice_line("暂时没有找到可推分建议。"))
+        body_parts.append("</div></div>")
+    body_parts.append("</div>")
+    body_parts.append('<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>')
+    return original_page(paths, "suggest/suggest.css", "\n".join(body_parts), theme="default", background=_random_background_for_suggestions(paths, entries))
+
+
+def table_html(
+    paths: PluginPaths,
+    charts: list[ChartEntry],
+    *,
+    difficulty: float,
+    version_label: str = "current",
+    snapshot: SaveSnapshot | None = None,
+) -> str:
+    record_map: dict[tuple[str, str], ScoreRecord] = {}
+    return table_with_records_html(paths, charts, difficulty=difficulty, version_label=version_label, record_map=record_map, snapshot=snapshot)
+
+
+def table_with_records_html(
+    paths: PluginPaths,
+    charts: list[ChartEntry],
+    *,
+    difficulty: float,
+    version_label: str = "current",
+    record_map: dict[tuple[str, str], ScoreRecord] | None = None,
+    snapshot: SaveSnapshot | None = None,
+) -> str:
+    grouped: dict[str, list[ChartEntry]] = {}
+    for chart in sorted(charts, key=lambda item: (item.difficulty, item.rank, item.song_title)):
+        grouped.setdefault(f"{chart.difficulty:.1f}", []).append(chart)
+    gameuser = _gameuser(snapshot) if snapshot is not None else None
+    body = [
+        '<div class="row titleRow"><div class="title"><div class="phigrosTitle"><p class="phigros-title-font">Phigros</p></div>'
+        '<div class="title-line"><div class="titleDesc"><p>Constant Table</p></div>'
+        f'<div class="phigrosVersion clip-box"><p>{_esc(version_label)}</p></div></div></div>'
+        '<div class="queryDifficulty"><div class="qdBox"><div class="query"><p>Difficulty</p></div>'
+        f'<div class="total"><p>Total: {len(charts)}</p></div><div class="index clip-box"><div class="query"><p>Difficulty</p></div><p>{difficulty:g}</p>'
+        f'<div class="total"><p>Total: {len(charts)}</p></div></div></div></div></div>'
+    ]
+    if gameuser is not None:
+        body.append('<div class="row playerInfoRow">')
+        body.append(_table_player_info(paths, gameuser, format_datetime(extract_modified_datetime(snapshot.raw))))
+        body.append("</div>")
+    body.append('<div class="tableBox">')
+    for label, label_charts in grouped.items():
+        min_rating = _table_bucket_rating(label_charts, record_map or {})
+        body.append('<div class="label"><div class="labelHead"><div class="heng"><div class="line clip-box"></div></div><div class="shu leftSlopeAbsolute"><div class="line clip-box"></div></div></div>')
+        body.append(f'<div class="labelContentBox"><div class="labelContent clip-box"><p>{_esc(label)}</p></div>')
+        if gameuser is not None:
+            body.append(f'<div class="labelContent clip-box"><img src="{asset_uri(paths, f"html/otherimg/{min_rating}.png")}" alt="{_esc(min_rating)}"></div>')
+        body.append("</div></div>")
+        body.append('<div class="content">')
+        for chart in label_charts:
+            body.append(_table_chart_card(paths, chart, (record_map or {}).get((chart.song_id, chart.rank)), show_score=gameuser is not None))
+        body.append("</div>")
+    body.append("</div>")
+    body.append('<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>')
+    return original_page(paths, "table/table.css", "\n".join(body), theme="default", background=_random_background_for_charts(paths, charts))
+
+
+def lvscore_html(paths: PluginPaths, summary: LevelScoreSummary, snapshot: SaveSnapshot) -> str:
+    gameuser = _gameuser(snapshot)
+    challenge_img = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
+    rating = _dominant_rating_from_counts(summary.rating_counts)
+    rating_img = asset_uri(paths, f"html/otherimg/{rating}.png")
+    progress_phi = _percentage(summary.phi_count, summary.total_charts)
+    progress_fc = _percentage(summary.fc_count, summary.total_charts)
+    rank_boxes = "".join(_lvscore_rank_box(rank, summary.rank_counts.get(rank, 0)) for rank in ("AT", "IN", "HD", "EZ"))
+    rating_stats = "".join(
+        f'<div class="rating_stats_group"><img src="{asset_uri(paths, f"html/otherimg/{_rating_asset(rating_key)}.png")}" alt="{_esc(_rating_asset(rating_key))}"><p>{count}</p><div class="rating_stats_bar" style="height:{_percentage(count, max(summary.rating_counts.values()) if summary.rating_counts else 1)}%;"></div></div>'
+        for rating_key, count in summary.rating_counts.items()
+        if rating_key != "tot" and count
+    )
+    body = f"""
+<div class="full-box">
+  <div class="left">
+    <div class="left-top"><img src="{_random_background(paths)}" alt="illustration"></div>
+    <div class="left-content"><div class="left-content-left"></div><div class="left-content-right"></div></div>
+    <div class="left-mid">{rank_boxes}</div>
+    <div class="left-mid-bottom"></div>
+    <div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+  </div>
+  <div class="left-up">
+    <div class="left-top">
+      <div class="illustration"><img src="{_random_background(paths)}" alt="illustration"></div>
+      <div class="user_info"><div class="info_up">
+        <div class="avatar"><img src="{asset_uri(paths, f"html/avatar/{gameuser['avatar']}.png") or asset_uri(paths, "html/avatar/Introduction.png")}" alt="{_esc(gameuser['avatar'])}"></div>
+        <div class="basic_info"><div class="user_name"><p name="pvis">{_esc(gameuser['PlayerId'])}</p></div><div class="user_rks"><div class="player_rks"><p>{float(gameuser['rks']):.4f}</p></div><div class="Challenge"><img src="{challenge_img}" alt="Challenge"><p>{gameuser['ChallengeModeRank']}</p></div></div></div>
+        <div class="user_info_right"></div>
+      </div></div>
+      <div class="difficulty_box"><div class="difficulty_box_p"><p>已选定数区间</p></div><div class="difficulty_value" style="margin-left:0%;"><p>{_esc(summary.range_text.split('-', 1)[0])}</p></div><div class="difficulty_bar-out"><div class="difficulty_bar-in" style="margin-left:0%;width:100%;"></div></div><div class="difficulty_value" style="margin-left:100%;"><p>{_esc(summary.range_text.split('-', 1)[-1])}</p></div></div>
+    </div>
+    <div class="left-content"><div class="left-content-left"><p>CONTENT</p></div><div class="left-content-right"></div></div>
+    <div class="left-mid">{rank_boxes.replace("left-mid-box", "left-up-mid-box")}</div>
+    <div class="left-up-mid-bottom"></div>
+  </div>
+  <div class="right" id="{_esc(_rating_asset(rating))}">
+    <div class="file-content"><div class="file-content-left"><p>FILE_CONTENT</p></div><div class="progress_bar-out"><div class="progress_bar-in-phi" style="width:{progress_phi:.4f}%;"><p>{progress_phi:.4f}% PHI.</p></div><div class="progress_bar-in-fc" style="width:{max(0.0, progress_fc - progress_phi):.4f}%;"><p>{progress_fc:.4f}% FullCombo.</p></div></div></div>
+    <div class="right_title"><p>Total</p><div class="title_group"><div class="title_group-real"><p>{summary.played_charts}</p></div><div class="title_group-tot"><p>/{summary.total_charts} charts</p></div></div></div>
+    <div class="right_content"><div class="right_content-title"><p>收集日期</p></div><p>{_esc(format_datetime(extract_modified_datetime(snapshot.raw)))}</p><div class="right_content-title"><p>保管单位</p></div><p>{_esc(gameuser['PlayerId'])}</p><div class="right_content-title"><p>定数范围</p></div><p>{_esc(summary.range_text)}</p></div>
+    <div class="tot_Rating"><img src="{rating_img}" alt="{_esc(rating)}"></div>
+    <div class="title_group" id="score"><div class="title_group-real" id="real-score"><p>{int(summary.avg_score):,}</p></div><div class="title_group-tot" id="tot-score"><p>avg score</p></div></div>
+    <div class="title_group" id="highest"><div class="title_group-real" id="real-highlow"><p>{summary.highest_difficulty:.4f}</p></div><div class="title_group-tot" id="tot-highlow"><p>Highest</p></div></div>
+    <div class="title_group" id="lowest"><div class="title_group-real" id="real-highlow"><p>{summary.lowest_difficulty:.4f}</p></div><div class="title_group-tot" id="tot-highlow"><p>Lowest</p></div></div>
+    <div class="tot_acc-box"><div class="tot_acc-left"><span>{int(summary.avg_acc)}</span></div><div class="tot_acc-right"><span id="acc_word">ACC</span><span>.{int((summary.avg_acc % 1) * 10000):04d}%</span></div></div>
+    <div class="stats-rating-group"><div class="rating-group"><div class="rating-value"><p>{summary.played_charts}</p></div><div class="rating-tatle"><p>Cleared</p></div></div><div class="rating-group"><div class="rating-value"><p>{summary.fc_count}</p></div><div class="rating-tatle"><p>FC</p></div></div><div class="rating-group"><div class="rating-value"><p>{summary.phi_count}</p></div><div class="rating-tatle"><p>PHI</p></div></div></div>
+    <div class="rating_stats">{rating_stats}</div>
+  </div>
+</div>
+"""
+    return original_page(paths, "lvsco/lvsco.css", body, theme="default", background=_random_background(paths))
+
+
+def score_html(
+    paths: PluginPaths,
+    song: Song,
+    records: list[ScoreRecord],
+    snapshot: SaveSnapshot,
+    *,
+    history: list[ScoreRecord] | None = None,
+) -> str:
+    gameuser = _gameuser(snapshot)
+    illustration = _song_illustration(paths, song)
+    challenge_img = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
+    score_cards = []
+    record_map = {record.rank: record for record in records}
+    for rank in LEVELS:
+        chart = song.charts.get(rank)
+        if chart is None:
+            continue
+        score_cards.append(_score_rank_card(paths, rank, chart.difficulty or 0.0, record_map.get(rank)))
+    history_rows = "".join(_score_history_row(paths, record) for record in (history or records)[:12])
+    body = f"""
+<div class="left">
+  <div class="Player_Info"><p>PLAYER & SONGS_INFO</p></div>
+  <div class="basic-box">
+    <div class="song_Id"><p name="pvis">{_esc(song.title)}</p></div>
+    <div class="basic-img"><img src="{illustration}" alt="{_esc(song.title)}"></div>
+    <div class="Player_Id">
+      <div class="avatar"><img src="{asset_uri(paths, f"html/avatar/{gameuser['avatar']}.png") or asset_uri(paths, "html/avatar/Introduction.png")}" alt="{_esc(gameuser['avatar'])}"></div>
+      <div class="Player_Id-box"><div class="Player_Id-left"><p>ID</p></div><div class="Player_Id-right"><p name="pvis">{_esc(gameuser['PlayerId'])}</p></div></div>
+    </div>
+  </div>
+  <div class="left_title"><div class="left_title-left"><p>PLAYER_DETAIL</p></div></div>
+  <div class="Player_data_line">
+    <div class="Player_data_line-left"><div class="Player_data_title" id="Player_data_left"><p>RKS</p></div><div class="Player_data_value" id="Player_data_left"><p>{float(gameuser['rks']):.4f}</p></div></div>
+    <div class="Player_data_line-right"><div class="Player_data_title" id="Player_data_right"><p>CLG MOD</p></div><div class="Challenge" id="Challenge2"><img src="{challenge_img}" alt="Challenge"><span>{gameuser['ChallengeModeRank']}</span></div></div>
+  </div>
+  <div class="left_title"><div class="left_title-left"><p>SONG_DETAIL</p></div></div>
+  <div class="rank_dif_{1 if song.charts.get('AT') else 0}">
+    {''.join(_score_difficulty_chip(rank, song.charts[rank].difficulty or 0.0) for rank in LEVELS if rank in song.charts)}
+  </div>
+  <div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+</div>
+<div class="right">
+  <div class="file-content"><div class="file-content-left"><p>SCORE_DATA</p></div></div>
+  <div class="data_title"><div class="data_title-left"><p>SCORE_INFO</p></div></div>
+  <div class="stats-box">{''.join(score_cards)}</div>
+  <div class="data_title"><div class="data_title-left"><p>SCORE_HISTORY</p></div></div>
+  <div class="scoreHistory">{history_rows or '<div class="oneHistory EZ"><div class="HistoryDate"><p>NO HISTORY</p></div></div>'}</div>
+</div>
+"""
+    return original_page(paths, ("userinfo/userinfo.css", "score/score.css"), body, theme="default", background=illustration, width=1920)
+
+
+def chap_html(paths: PluginPaths, summary: Any, *, snapshot: SaveSnapshot) -> str:
+    gameuser = _gameuser(snapshot)
+    records = summary.top_records if getattr(summary, "top_records", None) else []
+    counts = getattr(summary, "rating_counts", {}) or {}
+    rank_counts = getattr(summary, "rank_counts", {}) or {}
+    progress = {
+        rank: _percentage(getattr(rank_counts.get(rank), "played", 0), getattr(rank_counts.get(rank), "total", 0))
+        for rank in LEVELS
+    }
+    count_html = [f'<p>tot: {getattr(summary, "played_charts", 0)}/{getattr(summary, "total_charts", 0)}</p>']
+    for rating in ("phi", "FC", "V", "S", "A", "B", "C", "F", "NEW"):
+        value = int(counts.get(rating, 0))
+        if value:
+            count_html.append(f'<img src="{asset_uri(paths, f"html/otherimg/{_rating_asset(rating)}.png")}" alt="{_esc(rating)}"><p>{value}</p>')
+    song_cards = "".join(_chap_song_card(paths, record, index) for index, record in enumerate(records[:30]))
+    if not song_cards:
+        song_cards = '<div class="song song_1"><div class="info"><div class="rank EZ"><div class="dif">NO DATA</div></div></div></div>'
+    progress_html = "".join(
+        f'<div class="progress {rank}-bar"><div class="progress-bar" style="width:{value:.4f}%;"></div><p>&ensp;{value:.4f}%</p></div>'
+        for rank, value in progress.items()
+    )
+    body = f"""
+<div class="illustration"><img src="{_random_background_for_records(paths, records)}" alt="chapter"></div>
+<div class="bar">
+  <div class="player"><p>Player: {_esc(gameuser['PlayerId'])}</p><p>chap: {_esc(getattr(summary, "name", "UNKNOWN"))}</p></div>
+  <div class="count">{''.join(count_html)}</div>
+  <div class="song-box" style="width: 1500px;">{song_cards}</div>
+  {progress_html}
+  <div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+</div>
+"""
+    return original_page(paths, "chap/chap.css", body, theme="default", background=_random_background_for_records(paths, records), width=2048)
+
+
+def achievement_html(paths: PluginPaths, rows: list[Any], *, title: str) -> str:
+    cards = []
+    for row in rows:
+        rating = _rating_asset(getattr(row, "min_rating", "NEW"))
+        cards.append(
+            '<div class="line">'
+            f'<div class="song_name"><div class="num"><span name="pvis">{getattr(row, "difficulty", 0):.1f}</span></div><div class="song"><span name="pvis">{_esc(title)}</span></div><div class="dif IN"><span name="pvis">{getattr(row, "played", 0)}/{getattr(row, "total", 0)}</span></div></div>'
+            f'<div class="ill_box"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div>'
+            '<div class="info_box"><div class="down">'
+            f'<div class="acc"><div class="box-content">{getattr(row, "avg_acc", 0):.4f}%</div><div class="suggest">FC {getattr(row, "fc_count", 0)} / Phi {getattr(row, "phi_count", 0)}</div></div>'
+            f'<div class="score_rating"><div class="score">{getattr(row, "min_score", 0):,}</div><div class="rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div></div>'
+            '</div></div></div>'
+        )
+    body = f'<div class="head_title"><p>{_esc(title)}</p></div><div class="list_box">{"".join(cards) or _notice_line("没有找到对应定数成绩。")}</div><div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>'
+    return original_page(paths, "list/list.css", body, theme="default", background=_random_background(paths))
+
+
+def history_b30_html(paths: PluginPaths, changes: list[Any], snapshot: SaveSnapshot | None = None) -> str:
+    gameuser = _gameuser(snapshot) if snapshot is not None else {
+        "avatar": "Introduction",
+        "PlayerId": "UNKNOWN",
+        "rks": 0.0,
+        "ChallengeMode": 0,
+        "ChallengeModeRank": 0,
+        "data": "0KiB",
+    }
+    body = [_b30_title(paths, gameuser, _level_stats([]), format_datetime(datetime.now()), ["History B30"])]
+    body.append('<div class="descTip"><p>*B30变化仅以当前定数为准，实际历史定数敬请期待</p></div>')
+    body.append('<div class="main-box">')
+    colors = ["#00aaff", "#00f044", "#f0d000", "#ff6161", "#9c9cff"]
+    for index, change in enumerate(changes):
+        body.append(f'<div class="row" style="--row-color:{colors[index % len(colors)]}"><div class="date-box"><div class="upLine"></div><div class="midCirc"><div class="circInner"></div></div><div class="downLine"></div></div><div class="songs-box"><div class="row-date"><p>{_esc(change.date)}</p><div class="underLine"></div></div>')
+        for song in _history_change_songs(paths, change):
+            body.append(song)
+        body.append("</div></div>")
+    if not changes:
+        body.append('<div class="row"><div class="songs-box"><div class="row-date"><p>NO HISTORY</p><div class="underLine"></div></div></div></div>')
+    body.append("</div>")
+    body.append('<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>')
+    records = [record for change in changes for _, record in getattr(change, "new_b27", [])]
+    return original_page(paths, "historyB30/historyB30.css", "\n".join(body), theme="default", background=_random_background_for_records(paths, records))
+
+
+def history_summary_html(paths: PluginPaths, summary: Any) -> str:
+    def pair(pair_value: tuple[str, Any] | None, digits: int = 4) -> tuple[str, str]:
+        if not pair_value:
+            return "--", "--"
+        day, delta = pair_value
+        if isinstance(delta, float):
+            return str(day), f"{delta:+.{digits}f}"
+        return str(day), f"{int(delta):+d}"
+
+    rks_up_day, rks_up_delta = pair(getattr(summary, "rks_max_up", None))
+    rks_down_day, rks_down_delta = pair(getattr(summary, "rks_max_down", None))
+    data_up_day, data_up_delta = pair(getattr(summary, "data_max_up", None), 0)
+    data_down_day, data_down_delta = pair(getattr(summary, "data_max_down", None), 0)
+    body = f"""
+<div id="container" class="page">
+  <header class="header"><div class="title"><div class="title-main">存档历史分析</div><div class="title-sub">统计范围为绑定至今</div></div><div class="meta"><div class="meta-item"><span class="meta-k">生成时间</span><span class="meta-v">{_esc(format_datetime(datetime.now()))}</span></div></div></header>
+  <section class="grid grid-3">
+    {_history_card("查分天数", getattr(summary, "total_days", 0), "发生过 score / rks / data / challenge 任一事件的天数")}
+    {_history_card("更新次数", getattr(summary, "total_updates", 0), "按所有事件时间戳去重统计")}
+    <div class="card"><div class="card-h">RKS 最大波动</div>{_history_split("UP", rks_up_day, rks_up_delta, "up")}{_history_split("DOWN", rks_down_day, rks_down_delta, "down")}<div class="card-s">按天累计增量</div></div>
+  </section>
+  <section class="grid grid-2">
+    {_history_rank_card("打得最多的曲目", getattr(summary, "most_played", []))}
+    {_history_card("总新纪录", getattr(summary, "total_score_records", 0), "历史成绩记录总数")}
+  </section>
+  <section class="grid grid-3">
+    {_history_rank_card("新纪录最多", getattr(summary, "most_new_records", []))}
+    <div class="card"><div class="card-h">Data 最大波动</div>{_history_split("UP", data_up_day, data_up_delta, "up")}{_history_split("DOWN", data_down_day, data_down_delta, "down")}<div class="card-s">按天累计字节变化</div></div>
+    {_history_rank_card("推分最晚", getattr(summary, "latest_push_times", []))}
+  </section>
+  <section class="grid">{_history_rank_card("AP 最多", getattr(summary, "most_ap_days", []))}</section>
+  <footer class="footer"><div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div></footer>
+</div>
+"""
+    return original_page(paths, "analyzeSaveHistory/analyzeSaveHistory.css", body, theme="default", background=_random_background(paths))
+
+
+def rand_html(paths: PluginPaths, song: Song, *, chart_rank: str | None = None) -> str:
+    chart = song.charts.get(chart_rank or "") if chart_rank else next(iter(song.display_charts()), None)
+    illustration = _song_illustration(paths, song)
+    body = f"""
+<div class="ill"><img src="{illustration}" alt="曲绘"></div>
+<div class="box">
+  <div class="box-left"><div class="name-box"><div class="name-left"><p1>{_esc(song.title)}</p1><p2>{_esc(song.composer)}</p2></div></div><div class="info-box"><div class="info-left"><div class="part"><p1>Chart</p1><p2>{_esc(chart.charter if chart else "")}</p2></div><div class="part"><p1>Illustration</p1><p2>{_esc(song.illustrator)}</p2></div></div></div></div>
+  <div class="box-mid"><div class="mid-up"></div><div class="mid-down"></div></div>
+  <div class="box-right"><div class="name-box"><div class="right-up"></div><div class="leave"><div class="leave-diff"><p>{_esc((chart.difficulty_text if chart else "") or (f"{chart.difficulty:.1f}" if chart and chart.difficulty else "?"))}</p></div><div class="leave-rank"><p>{_esc(chart.rank if chart else "?")}</p></div></div><div class="name-right"></div></div><div class="info-box"><div class="info-mid"></div><div class="info-right"></div></div></div>
+</div>
+"""
+    return original_page(paths, "rand/rand.css", body, theme="default", background=illustration)
+
+
+def randclg_html(paths: PluginPaths, target: int, charts: list[ChartEntry]) -> str:
+    songs = "".join(_randclg_song_card(paths, chart, index) for index, chart in enumerate(charts))
+    body = f"""
+<div class="box">{songs}</div>
+<div class="tot-box"><img src="{asset_uri(paths, "html/otherimg/5.png")}" alt="Challenge"><div class="tot_clg"><p>{target}</p></div></div>
+<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+"""
+    return original_page(paths, "clg/clg.css", body, theme="default", background=_random_background_for_charts(paths, charts))
+
+
+def song_html(paths: PluginPaths, song: Song) -> str:
+    illustration = _song_illustration(paths, song)
+    charts = "".join(_atlas_chart_row(chart) for chart in song.display_charts())
+    note_totals = "".join(f"<p>{chart.combo or '-'}</p>" for chart in song.display_charts())
+    body = f"""
+<div class="big-box">
+  <div class="box">
+    <div class="info-box">
+      <div class="name-box clip-box"><div class="song"><p name="pvis">{_esc(song.title)}</p></div><div class="composer"><p name="pvis">{_esc(song.composer)}</p></div></div>
+      <div class="charts-box"><div class="length"><p name="pvis">{_esc(song.length)}</p></div><div class="txt"><div class="sqrt"><p>SONG'S_INFO</p></div><div class="line"><p name="pvis">{_safe(song.sp_info.replace(chr(10), '<br>'))}</p></div></div><div class="chart">{charts}<div class="note-box"><p>Total</p>{note_totals}</div></div></div>
+    </div>
+    <div class="ill-box clip-box"><img src="{illustration}" alt="曲绘"></div>
+    {'<div class="original-tag"><p>Phigros Original</p></div>' if song.is_original else ''}
+  </div>
+  <div class="other-info">{_atlas_info("BPM", song.bpm)}{_atlas_info("Illustrator", song.illustrator)}{_atlas_info("Chapter", song.chapter)}</div>
+</div>
+<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+"""
+    return original_page(paths, "atlas/atlas.css", body, theme="default", background=illustration)
 
 
 def ill_html(paths: PluginPaths, illustration: str, illustrator: str = "") -> str:
@@ -743,7 +1118,7 @@ def _format_money_from_text(value: str) -> str:
     return value if value else "0KiB"
 
 
-def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "star", background: str = "", width: int = 1200) -> str:
+def original_page(paths: PluginPaths, css_rel: str | tuple[str, ...], body: str, *, theme: str = "star", background: str = "", width: int = 1200) -> str:
     star1 = asset_uri(paths, "html/otherimg/Star1.png")
     star2 = asset_uri(paths, "html/otherimg/Star2.png")
     fallback = asset_uri(paths, "html/otherimg/phigros.png")
@@ -762,7 +1137,7 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
   <meta name="viewport" content="width={int(width)}">
   <link rel="shortcut icon" href="#">
   <style>{_css_text(paths, "html/common/common.css")}</style>
-  <style>{_css_text(paths, f"html/{css_rel}")}</style>
+  <style>{_css_bundle(paths, css_rel)}</style>
   <style>{_render_reset_css(page_background if theme != "star" else "", width=int(width))}</style>
   <title>phi-plugin</title>
 </head>
@@ -946,6 +1321,341 @@ def _dss2_record_card(paths: PluginPaths, record: ScoreRecord, number: str, *, h
     </div>
   </div>
 </div>"""
+
+
+def _score_list_line(paths: PluginPaths, entry: ScoreListEntry, index: int) -> str:
+    chart = entry.chart
+    record = entry.record
+    if record is None:
+        score = "NEW"
+        acc = None
+        suggest = "---"
+        rating = "NEW"
+    else:
+        score = f"{record.score:,}"
+        acc = record.acc
+        suggest = f"RKS {record.rks:.4f}"
+        rating = _rating_asset(record.rating)
+    song = _esc(_song_display_name(paths, chart.song_id, chart.song_title))
+    composer = _esc(_song_composer(paths, chart.song_id))
+    return f"""
+<div class="line">
+  <div class="song_name">
+    <div class="num"><span name="pvis">{index}</span></div>
+    <div class="song"><span name="pvis">{song}{' - ' + composer if composer else ''}</span></div>
+    <div class="dif {_esc(chart.rank)}"><span name="pvis">{chart.difficulty:.1f}</span></div>
+  </div>
+  <div class="ill_box"><img src="{_chart_illustration(paths, chart)}" alt="{song}"></div>
+  <div class="info_box"><div class="down">
+    <div class="acc"><div class="box-content">{'---' if acc is None else f'{acc:.4f}'}%</div><div class="suggest">&gt; {_esc(suggest)}</div></div>
+    <div class="score_rating"><div class="score">{_esc(score)}</div><div class="rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div></div>
+  </div></div>
+</div>"""
+
+
+def _suggest_line(paths: PluginPaths, entry: SuggestEntry, index: int, kind: str) -> str:
+    chart = entry.chart
+    current = entry.current
+    rating = _rating_asset(current.rating) if current else "NEW"
+    score = f"{current.score:,}" if current else "NEW"
+    acc = current.acc if current else None
+    composer = _esc(_song_composer(paths, chart.song_id))
+    title = _esc(_song_display_name(paths, chart.song_id, chart.song_title))
+    return f"""
+<div class="line">
+  <div class="song_name"><div class="num"><span name="pvis">{index}</span></div><div class="song"><span name="pvis">{title}{' - ' + composer if composer else ''}</span></div><div class="dif {_esc(chart.rank)}"><span name="pvis">{chart.difficulty:.1f}</span></div></div>
+  <div class="ill_box"><img src="{_chart_illustration(paths, chart)}" alt="{title}"></div>
+  <div class="info_box"><div class="down">
+    <div class="acc"><div class="box-content">{'---' if acc is None else f'{acc:.4f}'}%</div><div class="suggest suggest-kind-{kind}">&gt; {entry.target_acc:.4f}</div></div>
+    <div class="score_rating"><div class="score">{_esc(score)}</div><div class="rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div></div>
+  </div></div>
+</div>"""
+
+
+def _notice_line(message: str) -> str:
+    return f"""
+<div class="line">
+  <div class="song_name"><div class="num"><span name="pvis">!</span></div><div class="song"><span name="pvis">{_esc(message)}</span></div><div class="dif EZ"><span name="pvis">INFO</span></div></div>
+  <div class="info_box"><div class="down"><div class="acc"><div class="box-content">---</div><div class="suggest">---</div></div><div class="score_rating"><div class="score">NO DATA</div></div></div></div>
+</div>"""
+
+
+def _table_player_info(paths: PluginPaths, gameuser: dict[str, Any], date_text: str) -> str:
+    avatar = asset_uri(paths, f"html/avatar/{gameuser['avatar']}.png") or asset_uri(paths, "html/avatar/Introduction.png")
+    challenge = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
+    data_img = asset_uri(paths, "html/otherimg/data.png")
+    return f"""
+<div class="playerInfo">
+  <div class="blackBlock clip-box"></div>
+  <div class="avatar clip-box"><img src="{avatar}" alt="{_esc(gameuser['avatar'])}"></div>
+  <div class="playerId"><p name="pvis">{_esc(gameuser['PlayerId'])}</p></div>
+  <div class="rks clip-box"><p>{float(gameuser['rks']):.4f}</p></div>
+  <div class="clgBox"><div class="Challenge"><img src="{challenge}" alt="Challenge"><p>{gameuser['ChallengeModeRank']}</p></div></div>
+  <div class="date"><p>{_esc(date_text)}</p></div>
+  <div class="dataBox clip-box"><img src="{data_img}" alt="data"><p>{_esc(gameuser['data'])}</p></div>
+</div>"""
+
+
+def _table_chart_card(paths: PluginPaths, chart: ChartEntry, record: ScoreRecord | None, *, show_score: bool) -> str:
+    score_html = ""
+    if show_score:
+        if record is None:
+            score_html = f'<div class="score"><img src="{asset_uri(paths, "html/otherimg/NEW.png")}" alt="NEW"></div>'
+        elif record.acc >= 100:
+            score_html = f'<div class="score"><img src="{asset_uri(paths, "html/otherimg/phi.png")}" alt="phi"></div>'
+        else:
+            score_html = f'<div class="score"><p>{record.acc:.2f}</p></div>'
+    return f"""
+<div class="song table-{_esc(chart.rank)}">
+  <div class="ill clip-box"><img src="{_chart_illustration(paths, chart)}" alt="{_esc(chart.song_title)}">{score_html}</div>
+  <div class="rank-box"><div class="rank clip-box"><div class="rankBlock clip-box"></div><p>{_esc(chart.rank)}</p></div></div>
+</div>"""
+
+
+def _table_bucket_rating(charts: list[ChartEntry], record_map: dict[tuple[str, str], ScoreRecord]) -> str:
+    values = []
+    for chart in charts:
+        record = record_map.get((chart.song_id, chart.rank))
+        values.append(_rating_rank(_rating_asset(record.rating)) if record else -1)
+    if not values:
+        return "NEW"
+    score = min(values)
+    for rating in ("phi", "FC", "V", "S", "A", "B", "C", "F", "NEW"):
+        if _rating_rank(rating) == score:
+            return rating
+    return "NEW"
+
+
+def _lvscore_rank_box(rank: str, total: int) -> str:
+    flag = "true" if total else "false"
+    return f'<div class="left-mid-box-{flag}"><div class="rank-left"><p>{_esc(rank)}</p></div>{"<div class=\"rank-right\"><p>" + str(total) + " charts</p><p>" + str(total) + " unlocked</p></div>" if total else ""}</div>'
+
+
+def _score_rank_card(paths: PluginPaths, rank: str, difficulty: float, record: ScoreRecord | None) -> str:
+    if record is None:
+        return f"""
+<div class="one-stats-box {_esc(rank)}" id="NEW">
+  <div class="rank"><p>{_esc(rank)}</p></div>
+  <div class="stats-up"><div class="Rating"><img src="{asset_uri(paths, "html/otherimg/NEW.png")}" alt="NEW"></div></div>
+  <div class="no_info"><p>Locked</p></div>
+</div>"""
+    rating = _rating_asset(record.rating)
+    suggest, suggest_type = _score_card_suggest(record)
+    return f"""
+<div class="one-stats-box {_esc(rank)}" id="{_esc(rating)}">
+  <div class="rank"><p>{_esc(rank)}</p></div>
+  <div class="stats-up">
+    <div class="Rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div>
+    <div class="data_bnpn"><div class="phiN {'active' if rating == 'phi' else ''}"><span>Phi</span><span class="phiN-num">{1 if rating == 'phi' else 0}</span></div><div class="bestN active"><span>Best</span><span class="bestN-num">{record.rks:.2f}</span></div></div>
+    <div class="data_score"><p>{record.score:,}</p></div>
+  </div>
+  <div class="data_mid"><div class="data_rks"><p>{record.rks:.4f}</p></div><div class="data_acc"><p>{record.acc:.4f}%</p></div><div class="suggest suggest-kind-{suggest_type}"><div class="suggest-tip"></div><p>{_esc(suggest)}</p></div></div>
+  <div class="data_bottom"><div class="APCount">Dif: {difficulty:.1f}</div><div class="FCCount">FC: {'YES' if record.fc else 'NO'}</div><div class="total">rank:</div><div class="count">{_esc(rank)}</div></div>
+</div>"""
+
+
+def _score_card_suggest(record: ScoreRecord) -> tuple[str, str]:
+    if record.acc >= 100:
+        return "无法推分", "5"
+    acc = _suggest_acc(record.rks + 0.001, record.difficulty)
+    if acc is None:
+        return "100.0000%", "5"
+    return f"{acc:.4f}%", _suggest_type(acc)
+
+
+def _score_difficulty_chip(rank: str, difficulty: float) -> str:
+    return f'<div class="a_rank"><div class="a_rank_dif"><p>{difficulty:.1f}</p></div><div class="a_rank_name"><p>{_esc(rank)}</p></div></div>'
+
+
+def _score_history_row(paths: PluginPaths, record: ScoreRecord) -> str:
+    rating = _rating_asset(record.rating)
+    return f"""
+<div class="oneHistory {_esc(record.rank)}">
+  <div class="HistoryDate"><p>{_esc(record.rank)}</p></div>
+  <div class="HistoryRating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div>
+  <div class="HistoryScore"><p>{record.score:,}</p></div>
+  <div class="HistoryAcc"><p>{record.acc:.4f}%</p></div>
+  <div class="HistoryRks"><p>{record.rks:.2f}</p></div>
+</div>"""
+
+
+def _chap_song_card(paths: PluginPaths, record: ScoreRecord, index: int) -> str:
+    col = index // 10
+    row = index % 10
+    left = 100 + col * 240 - row * 20
+    top = 60 + row * 65
+    rating = _rating_asset(record.rating)
+    suggest, _suggest_kind = _score_card_suggest(record)
+    return f"""
+<div class="song song_2" style="left:{left}px;top:{top}px;">
+  <div class="common_ill ill"><img src="{_record_illustration(paths, record)}" alt="{_esc(record.song_title)}"></div>
+  <div class="info"><div class="rank {_esc(record.rank)}"><div class="rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div><div class="dif">{record.difficulty:.1f}</div><div class="score">{record.score:,}</div><div class="acc">{record.acc:.4f}%</div><div class="rks">= {record.rks:.4f}</div><div class="suggest">&gt;&gt; {suggest}</div></div></div>
+</div>"""
+
+
+def _history_change_songs(paths: PluginPaths, change: Any) -> list[str]:
+    result = []
+    for index, record in getattr(change, "new_phi", []):
+        result.append(_history_song(paths, record, new_phi=f"P{index}"))
+    for index, record in getattr(change, "new_b27", []):
+        result.append(_history_song(paths, record, new_b27=f"B{index}"))
+    for record in getattr(change, "exit_phi", []):
+        result.append(_history_song(paths, record, exit_phi=True))
+    for record in getattr(change, "exit_b27", []):
+        result.append(_history_song(paths, record, exit_b27=True))
+    return result
+
+
+def _history_song(
+    paths: PluginPaths,
+    record: ScoreRecord,
+    *,
+    new_phi: str = "",
+    new_b27: str = "",
+    exit_phi: bool = False,
+    exit_b27: bool = False,
+) -> str:
+    tags = []
+    if new_phi:
+        tags.append(f'<div class="changeTag phiTag clip-box"><img src="{asset_uri(paths, "html/otherimg/phi.png")}" alt="phi"><p>{_esc(new_phi)}</p><div class="changeTagLine clip-box"></div></div>')
+    if new_b27:
+        tags.append(f'<div class="changeTag b27Tag clip-box"><p>{_esc(new_b27)}</p><div class="changeTagLine clip-box"></div></div>')
+    if exit_phi or exit_b27:
+        tags.append('<div class="changeTag exitTag clip-box"><p>OUT</p><div class="changeTagLine clip-box"></div></div>')
+    return f"""
+<div class="s-song">
+  <div class="ill-box"><div class="ill clip-box"><img src="{_record_illustration(paths, record)}" alt="{_esc(record.song_title)}"></div><div class="levelKind {_esc(record.rank)}-BKG clip-box"><p>{_esc(record.rank)}</p></div></div>
+  <div class="tag-box">{''.join(tags)}</div>
+</div>"""
+
+
+def _history_card(title: str, value: Any, subtitle: str) -> str:
+    return f'<div class="card"><div class="card-h">{_esc(title)}</div><div class="card-v">{_esc(value)}</div><div class="card-s">{_esc(subtitle)}</div></div>'
+
+
+def _history_split(label: str, day: str, delta: str, klass: str) -> str:
+    return f'<div class="split"><div class="split-item"><div class="badge {_esc(klass)}">{_esc(label)}</div><div class="split-body"><div class="split-line"><span>日期</span><span>{_esc(day)}</span></div><div class="split-line"><span>增量</span><span class="strong">{_esc(delta)}</span></div></div></div></div>'
+
+
+def _history_rank_card(title: str, items: list[tuple[str, Any]]) -> str:
+    rows = []
+    for index, item in enumerate(items[:3], 1):
+        rows.append(f'<div class="rankitem"><div class="rankno">#{index}</div><div class="rankmain mono">{_esc(item[0])}</div><div class="rankside">{_esc(item[1])}</div></div>')
+    if not rows:
+        rows.append('<div class="rankitem"><div class="rankno">#1</div><div class="rankmain">--</div><div class="rankside">--</div></div>')
+    return f'<div class="card"><div class="card-h">{_esc(title)}</div><div class="ranklist">{"".join(rows)}</div></div>'
+
+
+def _randclg_song_card(paths: PluginPaths, chart: ChartEntry, index: int) -> str:
+    return f"""
+<div class="song-box box-{index}">
+  <div class="ill-box"><div class="ill"><img src="{_chart_illustration(paths, chart)}" alt="{_esc(chart.song_title)}"></div><div class="info-box"><div class="song_name"><p name="pvis">{_esc(chart.song_title)}</p></div></div></div>
+  <div class="dif"><p>{_esc(chart.rank)}</p><p>{chart.difficulty:.1f}</p></div>
+  <div class="notes-box"><div class="notes-info"><div class="notes_num"><p>{chart.combo or "-"}</p></div><div class="notes_title"><p>Combo</p></div></div></div>
+</div>"""
+
+
+def _atlas_chart_row(chart: Any) -> str:
+    return f"""
+<div class="rank">
+  <div class="pBox"><p name="pvis">{_esc(chart.rank)}</p><p>{_esc(chart.difficulty_text or (f"{chart.difficulty:.1f}" if chart.difficulty else "?"))}</p></div>
+</div>
+<div class="rank-box"><div class="charter"><p name="pvis">{_esc(chart.charter)}</p></div><div class="chart-info"><p>{chart.combo or "-"}</p><p></p><p></p><p></p></div></div>"""
+
+
+def _atlas_info(title: str, value: str) -> str:
+    if not value:
+        return ""
+    return f'<div class="other-box"><div class="title"><p>{_esc(title)}</p></div><div class="dcr"><p>{_esc(value)}</p></div></div>'
+
+
+def _song_illustration(paths: PluginPaths, song: Song) -> str:
+    path = find_illustration_file(paths, song.id, prefer_low=True)
+    if path is not None:
+        return _file_data_uri(path)
+    for raw in (song.illustration, song.illustration_big):
+        if raw:
+            uri = _source_data_uri(paths, raw)
+            if uri:
+                return uri
+            path = paths.other_ill / raw
+            uri = _file_data_uri(path)
+            if uri:
+                return uri
+    return asset_uri(paths, "html/otherimg/phigros.png")
+
+
+def _chart_illustration(paths: PluginPaths, chart: ChartEntry) -> str:
+    path = find_illustration_file(paths, chart.song_id, prefer_low=True)
+    if path is not None:
+        return _file_data_uri(path)
+    return asset_uri(paths, "html/otherimg/phigros.png")
+
+
+def _random_background_for_entries(paths: PluginPaths, entries: list[ScoreListEntry]) -> str:
+    candidates = [entry.record for entry in entries if entry.record is not None]
+    if candidates:
+        return _random_background_for_records(paths, candidates)
+    return _random_background_for_charts(paths, [entry.chart for entry in entries])
+
+
+def _random_background_for_suggestions(paths: PluginPaths, entries: list[SuggestEntry]) -> str:
+    return _random_background_for_charts(paths, [entry.chart for entry in entries])
+
+
+def _random_background_for_charts(paths: PluginPaths, charts: list[ChartEntry]) -> str:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for chart in charts:
+        path = find_background_illustration_file(paths, chart.song_id)
+        if path is None:
+            continue
+        resolved = path.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            candidates.append(path)
+    if candidates:
+        return _file_data_uri(random.choice(candidates))
+    return _random_background(paths)
+
+
+def _song_display_name(paths: PluginPaths, song_id: str, fallback: str) -> str:
+    return fallback or song_id
+
+
+def _song_composer(paths: PluginPaths, song_id: str) -> str:
+    return ""
+
+
+def _rating_asset(value: str) -> str:
+    text = str(value or "NEW")
+    if text == "PHI":
+        return "phi"
+    if text == "AP":
+        return "phi"
+    return text
+
+
+def _rating_rank(value: str) -> int:
+    order = {"NEW": -1, "F": 0, "C": 1, "B": 2, "A": 3, "S": 4, "V": 5, "FC": 6, "phi": 7}
+    return order.get(_rating_asset(value), -1)
+
+
+def _dominant_rating_from_counts(counts: dict[str, int]) -> str:
+    values = [(rating, count) for rating, count in counts.items() if count]
+    if not values:
+        return "NEW"
+    return max(values, key=lambda item: (item[1], _rating_rank(item[0])))[0]
+
+
+def _percentage(value: int | float, total: int | float) -> float:
+    try:
+        total_f = float(total)
+        if total_f <= 0:
+            return 0.0
+        return max(0.0, min(100.0, float(value) / total_f * 100.0))
+    except (TypeError, ValueError, ZeroDivisionError):
+        return 0.0
 
 
 def _b30_record_card(
@@ -1241,6 +1951,15 @@ def _css_text(paths: PluginPaths, relative: str) -> str:
     css = path.read_text(encoding="utf-8")
     base_dir = path.parent
 
+    def replace_import(match: re.Match[str]) -> str:
+        raw_url = match.group(1).strip()
+        resolved = (base_dir / raw_url).resolve()
+        try:
+            relative_path = resolved.relative_to(paths.resources.resolve()).as_posix()
+        except ValueError:
+            return ""
+        return _css_text(paths, relative_path)
+
     def replace_url(match: re.Match[str]) -> str:
         raw_url = match.group(2).strip()
         lowered = raw_url.lower()
@@ -1256,7 +1975,14 @@ def _css_text(paths: PluginPaths, relative: str) -> str:
         data_uri = _file_data_uri(resolved)
         return f'url("{data_uri}")' if data_uri else 'url("")'
 
+    css = _CSS_IMPORT_RE.sub(replace_import, css)
     return _CSS_URL_RE.sub(replace_url, css)
+
+
+def _css_bundle(paths: PluginPaths, relative: str | tuple[str, ...]) -> str:
+    if isinstance(relative, tuple):
+        return "\n".join(_css_text(paths, f"html/{item}") for item in relative)
+    return _css_text(paths, f"html/{relative}")
 
 
 def _js_text(paths: PluginPaths, relative: str) -> str:
