@@ -164,6 +164,22 @@ class PhiApiClient:
         data = await self._post("/chartsTag/get/bySongRank", {"song_id": song_id, "rank": rank})
         return data if isinstance(data, dict) else {}
 
+    async def fetch_all_song_acc_avg(
+        self,
+        song_ids: list[str],
+        *,
+        min_rks: float,
+        max_rks: float,
+        b30: bool = False,
+    ) -> dict[str, Any]:
+        endpoint = "/get/scoreList/allAccAvgB30" if b30 else "/get/scoreList/allAccAvg"
+        data = await self._post(endpoint, {
+            "songIds": song_ids,
+            "minRks": min_rks,
+            "maxRks": max_rks,
+        })
+        return data if isinstance(data, dict) else {}
+
     async def set_chart_tags(
         self,
         user_id: str,

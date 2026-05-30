@@ -74,6 +74,10 @@ def render_diagnostics(config: PluginConfig, paths: PluginPaths) -> str:
             f"render_backend: {config.render_backend}",
             f"resources: {paths.resources}",
             f"data_dir: {paths.data_dir}",
+            f"downloaded_original_ill: {paths.downloaded_original_ill}",
+            f"downloaded_illBlur_count: {_count_files(paths.downloaded_original_ill / 'illBlur')}",
+            f"downloaded_illLow_count: {_count_files(paths.downloaded_original_ill / 'illLow')}",
+            f"downloaded_ill_count: {_count_files(paths.downloaded_original_ill / 'ill')}",
             f"html_template_dir: {html_diag['template_dir']}",
             f"html_font: {html_diag['font']}",
             f"html_font_exists: {html_diag['font_exists']}",
@@ -81,6 +85,12 @@ def render_diagnostics(config: PluginConfig, paths: PluginPaths) -> str:
             f"html_renderer: {html_diag['renderer']}",
         ]
     )
+
+
+def _count_files(path: Path) -> int:
+    if not path.exists() or not path.is_dir():
+        return 0
+    return sum(1 for item in path.iterdir() if item.is_file())
 
 
 def _options() -> dict:

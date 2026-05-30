@@ -73,6 +73,8 @@ class ScoreRecord:
     rating: str
     difficulty: float
     rks: float
+    acc_avg: float | None = None
+    acc_kind: str = ""
 
 
 @dataclass(slots=True)

@@ -3,9 +3,11 @@ from __future__ import annotations
 import html
 import json
 import base64
+import hashlib
 import mimetypes
 import math
 import re
+import urllib.request
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
@@ -187,6 +189,7 @@ def _b30_record_card(
     illustration = _record_illustration(paths, record)
     css_class = "song phi_song" if phi else ("song b_song" if b_score else "song")
     suggest_text, suggest_type = suggest if suggest is not None else ("无法推分", "")
+    avg_html = _acc_avg_html(record)
     return f"""
 <div class="{css_class}">
   <div class="ill-box">
@@ -211,7 +214,34 @@ def _b30_record_card(
       </div>
     </div>
   </div>
+  {avg_html}
 </div>"""
+
+
+def _acc_avg_html(record: ScoreRecord) -> str:
+    if record.acc_avg is None or not record.acc_kind:
+        return ""
+    icon = _acc_avg_finished_icon() if record.acc_kind == "Finished" else _acc_avg_arrow_icon()
+    return f"""
+  <div class="accAvg acc{_esc(record.acc_kind)} clip-box">
+    <div class="accAvgLine clip-box"></div>
+    {icon}
+    <p>Avg: {record.acc_avg:.4f}%</p>
+  </div>"""
+
+
+def _acc_avg_finished_icon() -> str:
+    return """
+    <svg viewBox="0 0 1024 1024">
+      <path d="M892.064 261.888a31.936 31.936 0 0 0-45.216 1.472L421.664 717.248l-220.448-185.216a32 32 0 1 0-41.152 48.992l243.648 204.704a31.872 31.872 0 0 0 20.576 7.488 31.808 31.808 0 0 0 23.36-10.112L893.536 307.136a32 32 0 0 0-1.472-45.248z"></path>
+    </svg>"""
+
+
+def _acc_avg_arrow_icon() -> str:
+    return """
+    <svg viewBox="0 0 1024 1024">
+      <path d="M564.8 465.184l4.192 3.904 274.72 274.752a32 32 0 0 1 0 45.248l-22.624 22.624a32 32 0 0 1-45.248 0l-263.456-263.392-263.424 263.392a32 32 0 0 1-42.24 2.656l-3.008-2.656-22.624-22.624a32 32 0 0 1 0-45.248l274.784-274.752a80 80 0 0 1 108.96-3.904z m0-256l4.192 3.904 274.72 274.752a32 32 0 0 1 0 45.248l-22.624 22.624a32 32 0 0 1-45.248 0l-263.456-263.392-263.424 263.392a32 32 0 0 1-42.24 2.656l-3.008-2.656-22.624-22.624a32 32 0 0 1 0-45.248l274.784-274.752a80 80 0 0 1 108.96-3.904z"></path>
+    </svg>"""
 
 
 def _overflow_html() -> str:
@@ -347,7 +377,12 @@ def _random_background(paths: PluginPaths) -> str:
     if isinstance(source, Path):
         return _file_data_uri(source)
     if isinstance(source, str) and source:
-        return source
+        cached = _remote_image_data_uri(paths, source)
+        if cached:
+            return cached
+    fallback = _other_illustration_data_uri(paths)
+    if fallback:
+        return fallback
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
@@ -390,6 +425,42 @@ def _file_data_uri(path: Path) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     payload = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{payload}"
+
+
+def _remote_image_data_uri(paths: PluginPaths, url: str) -> str:
+    if not url.lower().startswith(("http://", "https://")):
+        return ""
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    cache_dir = paths.cache / "remote_backgrounds"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in (".png", ".jpg", ".jpeg", ".webp"):
+        cached = cache_dir / f"{digest}{suffix}"
+        if cached.exists() and cached.is_file():
+            return _file_data_uri(cached)
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "astrbot-phi-plugin/1.0"})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            payload = response.read(8 * 1024 * 1024)
+    except Exception:
+        return ""
+    if not payload or not content_type.startswith("image/"):
+        return ""
+    suffix = mimetypes.guess_extension(content_type) or ".png"
+    cached = cache_dir / f"{digest}{suffix}"
+    cached.write_bytes(payload)
+    return _file_data_uri(cached)
+
+
+def _other_illustration_data_uri(paths: PluginPaths) -> str:
+    if not paths.other_ill.exists() or not paths.other_ill.is_dir():
+        return ""
+    for path in sorted(paths.other_ill.iterdir()):
+        if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+            uri = _file_data_uri(path)
+            if uri:
+                return uri
+    return ""
 
 
 def _level_stats(records: Iterable[ScoreRecord]) -> list[dict[str, Any]]:

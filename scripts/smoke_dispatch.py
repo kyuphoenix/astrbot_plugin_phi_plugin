@@ -50,6 +50,17 @@ class FakeLoginClient(PhiApiClient):
             token=str(token or "A" * 25),
         )
 
+    async def fetch_all_song_acc_avg(self, song_ids, *, min_rks, max_rks, b30=False):  # type: ignore[override]
+        return {
+            str(song_id): {
+                "EZ": {"accAvg": 99.4321, "count": 20},
+                "HD": {"accAvg": 99.1234, "count": 20},
+                "IN": {"accAvg": 98.7654, "count": 20},
+                "AT": {"accAvg": 98.4567, "count": 20},
+            }
+            for song_id in song_ids
+        }
+
     async def fetch_history(self, user_id: str, *, token=None, api_id=None, fields=None):  # type: ignore[override]
         return {}
 
@@ -403,6 +414,8 @@ async def main() -> None:
             raise SystemExit("image pgr should include original Real RKS chip when save version is older")
         if "phiAdjustFontSize" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should include original song-name auto font sizing script")
+        if "accAvg" not in b30_render_calls[0][0] or "Avg: 99.4321%" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should include original per-chart average acc status")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
