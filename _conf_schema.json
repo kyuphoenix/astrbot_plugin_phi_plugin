@@ -19,8 +19,8 @@
   "max_b30": {
     "description": "B30 展示条数",
     "type": "int",
-    "default": 30,
-    "slider": {"min": 1, "max": 50, "step": 1}
+    "default": 33,
+    "slider": {"min": 33, "max": 50, "step": 1}
   },
   "api_base_url": {
     "description": "Phi Plugin 联合查分 API 地址",

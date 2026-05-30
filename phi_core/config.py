@@ -10,7 +10,7 @@ class PluginConfig:
     default_global: bool = False
     render_mode: str = "image"
     render_backend: str = "html"
-    max_b30: int = 30
+    max_b30: int = 33
     api_base_url: str = "https://phib19.top:8080"
     request_timeout: int = 10
     qrcode_timeout: int = 270
@@ -46,7 +46,7 @@ class PluginConfig:
             default_global=bool(get("default_global", False)),
             render_mode=render_mode,
             render_backend="html",
-            max_b30=max(1, min(50, int(get("max_b30", 30)))),
+            max_b30=max(33, min(50, int(get("max_b30", 33)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),
             request_timeout=max(3, int(get("request_timeout", 10))),
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),

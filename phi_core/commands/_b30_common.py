@@ -11,7 +11,8 @@ async def render_best30(ctx: CommandContext, user_id: str) -> CommandResult:
     snapshot = ctx.load_snapshot(user_id)
     if not snapshot:
         return CommandResult.text(render.render_no_cached_save())
-    result = compute_b30(snapshot, ctx.catalog, limit=ctx.config.max_b30)
+    limit = max(33, ctx.config.max_b30)
+    result = compute_b30(snapshot, ctx.catalog, limit=limit)
     if ctx.config.render_mode == "image":
         path = await panel.render_html(
             ctx.config,
@@ -21,4 +22,4 @@ async def render_best30(ctx: CommandContext, user_id: str) -> CommandResult:
             html_render=ctx.html_render,
         )
         return CommandResult.image(path)
-    return CommandResult.text(render.render_b30(result, limit=ctx.config.max_b30))
+    return CommandResult.text(render.render_b30(result, limit=limit))

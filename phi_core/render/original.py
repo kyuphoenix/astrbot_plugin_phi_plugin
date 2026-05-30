@@ -4,6 +4,7 @@ import html
 import json
 import base64
 import mimetypes
+import math
 import re
 from collections import Counter
 from collections.abc import Iterable
@@ -50,8 +51,8 @@ def help_html(paths: PluginPaths, *, cmd_head: str = "phi") -> str:
 
 def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -> str:
     records = result.records
-    phi_records = [record for record in records if record.acc >= 100][:3]
-    b27_records = [record for record in records if record not in phi_records][:27]
+    phi_records = result.phi_records[:3] or [record for record in records if record.acc >= 100][:3]
+    b_records = records
     stats = _level_stats(records)
     gameuser = _gameuser(snapshot)
     date_text = format_datetime(extract_modified_datetime(snapshot.raw))
@@ -61,10 +62,17 @@ def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
     body.append('<div class="b19">')
     for index, record in enumerate(phi_records, 1):
         body.append(_b30_record_card(paths, record, f"P{index}", phi=True))
-    for index, record in enumerate(b27_records, 1):
+    for index, record in enumerate(b_records, 1):
         if index == 28:
-            body.append('<div class="over_flow"><p><i>OVER FLOW</i></p></div>')
-        body.append(_b30_record_card(paths, record, str(index), phi=False))
+            body.append(_overflow_html())
+        body.append(_b30_record_card(
+            paths,
+            record,
+            f"#{index}",
+            phi=False,
+            b_score=index <= 27,
+            suggest=_record_suggest(result, record, index),
+        ))
     body.append("</div>")
     body.append('<canvas id="stars"></canvas><script>themeStar();</script>')
     return original_page(paths, "b19/b19.css", "\n".join(body), theme="star", background=background)
@@ -101,6 +109,7 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
   <link rel="shortcut icon" href="#">
   <style>{_css_text(paths, "html/common/common.css")}</style>
   <style>{_css_text(paths, f"html/{css_rel}")}</style>
+  <style>{_render_reset_css()}</style>
   <title>phi-plugin</title>
 </head>
 <body class="elem-hydro default-mode">
@@ -151,10 +160,19 @@ def _b30_title(paths: PluginPaths, gameuser: dict[str, Any], stats: list[dict[st
 </div>"""
 
 
-def _b30_record_card(paths: PluginPaths, record: ScoreRecord, number: str, *, phi: bool) -> str:
+def _b30_record_card(
+    paths: PluginPaths,
+    record: ScoreRecord,
+    number: str,
+    *,
+    phi: bool,
+    b_score: bool = False,
+    suggest: tuple[str, str] | None = None,
+) -> str:
     rating = asset_uri(paths, f"html/otherimg/{record.rating}.png")
     illustration = _record_illustration(paths, record)
-    css_class = "song phi_song" if phi else "song"
+    css_class = "song phi_song" if phi else ("song b_song" if b_score else "song")
+    suggest_text, suggest_type = suggest if suggest is not None else ("无法推分", "")
     return f"""
 <div class="{css_class}">
   <div class="ill-box">
@@ -174,12 +192,85 @@ def _b30_record_card(paths: PluginPaths, record: ScoreRecord, number: str, *, ph
         <div class="line"></div>
         <div class="acc-box">
           <div class="acc"><p>{record.acc:.2f}%</p></div>
-          <div class="suggest suggest-kind-Finished"><p>RKS {record.rks:.4f}</p></div>
+          <div class="suggest suggest-kind-{suggest_type}"><div class="suggest-tip"></div><p>{_esc(suggest_text)}</p></div>
         </div>
       </div>
     </div>
   </div>
 </div>"""
+
+
+def _overflow_html() -> str:
+    lines = "".join('<div class="flow_line"></div>' for _ in range(6))
+    return f"""
+<div class="over_flow">
+  <div class="flow_line_box_l">{lines}</div>
+  <p><i>OVER FLOW</i></p>
+  <div class="flow_line_box_r">{lines}</div>
+</div>"""
+
+
+def _record_suggest(result: Best30Result, record: ScoreRecord, index: int) -> tuple[str, str]:
+    if record.acc >= 100 or record.difficulty <= 0:
+        return "无法推分", ""
+    floor_record = result.records[26] if len(result.records) > 26 else result.records[-1]
+    base_rks = record.rks if index <= 26 else floor_record.rks
+    target_rks = base_rks + _min_up_rks(result.official_rks) * 30
+    acc = _suggest_acc(target_rks, record.difficulty)
+    if acc is None:
+        last_phi = result.phi_records[-1] if result.phi_records else None
+        if last_phi is None or record.rks > last_phi.rks:
+            acc = 100.0
+        else:
+            return "无法推分", ""
+    return f"{acc:.2f}%", _suggest_type(acc)
+
+
+def _min_up_rks(rks: float) -> float:
+    value = math.floor(rks * 100) / 100 + 0.005 - rks
+    return value + 0.01 if value < 0 else value
+
+
+def _suggest_acc(target_rks: float, difficulty: float) -> float | None:
+    if difficulty <= 0:
+        return None
+    acc = 45 * math.sqrt(target_rks / difficulty) + 55
+    return None if acc >= 100 else acc
+
+
+def _suggest_type(acc: float) -> str:
+    if acc < 98.5:
+        return "0"
+    if acc < 99:
+        return "1"
+    if acc < 99.5:
+        return "2"
+    if acc < 99.7:
+        return "3"
+    if acc < 99.85:
+        return "4"
+    return "5"
+
+
+def _render_reset_css() -> str:
+    return """
+html {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  overflow-x: hidden;
+}
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: visible;
+}
+.background {
+  left: 0;
+  min-width: 1200px;
+  width: 100vw;
+}
+"""
 
 
 def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:

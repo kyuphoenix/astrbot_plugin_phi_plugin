@@ -14,8 +14,9 @@ if str(ROOT) not in sys.path:
 from phi_core.commands import CommandContext, ROUTE_MODULES, dispatch
 from phi_core.config import PluginConfig
 from phi_core.data import SongSearcher, load_catalog
+from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord
 from phi_core.paths import PluginPaths
-from phi_core.render import html_renderer
+from phi_core.render import html_renderer, original
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
 from phi_core.save.taptap import _is_oauth_waiting_response
 
@@ -167,6 +168,37 @@ async def main() -> None:
         downloaded_ill = paths.downloaded_original_ill / "illLow"
         downloaded_ill.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (32, 24), (120, 40, 90)).save(downloaded_ill / "Glaciaxion.SunsetRay.png")
+        sample_records = [
+            ScoreRecord(
+                song_id="Glaciaxion.SunsetRay",
+                song_title=f"Smoke Song {index:02d}",
+                rank="EZ",
+                score=950000 + index,
+                acc=98.0 + index / 100,
+                fc=False,
+                rating="S",
+                difficulty=12.0 + index / 100,
+                rks=12.0 - index / 100,
+            )
+            for index in range(33)
+        ]
+        b30_html = original.b30_html(
+            paths,
+            Best30Result(
+                official_rks=12.3456,
+                computed_rks=12.1234,
+                records=sample_records,
+                total_records=len(sample_records),
+                phi_records=[],
+            ),
+            SaveSnapshot(user_id="smoke", ranking_score=12.3456, raw={"saveInfo": {"modifiedAt": {"iso": "2026-05-29T12:00:00+00:00"}}}),
+        )
+        if "OVER FLOW" not in b30_html or "#28" not in b30_html:
+            raise SystemExit("b30 html should render overflow records after B27")
+        if "RKS 12." in b30_html:
+            raise SystemExit("b30 html acc-side pill should show push suggestion, not duplicated RKS text")
+        if "suggest-tip" not in b30_html or "width: 1200px" not in b30_html:
+            raise SystemExit("b30 html should keep original suggestion pill and page-width reset")
         catalog = load_catalog(paths.info)
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(

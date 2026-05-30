@@ -74,16 +74,18 @@ def iter_score_records(snapshot: SaveSnapshot, catalog: SongCatalog) -> list[Sco
     return records
 
 
-def compute_b30(snapshot: SaveSnapshot, catalog: SongCatalog, limit: int = 30) -> Best30Result:
+def compute_b30(snapshot: SaveSnapshot, catalog: SongCatalog, limit: int = 33) -> Best30Result:
     all_records = iter_score_records(snapshot, catalog)
     sorted_records = sorted(all_records, key=lambda item: item.rks, reverse=True)
-    top30 = sorted_records[:30]
-    computed = sum(record.rks for record in top30) / 30 if top30 else 0.0
+    phi_records = sorted((record for record in all_records if record.acc >= 100), key=lambda item: item.rks, reverse=True)[:3]
+    computed_records = [*phi_records, *sorted_records[:27]]
+    computed = sum(record.rks for record in computed_records) / 30 if computed_records else 0.0
     return Best30Result(
         official_rks=snapshot.ranking_score,
         computed_rks=computed,
         records=sorted_records[:limit],
         total_records=len(all_records),
+        phi_records=phi_records,
     )
 
 

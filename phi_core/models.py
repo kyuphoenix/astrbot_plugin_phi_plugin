@@ -124,6 +124,7 @@ class Best30Result:
     computed_rks: float
     records: list[ScoreRecord]
     total_records: int
+    phi_records: list[ScoreRecord] = field(default_factory=list)
 
 
 @dataclass(slots=True)
