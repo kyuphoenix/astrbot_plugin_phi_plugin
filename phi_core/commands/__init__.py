@@ -44,4 +44,34 @@ async def dispatch(ctx: CommandContext, user_id: str, command: str, args: str) -
     return result
 
 
-__all__ = ["CommandContext", "CommandResult", "ROUTES", "ROUTE_MODULES", "dispatch"]
+def command_alias_groups() -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for alias, module_name in ROUTE_MODULES.items():
+        grouped.setdefault(module_name, []).append(alias)
+    return {module_name: sorted(aliases) for module_name, aliases in sorted(grouped.items())}
+
+
+def render_toolset_catalog() -> str:
+    lines = [
+        "Phi Plugin 已注册命令工具集：",
+        "调用 phi_plugin 时，command 填下面任意命令/别名，args 填原命令后面的参数。",
+    ]
+    for module_name, aliases in command_alias_groups().items():
+        preferred = module_name if module_name in aliases else aliases[0]
+        alias_text = ", ".join(alias for alias in aliases if alias != preferred)
+        if alias_text:
+            lines.append(f"- {preferred}: {alias_text}")
+        else:
+            lines.append(f"- {preferred}")
+    return "\n".join(lines)
+
+
+__all__ = [
+    "CommandContext",
+    "CommandResult",
+    "ROUTES",
+    "ROUTE_MODULES",
+    "command_alias_groups",
+    "dispatch",
+    "render_toolset_catalog",
+]
