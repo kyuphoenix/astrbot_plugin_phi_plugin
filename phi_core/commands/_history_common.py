@@ -11,7 +11,7 @@ async def load_merged_history(ctx: CommandContext, user_id: str, fields: list[st
     history = ctx.store.load_history(user_id)
     token = ctx.store.get_token(user_id)
     api_id = ctx.store.get_api_id(user_id)
-    if api_id:
+    if token or api_id:
         try:
             remote = await ctx.client.fetch_history(user_id, token=token, api_id=api_id, fields=fields)
             history = merge_histories(remote, history)

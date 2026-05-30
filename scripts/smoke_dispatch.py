@@ -32,6 +32,7 @@ class FakeLoginClient(PhiApiClient):
         self.added_comments: list[dict] = []
         self.deleted_comments: list[str] = []
         self.set_tags: list[dict] = []
+        self.history_fetches: list[dict[str, object]] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -63,7 +64,19 @@ class FakeLoginClient(PhiApiClient):
         }
 
     async def fetch_history(self, user_id: str, *, token=None, api_id=None, fields=None):  # type: ignore[override]
-        return {}
+        self.history_fetches.append({"user_id": user_id, "token": token, "api_id": api_id, "fields": fields})
+        return {
+            "rks": [
+                {"date": f"2026-04-{index + 1:02d}T00:00:00+00:00", "value": 10 + index / 100}
+                for index in range(28)
+            ],
+            "data": [
+                {"date": f"2026-04-{index + 1:02d}T00:00:00+00:00", "value": [index, 2, 0, 0, 0]}
+                for index in range(28)
+            ],
+            "challengeModeRank": [],
+            "scoreHistory": {},
+        }
 
     async def set_history(self, user_id: str, history: dict, *, token=None, api_id=None):  # type: ignore[override]
         self.history_uploads.append(history)
@@ -562,6 +575,17 @@ async def main() -> None:
                 raise SystemExit(f"image {command} should inline image resources as data URIs")
             if "phiAdjustFontSize" not in html:
                 raise SystemExit(f"image {command} should include shared auto font sizing script")
+            if command == "info":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 1920 or options.get("viewport_height") != 1500:
+                    raise SystemExit(f"image info should use original 1920x1500 viewport, got {options!r}")
+                if "--phi-viewport-width: 1920px" not in html or ".left" not in html or ".right" not in html:
+                    raise SystemExit("image info should include a left/right original-layout guard")
+                if html.count("<line x1=") < 20:
+                    raise SystemExit("image info should render long API history, not only the last 12 points")
+                info_fetches = [item for item in login_client.history_fetches if item["user_id"] == "login-user"]
+                if not info_fetches or "rks" not in (info_fetches[-1]["fields"] or []):
+                    raise SystemExit(f"image info should fetch long remote history before rendering, got {info_fetches!r}")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")

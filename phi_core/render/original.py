@@ -776,6 +776,7 @@ def _userinfo_html(paths: PluginPaths, data: dict[str, Any]) -> str:
     stats = data["userstats"]
     challenge_img = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
     body = [
+        _userinfo_layout_guard(),
         '<div class="background"><img src="{}" alt="{}"></div>'.format(_esc(data["background"]), _esc(data["background"])),
         '<div class="left">',
         '<div class="Player_Info"><p>PLAYER_INFO</p></div>',
@@ -805,6 +806,42 @@ def _userinfo_html(paths: PluginPaths, data: dict[str, Any]) -> str:
         '</div>',
     ]
     return original_page(paths, "userinfo/userinfo.css", "".join(body), theme="default", background=data["background"], width=1920)
+
+
+def _userinfo_layout_guard() -> str:
+    return """
+<style>
+:root {
+  --phi-viewport-width: 1920px;
+  --phi-viewport-height: 1500px;
+}
+html, body {
+  width: 1920px !important;
+  min-width: 1920px !important;
+  max-width: 1920px !important;
+}
+body {
+  height: 1500px !important;
+  min-height: 1500px !important;
+  display: block !important;
+}
+.left {
+  left: 2.5% !important;
+  right: auto !important;
+  top: 90px !important;
+}
+.right {
+  right: 2.5% !important;
+  left: auto !important;
+  top: 90px !important;
+}
+.left,
+.right {
+  position: absolute !important;
+  box-sizing: border-box !important;
+}
+</style>
+"""
 
 
 def _info_graph_block(title: str, lines: list[dict[str, Any]], value_range: list[float], date_text: list[str]) -> str:
@@ -1027,11 +1064,24 @@ def _series_lines(
         current_number = money_to_kib(current[1]) if money else _as_float(current[1])
         if current_number is not None and not any(label == current[0] for label, _ in points):
             points.append((current[0], float(current_number)))
-    points = points[-12:]
+    points = _sample_series_points(points, max_points=96)
     if len(points) < 2:
         return [], [0.0, 0.0], ["", points[-1][0] if points else ""]
     lines, value_range, date_range = _numeric_series_to_lines([(index, value) for index, (_, value) in enumerate(points)])
     return lines, value_range, [points[0][0], points[-1][0]]
+
+
+def _sample_series_points(points: list[tuple[str, float]], *, max_points: int) -> list[tuple[str, float]]:
+    if len(points) <= max_points:
+        return points
+    sampled: list[tuple[str, float]] = []
+    last_index = len(points) - 1
+    for sample_index in range(max_points):
+        source_index = round(sample_index * last_index / (max_points - 1))
+        point = points[source_index]
+        if not sampled or sampled[-1] != point:
+            sampled.append(point)
+    return sampled
 
 
 def _numeric_series_to_lines(

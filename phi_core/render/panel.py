@@ -33,11 +33,13 @@ async def render_html(
     html: str,
     name: str,
     html_render: HtmlRenderFunc | None = None,
+    viewport_width: int | None = None,
+    viewport_height: int | None = None,
 ) -> Path:
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await _render_with_retries(config, html_render, html)
+        rendered = await _render_with_retries(config, html_render, html, viewport_width=viewport_width, viewport_height=viewport_height)
         result = _render_result_path(paths, rendered, name)
         if result is not None:
             return result
@@ -95,12 +97,19 @@ def _count_files(path: Path) -> int:
     return sum(1 for item in path.iterdir() if item.is_file())
 
 
-async def _render_with_retries(config: PluginConfig, html_render: HtmlRenderFunc, html: str) -> str | bytes:
+async def _render_with_retries(
+    config: PluginConfig,
+    html_render: HtmlRenderFunc,
+    html: str,
+    *,
+    viewport_width: int | None = None,
+    viewport_height: int | None = None,
+) -> str | bytes:
     attempts = max(1, config.render_max_retries + 1)
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            return await html_render(html, {}, False, _options())
+            return await html_render(html, {}, False, _options(viewport_width=viewport_width, viewport_height=viewport_height))
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:
@@ -118,15 +127,15 @@ async def _render_with_retries(config: PluginConfig, html_render: HtmlRenderFunc
     raise last_exc
 
 
-def _options() -> dict:
+def _options(*, viewport_width: int | None = None, viewport_height: int | None = None) -> dict:
     return {
         "full_page": True,
         "type": "png",
         "device_scale_factor_level": "ultra",
         "scale": "css",
         "timeout": 30000,
-        "viewport_width": 1200,
-        "viewport_height": 1000,
+        "viewport_width": viewport_width or 1200,
+        "viewport_height": viewport_height or 1000,
     }
 
 
