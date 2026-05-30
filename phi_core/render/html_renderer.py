@@ -53,8 +53,8 @@ def _asset_data(paths: PluginPaths, corpus: str, *, title_corpus: str) -> dict[s
     font_path = _font_path(paths)
     title_font_path = paths.resources / "fonts" / "Aldrich-Regular.ttf"
     return {
-        "font_url": _font_data_uri(paths, font_path, corpus) or _file_uri(font_path),
-        "title_font_url": _font_data_uri(paths, title_font_path, title_corpus) or _file_uri(title_font_path),
+        "font_url": _font_data_uri(paths, font_path, corpus) or _raw_font_data_uri(font_path),
+        "title_font_url": _font_data_uri(paths, title_font_path, title_corpus) or _raw_font_data_uri(title_font_path),
     }
 
 
@@ -123,10 +123,11 @@ def _subset_font(paths: PluginPaths, font_path: Path, corpus: str) -> Path:
     return output
 
 
-def _file_uri(path: Path) -> str:
-    if not path.exists():
+def _raw_font_data_uri(font_path: Path) -> str:
+    if not font_path.exists():
         return ""
-    return path.resolve().as_uri()
+    payload = base64.b64encode(font_path.read_bytes()).decode("ascii")
+    return f"data:font/ttf;base64,{payload}"
 
 
 def _collect_text(*values: Any) -> str:

@@ -164,6 +164,9 @@ async def main() -> None:
     try:
         paths = PluginPaths.from_root(ROOT, data_dir=data_dir)
         paths.ensure_data_dir()
+        downloaded_ill = paths.downloaded_original_ill / "illLow"
+        downloaded_ill.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (32, 24), (120, 40, 90)).save(downloaded_ill / "Glaciaxion.SunsetRay.png")
         catalog = load_catalog(paths.info)
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(
@@ -198,7 +201,9 @@ async def main() -> None:
             result = await dispatch(ctx, "smoke-user", command, args)
             if expected and expected not in result.value:
                 raise SystemExit(f"{command} expected {expected!r}, got {result.value!r}")
-            print(f"{command}: {result.value.splitlines()[0]}")
+            first_line = result.value.splitlines()[0]
+            safe_line = first_line.encode("utf-8", errors="backslashreplace").decode("utf-8")
+            print(f"{command}: {safe_line}")
 
         if ROUTE_MODULES.get("pgr") != "pgr":
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
@@ -247,14 +252,18 @@ async def main() -> None:
         with Image.open(html_result.value) as rendered:
             if rendered.width < 1000 or rendered.height < 500:
                 raise SystemExit(f"help image has unexpected size: {rendered.size}")
-        if not html_render_calls or "html/help/help.css" not in html_render_calls[0][0] or 'class="help_box"' not in html_render_calls[0][0]:
+        if not html_render_calls or 'class="help_box"' not in html_render_calls[0][0] or ".help_box" not in html_render_calls[0][0]:
             raise SystemExit("official html renderer was not called with the original help resources")
+        if "file:///" in html_render_calls[0][0]:
+            raise SystemExit("official html renderer should receive self-contained help HTML without local file URLs")
+        if "data:image/" not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer should inline local help images as data URIs")
         if html_render_calls[0][2] is not False:
             raise SystemExit("official html renderer should return a local file path")
         if html_render_calls[0][1] != {}:
             raise SystemExit("official html renderer should receive pre-rendered HTML with an empty data dict")
-        if "resources/html/common/common.css" not in html_render_calls[0][0].replace("\\", "/"):
-            raise SystemExit("official html renderer should receive original common css resources")
+        if "@font-face" not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer should receive inlined original common css resources")
         if html_render_calls[0][3] is None or html_render_calls[0][3].get("type") != "png":
             raise SystemExit("official html renderer should be asked for png output")
 
@@ -329,8 +338,12 @@ async def main() -> None:
         image_pgr = await dispatch(image_login_ctx, "login-user", "pgr", "")
         if image_pgr.kind != "image" or not Path(image_pgr.value).exists():
             raise SystemExit(f"image pgr should render an image, got {image_pgr!r}")
-        if not b30_render_calls or "html/b19/b19.css" not in b30_render_calls[0][0] or 'class="b19"' not in b30_render_calls[0][0]:
+        if not b30_render_calls or ".b19" not in b30_render_calls[0][0] or 'class="b19"' not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should render with original b19 resources")
+        if "file:///" in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should render with self-contained HTML without local file URLs")
+        if "data:image/" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should inline local image resources")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")

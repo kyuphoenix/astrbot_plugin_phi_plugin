@@ -37,7 +37,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi suggest` / `phi 推分建议`：基于缓存成绩估算推分建议
 - `phi randclg [范围]`：随机三曲课题，例如 `phi randclg 30-45`
 
-命令触发使用 AstrBot 原生 `@filter.command("phi")`，实际前缀由 AstrBot 全局唤醒/命令配置处理，本插件不再自行监听 `#` 或 `/`。
+命令触发使用 AstrBot 原生 `@filter.command_group("phi")`，实际前缀由 AstrBot 全局唤醒/命令配置处理，本插件不再自行监听 `#` 或 `/`。
 
 命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
@@ -64,6 +64,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 ```powershell
 python -m compileall .
 python scripts\smoke_command_routes.py
+python scripts\smoke_command_group.py
 python scripts\smoke_dispatch.py
 python scripts\smoke_send_components.py
 ```

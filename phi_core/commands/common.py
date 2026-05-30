@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from ..config import PluginConfig
+from ..data.illustrations import find_illustration_file
 from ..data import SongCatalog, SongSearcher
 from ..models import SaveSnapshot, Song
 from ..paths import PluginPaths
@@ -53,16 +54,9 @@ class CommandContext:
 
     def find_illustration(self, song: Song) -> Path | None:
         candidates: list[Path] = []
-        base_id = song.id.removesuffix(".0")
-        for folder in [
-            self.paths.downloaded_original_ill,
-            self.paths.downloaded_original_ill / "ill",
-            self.paths.downloaded_original_ill / "SP",
-            self.paths.original_ill,
-            self.paths.original_ill / "ill",
-            self.paths.original_ill / "SP",
-        ]:
-            candidates.append(folder / f"{base_id}.png")
+        original = find_illustration_file(self.paths, song.id)
+        if original is not None:
+            candidates.append(original)
         if song.illustration:
             candidates.append(self.paths.other_ill / song.illustration)
         if song.illustration_big:

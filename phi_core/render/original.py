@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import html
 import json
+import base64
+import mimetypes
+import re
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from ..data.illustrations import find_illustration_file
 from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
 from ..paths import PluginPaths
 from ..query.progress import extract_modified_datetime, extract_money, format_datetime
+
+_CSS_URL_RE = re.compile(r"url\((['\"]?)([^)'\"]+)\1\)")
 
 
 def help_html(paths: PluginPaths, *, cmd_head: str = "phi") -> str:
@@ -79,9 +85,6 @@ def ill_html(paths: PluginPaths, illustration: str, illustrator: str = "") -> st
 
 
 def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "star", background: str = "") -> str:
-    common_css = asset_uri(paths, "html/common/common.css")
-    css = asset_uri(paths, f"html/{css_rel}")
-    star_js = asset_uri(paths, "html/common/theme/star/star.js")
     star1 = asset_uri(paths, "html/otherimg/Star1.png")
     star2 = asset_uri(paths, "html/otherimg/Star2.png")
     fallback = asset_uri(paths, "html/otherimg/phigros.png")
@@ -96,14 +99,14 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
   <link rel="shortcut icon" href="#">
-  <link rel="stylesheet" type="text/css" href="{common_css}">
-  <link rel="stylesheet" type="text/css" href="{css}">
+  <style>{_css_text(paths, "html/common/common.css")}</style>
+  <style>{_css_text(paths, f"html/{css_rel}")}</style>
   <title>phi-plugin</title>
 </head>
 <body class="elem-hydro default-mode">
   {background_html}
-  <script>var _res_path = "{asset_uri(paths, '')}";</script>
-  <script src="{star_js}"></script>
+  <script>var _res_path = "";</script>
+  <script>{_js_text(paths, "html/common/theme/star/star.js")}</script>
   {body}
 </body>
 </html>"""
@@ -113,12 +116,12 @@ def asset_uri(paths: PluginPaths, relative: str) -> str:
     base = paths.resources
     if relative:
         base = base / relative
-    return base.resolve().as_uri()
+    return _file_data_uri(base)
 
 
 def _b30_title(paths: PluginPaths, gameuser: dict[str, Any], stats: list[dict[str, Any]], date_text: str) -> str:
     avatar_path = paths.resources / "html" / "avatar" / f"{gameuser['avatar']}.png"
-    avatar = avatar_path.resolve().as_uri() if avatar_path.exists() else asset_uri(paths, "html/avatar/Introduction.png")
+    avatar = _file_data_uri(avatar_path) or asset_uri(paths, "html/avatar/Introduction.png")
     challenge = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
     data_img = asset_uri(paths, "html/otherimg/data.png")
     stat_headers = "".join(f'<div class="poz"><p>{_esc(item["title"])}</p></div>' for item in stats)
@@ -180,17 +183,44 @@ def _b30_record_card(paths: PluginPaths, record: ScoreRecord, number: str, *, ph
 
 
 def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:
-    base_id = record.song_id.removesuffix(".0")
-    candidates = [
-        paths.downloaded_original_ill / "ill" / f"{base_id}.png",
-        paths.downloaded_original_ill / f"{base_id}.png",
-        paths.original_ill / "ill" / f"{base_id}.png",
-        paths.original_ill / f"{base_id}.png",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path.resolve().as_uri()
+    path = find_illustration_file(paths, record.song_id, prefer_low=True)
+    if path is not None:
+        return _file_data_uri(path)
     return asset_uri(paths, "html/otherimg/phigros.png")
+
+
+def _css_text(paths: PluginPaths, relative: str) -> str:
+    path = paths.resources / relative
+    if not path.exists():
+        return ""
+    css = path.read_text(encoding="utf-8")
+    base_dir = path.parent
+
+    def replace_url(match: re.Match[str]) -> str:
+        raw_url = match.group(2).strip()
+        lowered = raw_url.lower()
+        if lowered.startswith(("data:", "http:", "https:", "file:", "#")):
+            return match.group(0)
+        resolved = (base_dir / raw_url).resolve()
+        data_uri = _file_data_uri(resolved)
+        return f'url("{data_uri}")' if data_uri else match.group(0)
+
+    return _CSS_URL_RE.sub(replace_url, css)
+
+
+def _js_text(paths: PluginPaths, relative: str) -> str:
+    path = paths.resources / relative
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _file_data_uri(path: Path) -> str:
+    if not path.exists() or not path.is_file():
+        return ""
+    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    payload = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{payload}"
 
 
 def _level_stats(records: Iterable[ScoreRecord]) -> list[dict[str, Any]]:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 from collections.abc import Awaitable, Callable
-from dataclasses import replace
 from pathlib import Path
 
 import astrbot.api.message_components as Comp
@@ -10,7 +9,7 @@ from astrbot.api.all import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools
 
-from .phi_core.commands import CommandContext, CommandResult, dispatch, render_toolset_catalog
+from .phi_core.commands import CommandContext, CommandResult, dispatch
 from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
@@ -50,63 +49,227 @@ class AstrBotPhiPlugin(Star):
             f"data_dir={self.paths.data_dir}; font={font_path}; font_exists={Path(font_path).exists()}"
         )
 
-    @filter.command("phi", alias={"pgr", "屁股肉"})
-    async def phi(self, event: AstrMessageEvent):
-        """Phigros 查询核心命令。"""
+    @filter.command_group("phi")
+    def phi(self):
+        """Phigros command group."""
+        pass
+
+    @filter.command("pgr", alias={"\u5c41\u80a1\u8089"})
+    async def pgr_shortcut(self, event: AstrMessageEvent):
+        """Phigros B30/RKS shortcut."""
+        yield await self._dispatch_phi_command(event, "pgr", grouped=False)
+
+    @phi.command('achievement', alias={'ahv'})
+    async def phi_achievement(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'achievement')
+
+    @phi.command('addtag', alias={'retag', 'subtag'})
+    async def phi_addtag(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'addtag')
+
+    @phi.command('alias')
+    async def phi_alias(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'alias')
+
+    @phi.command('arcgros', alias={'arcgrosb19'})
+    async def phi_arcgros(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'arcgros')
+
+    @phi.command('auth', alias={'login', '\u767b\u5f55'})
+    async def phi_auth(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'auth')
+
+    @phi.command('b30')
+    async def phi_b30(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'b30')
+
+    @phi.command('best')
+    async def phi_best(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'best')
+
+    @phi.command('bind', alias={'\u7ed1\u5b9a'})
+    async def phi_bind(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'bind')
+
+    @phi.command('chap')
+    async def phi_chap(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'chap')
+
+    @phi.command('clean')
+    async def phi_clean(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'clean')
+
+    @phi.command('cnbind', alias={'cn\u7ed1\u5b9a'})
+    async def phi_cnbind(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'cnbind')
+
+    @phi.command('com', alias={'\u8ba1\u7b97'})
+    async def phi_com(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'com')
+
+    @phi.command('comment', alias={'cmt', '\u8bc4\u4ef7', '\u8bc4\u8bba'})
+    async def phi_comment(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'comment')
+
+    @phi.command('data')
+    async def phi_data(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'data')
+
+    @phi.command('down', alias={'downill', 'download', 'illupdate', '\u4e0b\u8f7d', '\u4e0b\u8f7d\u66f2\u7ed8', '\u66f4\u65b0\u66f2\u7ed8'})
+    async def phi_down(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'down')
+
+    @phi.command('fc30')
+    async def phi_fc30(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'fc30')
+
+    @phi.command('gbbind', alias={'gb\u7ed1\u5b9a'})
+    async def phi_gbbind(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'gbbind')
+
+    @phi.command('help', alias={'\u547d\u4ee4', '\u5e2e\u52a9', '\u6307\u4ee4', '\u83dc\u5355'})
+    async def phi_help(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'help')
+
+    @phi.command('hisb30')
+    async def phi_hisb30(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'hisb30')
+
+    @phi.command('2025history', alias={'\u5e74\u5ea6\u603b\u7ed3'})
+    async def phi_history2025(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, '2025history')
+
+    @phi.command('id', alias={'apiid', 'uid', '\u67e5\u8be2id'})
+    async def phi_id(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'id')
+
+    @phi.command('ill', alias={'\u66f2\u7ed8'})
+    async def phi_ill(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'ill')
+
+    @phi.command('info')
+    async def phi_info(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'info')
+
+    @phi.command('list')
+    async def phi_list(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'list')
+
+    @phi.command('live')
+    async def phi_live(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'live')
+
+    @phi.command('lmtacc')
+    async def phi_lmtacc(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'lmtacc')
+
+    @phi.command('lvscore', alias={'lvsco', 'scolv'})
+    async def phi_lvscore(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'lvscore')
+
+    @phi.command('mycmt')
+    async def phi_mycmt(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'mycmt')
+
+    @phi.command('newlog')
+    async def phi_newlog(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'newlog')
+
+    @phi.command('newnotice')
+    async def phi_newnotice(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'newnotice')
+
+    @phi.command('p30')
+    async def phi_p30(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'p30')
+
+    @phi.command('pgr', alias={'\u5c41\u80a1\u8089'})
+    async def phi_pgr(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'pgr')
+
+    @phi.command('rand', alias={'random', '\u968f\u673a'})
+    async def phi_rand(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'rand')
+
+    @phi.command('randclg')
+    async def phi_randclg(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'randclg')
+
+    @phi.command('recmt')
+    async def phi_recmt(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'recmt')
+
+    @phi.command('renderdiag', alias={'\u6e32\u67d3\u8bca\u65ad'})
+    async def phi_renderdiag(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'renderdiag')
+
+    @phi.command('rks')
+    async def phi_rks(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'rks')
+
+    @phi.command('score', alias={'\u5355\u66f2\u6210\u7ee9'})
+    async def phi_score(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'score')
+
+    @phi.command('search', alias={'\u67e5\u627e', '\u68c0\u7d22'})
+    async def phi_search(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'search')
+
+    @phi.command('sessiontoken', alias={'tk', 'token'})
+    async def phi_sessiontoken(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'sessiontoken')
+
+    @phi.command('setnick', alias={'setnic', '\u8bbe\u7f6e\u522b\u540d'})
+    async def phi_setnick(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'setnick')
+
+    @phi.command('song', alias={'\u66f2'})
+    async def phi_song(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'song')
+
+    @phi.command('suggest', alias={'\u63a8\u5206', '\u63a8\u5206\u5efa\u8bae'})
+    async def phi_suggest(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'suggest')
+
+    @phi.command('table', alias={'\u5b9a\u6570\u8868'})
+    async def phi_table(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'table')
+
+    @phi.command('tips')
+    async def phi_tips(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'tips')
+
+    @phi.command('unbind', alias={'\u89e3\u7ed1'})
+    async def phi_unbind(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'unbind')
+
+    @phi.command('update', alias={'\u66f4\u65b0\u5b58\u6863'})
+    async def phi_update(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'update')
+
+    @phi.command('x30')
+    async def phi_x30(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'x30')
+
+    async def _dispatch_phi_command(self, event: AstrMessageEvent, command: str, *, grouped: bool = True):
         event.stop_event()
-        command, args = self._parse_native_command(event.get_message_str())
+        args = self._extract_command_args(event.get_message_str(), grouped=grouped)
 
         async def send_intermediate(result: CommandResult) -> None:
             await event.send(await self._to_astrbot_result(event, result))
 
         command_context = self._command_context_for_event(event, sender=send_intermediate)
         result = await dispatch(command_context, event.get_sender_id(), command, args)
-        yield await self._to_astrbot_result(event, result)
-
-    @filter.llm_tool(name="phi_plugin")
-    async def phi_plugin_tool(self, event: AstrMessageEvent, command: str, args: str = "") -> str:
-        """
-        运行 Phi Plugin 中的任意已注册 Phigros 查询命令。
-
-        Args:
-            command(string): 要运行的命令或别名，例如 pgr、b30、score、song、bind、update、down。
-            args(string): 命令参数，不包含 phi 和 command 本身，例如 song 命令可填 Glaciaxion。
-        """
-        command, args = self._parse_tool_command(command, args)
-
-        async def send_intermediate(result: CommandResult) -> None:
-            await event.send(await self._to_astrbot_result(event, result, render_text_as_image=False))
-
-        command_context = self._command_context_for_event(
-            event,
-            sender=send_intermediate,
-            render_mode="text",
-        )
-        result = await dispatch(command_context, event.get_sender_id(), command, args)
-        if result.kind == "image":
-            await event.send(event.chain_result([self._image_component(result.value)]))
-            return f"phi {command} 已生成图片结果并发送到当前会话。"
-        return result.value
-
-    @filter.llm_tool(name="phi_plugin_commands")
-    async def phi_plugin_commands_tool(self, event: AstrMessageEvent) -> str:
-        """
-        列出 Phi Plugin 当前自动发现并注册的全部命令和别名。
-        """
-        return render_toolset_catalog()
+        return await self._to_astrbot_result(event, result)
 
     def _command_context_for_event(
         self,
         event: AstrMessageEvent,
         *,
         sender: Callable[[CommandResult], Awaitable[None]] | None = None,
-        render_mode: str | None = None,
     ) -> CommandContext:
-        config = self.command_context.config
-        if render_mode is not None and render_mode != config.render_mode:
-            config = replace(config, render_mode=render_mode)
         return CommandContext(
-            config=config,
+            config=self.command_context.config,
             paths=self.command_context.paths,
             catalog=self.command_context.catalog,
             searcher=self.command_context.searcher,
@@ -118,39 +281,15 @@ class AstrBotPhiPlugin(Star):
             is_admin=bool(event.is_admin()),
         )
 
-    @classmethod
-    def _parse_tool_command(cls, command: str, args: str = "") -> tuple[str, str]:
-        raw_command = (command or "").strip()
-        raw_args = (args or "").strip()
-        lowered = raw_command.casefold()
-        if not raw_command and raw_args:
-            parts = raw_args.split(maxsplit=1)
-            return parts[0].casefold(), parts[1].strip() if len(parts) > 1 else ""
-        if lowered == "phi":
-            return cls._parse_native_command(f"phi {raw_args}".strip())
-        if lowered.startswith("phi "):
-            parsed_command, parsed_args = cls._parse_native_command(raw_command)
-            merged_args = f"{parsed_args} {raw_args}".strip()
-            return parsed_command, merged_args
-        return lowered or "help", raw_args
-
     @staticmethod
-    def _parse_native_command(message: str) -> tuple[str, str]:
+    def _extract_command_args(message: str, *, grouped: bool) -> str:
         text = (message or "").strip()
         if not text:
-            return "help", ""
-
-        # AstrBot has already matched the command. Its message string still
-        # includes the command token, as shown in the plugin guide examples.
-        parts = text.split(maxsplit=1)
-        root = parts[0].casefold()
-        if root in {"pgr", "屁股肉"}:
-            return root, parts[1].strip() if len(parts) > 1 else ""
-        rest = parts[1].strip() if len(parts) > 1 else "help"
-        sub_parts = rest.split(maxsplit=1)
-        command = sub_parts[0].casefold() if sub_parts else "help"
-        args = sub_parts[1].strip() if len(sub_parts) > 1 else ""
-        return command, args
+            return ""
+        parts = text.split(maxsplit=2 if grouped else 1)
+        if grouped:
+            return parts[2].strip() if len(parts) > 2 else ""
+        return parts[1].strip() if len(parts) > 1 else ""
 
     async def _to_astrbot_result(
         self,
