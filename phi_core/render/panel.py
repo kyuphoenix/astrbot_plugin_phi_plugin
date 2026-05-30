@@ -104,9 +104,50 @@ def _render_result_path(paths: PluginPaths, rendered: str | bytes, name: str) ->
         paths.render_cache.mkdir(parents=True, exist_ok=True)
         output = paths.render_cache / f"html-{name}-{uuid.uuid4().hex[:10]}{suffix}"
         output.write_bytes(rendered)
-        return output
+        return _trim_right_border(paths, output, name)
 
     result = Path(rendered)
     if result.exists():
-        return result
+        return _trim_right_border(paths, result, name)
     return None
+
+
+def _trim_right_border(paths: PluginPaths, path: Path, name: str) -> Path:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            crop_right = _right_content_edge(image.convert("RGB"))
+            if crop_right >= image.width - 1 or crop_right < int(image.width * 0.8):
+                return path
+            paths.render_cache.mkdir(parents=True, exist_ok=True)
+            output = paths.render_cache / f"html-{name}-trim-{uuid.uuid4().hex[:10]}{path.suffix or '.png'}"
+            image.crop((0, 0, crop_right + 1, image.height)).save(output)
+            return output
+    except Exception as exc:
+        logger.warning("phi html render right-border trim skipped for %s: %s", path, exc)
+    return path
+
+
+def _right_content_edge(image) -> int:
+    for x in range(image.width - 1, -1, -1):
+        if not _is_blank_border_column(image, x):
+            return x
+    return image.width - 1
+
+
+def _is_blank_border_column(image, x: int) -> bool:
+    step = max(1, image.height // 240)
+    total = 0
+    black = 0
+    white = 0
+    for y in range(0, image.height, step):
+        r, g, b = image.getpixel((x, y))[:3]
+        total += 1
+        if max(r, g, b) <= 18:
+            black += 1
+        elif min(r, g, b) >= 242:
+            white += 1
+    if total == 0:
+        return False
+    return black / total >= 0.98 or white / total >= 0.98

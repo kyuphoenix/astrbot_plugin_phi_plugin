@@ -13,10 +13,11 @@ if str(ROOT) not in sys.path:
 
 from phi_core.commands import CommandContext, ROUTE_MODULES, dispatch
 from phi_core.config import PluginConfig
+from phi_core.data.illustrations import random_background_source
 from phi_core.data import SongSearcher, load_catalog
 from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord
 from phi_core.paths import PluginPaths
-from phi_core.render import html_renderer, original
+from phi_core.render import html_renderer, original, panel
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
 from phi_core.save.taptap import _is_oauth_waiting_response
 
@@ -201,6 +202,20 @@ async def main() -> None:
             raise SystemExit("b30 html should render original Real RKS info chip when computed rks differs")
         if "suggest-tip" not in b30_html or "width: 1200px" not in b30_html:
             raise SystemExit("b30 html should keep original suggestion pill and page-width reset")
+        online_background = random_background_source(PluginPaths.from_root(ROOT, data_dir=data_dir / "no-local-ill"))
+        if not isinstance(online_background, str) or "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in online_background:
+            raise SystemExit("background picker should fall back to online random blurred illustrations before phigros.png")
+        trim_source = paths.render_cache / "trim-source.png"
+        Image.new("RGB", (1280, 32), (0, 0, 0)).save(trim_source)
+        with Image.open(trim_source) as image:
+            image.paste((20, 80, 120), (0, 0, 1200, 32))
+            image.save(trim_source)
+        trimmed = panel._render_result_path(paths, str(trim_source), "trim-smoke")
+        if trimmed is None:
+            raise SystemExit("right-border trim should return an image path")
+        with Image.open(trimmed) as image:
+            if image.width != 1200:
+                raise SystemExit(f"right-border trim should crop blank edge to 1200px, got {image.size}")
         catalog = load_catalog(paths.info)
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(

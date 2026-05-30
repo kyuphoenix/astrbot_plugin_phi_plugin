@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from ..data.illustrations import find_illustration_file, random_illustration_file
+from ..data.illustrations import find_illustration_file, random_background_source
 from ..data.resources import latest_version_log, load_version_log
 from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
 from ..paths import PluginPaths
@@ -343,9 +343,11 @@ requestAnimationFrame(phiAdjustFontSize);
 
 
 def _random_background(paths: PluginPaths) -> str:
-    path = random_illustration_file(paths)
-    if path is not None:
-        return _file_data_uri(path)
+    source = random_background_source(paths)
+    if isinstance(source, Path):
+        return _file_data_uri(source)
+    if isinstance(source, str) and source:
+        return source
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
