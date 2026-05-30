@@ -42,6 +42,12 @@ async def sync_save_cache(ctx: CommandContext, user_id: str) -> SaveSyncResult:
     if raw_api_id and ctx.store.validate_api_id(str(raw_api_id)):
         ctx.store.set_api_id(user_id, str(raw_api_id))
     ctx.store.save_snapshot(user_id, snapshot_to_json(snapshot))
+    try:
+        from ._notes import apply_task_rewards, load_notes
+
+        apply_task_rewards(ctx, user_id, snapshot, load_notes(ctx, user_id))
+    except Exception:
+        pass
     return SaveSyncResult(
         snapshot=snapshot,
         previous_snapshot=previous_snapshot,

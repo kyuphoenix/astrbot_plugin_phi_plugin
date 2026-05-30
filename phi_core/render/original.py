@@ -832,6 +832,207 @@ def user_setting_html(paths: PluginPaths, data: dict[str, Any]) -> str:
     return original_page(paths, "setting/userSetting.css", body, theme="default", background=_random_background(paths), width=1080)
 
 
+def sign_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    edge_rate = data.get("edgeRate") if isinstance(data.get("edgeRate"), dict) else {}
+    daily_tasks = data.get("dailyTasks") if isinstance(data.get("dailyTasks"), list) else []
+    body = f"""
+<style>
+:root {{
+  --phi-viewport-width: 2048px;
+  --phi-viewport-height: 1080px;
+}}
+html, body {{
+  height: 1080px !important;
+  min-height: 1080px !important;
+  max-height: 1080px !important;
+}}
+</style>
+<div class="backGlass clip-box"></div>
+<div class="dashboard">
+  <div class="playerInfo leftAbsolute">
+    <div class="blackBlock clip-box"></div>
+    <div class="avatar clip-box"><img src="{asset_uri(paths, f"html/avatar/{_esc(str(data.get('avatar') or 'Introduction'))}.png") or asset_uri(paths, "html/avatar/Introduction.png")}" alt="avatar"></div>
+    <div class="playerId"><p name="pvis">{_esc(data.get("PlayerId", "UNKNOWN"))}</p></div>
+    <div class="rks clip-box"><p>{_esc(data.get("Rks", "0.0000"))}</p></div>
+    <div class="clgBox"><div class="Challenge"><img src="{asset_uri(paths, f"html/otherimg/{_as_int(data.get('ChallengeMode'))}.png")}" alt="Challenge"><p>{_as_int(data.get("ChallengeModeRank"))}</p></div></div>
+    <div class="date"><p>{_esc(data.get("Date", ""))}</p></div>
+    <div class="dataBox clip-box"><p>{_as_int(data.get("Notes"))} Notes</p></div>
+    <div class="spInfo colorful-background clip-box"><p>累计签到 {_as_int(data.get("signDays"))} 天</p></div>
+  </div>
+  <div class="edgeProgress clip-box leftAbsolute">
+    {_sign_edge_track(edge_rate, "EZ")}
+    {_sign_edge_track(edge_rate, "HD")}
+    {_sign_edge_track(edge_rate, "IN")}
+    {_sign_edge_track(edge_rate, "AT")}
+  </div>
+  <div class="leftRail leftAbsolute">
+    <div class="luckCard clip-box leftAbsolute">
+      <p class="cardTitle leftAbsolute">今日人品</p>
+      <p class="luckValue leftAbsolute">{_as_int(data.get("lucky"))}</p>
+    </div>
+    <div class="keyWordsCard leftAbsolute">
+      <div class="wordsBox clip-box">
+        <p class="leftAbsolute">宜</p>
+        {''.join(f'<p class="leftAbsolute">{_esc(word)}</p>' for word in data.get("good", [])[:4])}
+      </div>
+      <div class="wordsBox clip-box">
+        <p class="leftAbsolute">忌</p>
+        {''.join(f'<p class="leftAbsolute">{_esc(word)}</p>' for word in data.get("bad", [])[:4])}
+      </div>
+    </div>
+    <div class="quoteCard clip-box leftAbsolute">
+      <p class="cardTitle leftAbsolute">每日一言</p>
+      <div class="quoteText leftAbsolute"><p name="pvis">{_esc(data.get("quote", ""))}</p></div>
+    </div>
+  </div>
+  <div class="dailySongsPanel clip-box leftAbsolute">
+    <div class="panelHeader clip-box leftAbsolute"><p>DAILY TASK SONGS</p></div>
+    {''.join(_sign_daily_task(task) for task in daily_tasks[:5])}
+  </div>
+  <div class="noticePanel clip-box leftAbsolute">
+    {_sign_notice(data.get("notice")) if data.get("notice") else _sign_calendar(data.get("calendar"))}
+  </div>
+  <div class="createdbox leftAbsolute">
+    <div class="phi-plugin"><p>AstrBot Phi Plugin</p></div>
+    <div class="ver"><p>HTML</p></div>
+  </div>
+</div>
+"""
+    return original_page(paths, "sign/sign.css", body, theme="default", background=str(data.get("background") or _random_background(paths)), width=2048)
+
+
+def tasks_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    tasks = data.get("task") if isinstance(data.get("task"), list) else []
+    challenge_img = asset_uri(paths, f"html/otherimg/{_as_int(data.get('ChallengeMode'))}.png")
+    change_notes = str(data.get("change_notes") or "")
+    body = f"""
+<div class="title">
+  <div class="l">
+    <img src="{asset_uri(paths, "html/otherimg/Phigros_Icon_3.0.0.png")}" alt="icon">
+    <div class="doc">
+      <p>Phi-Plugin任务列表</p>
+      <p style="font-size:20px;">{_esc(data.get("task_ans", ""))}</p>
+      <p style="font-size:20px;">{_esc(data.get("task_ans1", ""))}</p>
+    </div>
+  </div>
+  <div class="m"></div>
+  <div class="r">
+    <p>Player: {_esc(data.get("PlayerId", "UNKNOWN"))}</p>
+    <p>RankingScore: {_esc(data.get("Rks", "0.0000"))}</p>
+    <div class="Challenge"><p>ChallengeMode:</p><div class="Challenge-r"><img src="{challenge_img}" alt="Challenge"><p>{_as_int(data.get("ChallengeModeRank"))}</p></div></div>
+    <p>Notes: {_as_int(data.get("Notes"))}{' <span style="color:' + ('gold' if change_notes.startswith('+') else 'red') + ';">' + _esc(change_notes) + '</span>' if change_notes else ''}</p>
+    <p>Date: {_esc(data.get("Date", ""))}</p>
+  </div>
+</div>
+<div class="box">
+  {''.join(_tasks_card(task, index) for index, task in enumerate(tasks) if task)}
+  {'' if any(tasks) else _tasks_empty()}
+</div>
+<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+{('<div class="tips"><p>Tip:' + _esc(data.get("tips", "")) + '</p></div>') if data.get("tips") else ''}
+"""
+    return original_page(paths, "tasks/tasks.css", body, theme="default", background=str(data.get("background") or _random_background(paths)), width=800)
+
+
+def _sign_edge_track(edge_rate: dict[str, Any], level: str) -> str:
+    value = edge_rate.get(level) if isinstance(edge_rate.get(level), dict) else {}
+    return f"""
+<div class="edgeTrack clip-box edgeFill--{_esc(level)}">
+  <div class="edgeFill edgeFill--unlock" style="--rate:{_esc(value.get("unlock", "0%"))}"></div>
+  <div class="edgeFill edgeFill--fc" style="--rate:{_esc(value.get("fc", "0%"))}"></div>
+  <div class="edgeFill edgeFill--phi" style="--rate:{_esc(value.get("phi", "0%"))}"></div>
+</div>"""
+
+
+def _sign_daily_task(task: dict[str, Any]) -> str:
+    finished = bool(task.get("finished"))
+    return f"""
+<div class="songItem clip-box leftAbsolute {'songItem--finished' if finished else ''}">
+  {'<div class="taskStatus clip-box taskStatus--finished">已完成</div>' if finished else ''}
+  <div class="songCover clip-box"><img src="{_esc(task.get("illustration", ""))}" alt="{_esc(task.get("song", ""))}"></div>
+  <div class="songText">
+    <p class="songIndex">{_esc(task.get("index", ""))}</p>
+    <p class="songName" name="pvis">{_esc(task.get("song", ""))}</p>
+    <p class="songMeta">{_esc(task.get("meta", ""))}</p>
+  </div>
+</div>"""
+
+
+def _sign_notice(notice: Any) -> str:
+    if not isinstance(notice, dict):
+        return ""
+    content = notice.get("content") if isinstance(notice.get("content"), list) else []
+    rows = []
+    for index, item in enumerate(content[:5]):
+        rows.append(f"""
+<div class="noticeRow clip-box leftAbsolute">
+  <div class="noticeRowIndex"><p><span style="color:skyblue;">{index + 1}.</span>{_esc(item)}</p></div>
+</div>""")
+    return f"""
+<div class="panelHeader clip-box"><p>Notice Board</p></div>
+<div class="noticeBody noticeNotice">
+  <div class="noticeRow noticeTitleRow leftAbsolute"><p class="noticeTitle">{_esc(notice.get("title", "Notice"))}</p></div>
+  {''.join(rows)}
+</div>"""
+
+
+def _sign_calendar(calendar: Any) -> str:
+    if not isinstance(calendar, dict):
+        calendar = {"title": "", "weekdays": [], "weeks": []}
+    weekdays = calendar.get("weekdays") if isinstance(calendar.get("weekdays"), list) else []
+    weeks = calendar.get("weeks") if isinstance(calendar.get("weeks"), list) else []
+    week_rows = []
+    for week in weeks:
+        cells = []
+        for cell in week if isinstance(week, list) else []:
+            if not isinstance(cell, dict) or cell.get("empty"):
+                cells.append('<div class="calendarCell empty"></div>')
+                continue
+            classes = ["calendarCell"]
+            if cell.get("signed"):
+                classes.append("signed")
+            if cell.get("today"):
+                classes.append("today")
+            cells.append(f'<div class="{" ".join(classes)}"><span>{_as_int(cell.get("day"))}</span></div>')
+        week_rows.append(f'<div class="calendarWeek clip-box leftAbsolute">{"".join(cells)}</div>')
+    return f"""
+<div class="panelHeader clip-box"><p>SIGN-IN CALENDAR</p></div>
+<div class="noticeBody noticeCalendar">
+  <div class="calendarTitle leftAbsolute"><p>{_esc(calendar.get("title", ""))}</p></div>
+  <div class="calendarWeekHeader clip-box leftAbsolute">{''.join(f'<span>{_esc(day)}</span>' for day in weekdays)}</div>
+  {''.join(week_rows)}
+</div>"""
+
+
+def _tasks_card(task: dict[str, Any], index: int) -> str:
+    request = task.get("request") if isinstance(task.get("request"), dict) else {}
+    finished = bool(task.get("finished"))
+    suffix = "ed" if finished else "un"
+    return f"""
+<div class="abox">
+  <div class="imgbox"><img src="{_esc(task.get("illustration", ""))}" alt="{_esc(task.get("song", ""))}"></div>
+  <div class="coinbox_{suffix}"><p>+{_as_int(task.get("reward"))} Notes</p></div>
+  <div class="infobox">
+    <div class="namebox_{suffix}"><div class="songsname"><p id="{index}" name="pvis">{_esc(task.get("song", ""))}</p></div></div>
+    <div class="songsinfo_{suffix}"><p>{_esc(request.get("rank", ""))}&ensp;&ensp;{_esc(str(request.get("type", "acc")).upper())}&ensp;&ensp;{_esc(request.get("value", ""))}</p></div>
+  </div>
+</div>"""
+
+
+def _tasks_empty() -> str:
+    return """
+<div class="Nosignal">
+  <div class="border_corner border_corner_left_top"></div>
+  <div class="border_corner border_corner_right_top"></div>
+  <div class="border_corner border_corner_left_bottom"></div>
+  <div class="border_corner border_corner_right_bottom"></div>
+  <div class="line"></div>
+  <div class="timeout"><p>NOT_FOUND&ensp;&ensp;tip: try phi sign or phi retask</p></div>
+  <div class="client"><p>>>> PhigrOS Client Finding Tasks</p></div>
+  <div class="sqrt"><p>////////////////////////////////////////////////////////////////////////////////////////</p></div>
+</div>"""
+
+
 def info_html(
     paths: PluginPaths,
     summary: UserSummary,

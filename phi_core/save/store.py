@@ -24,6 +24,7 @@ class SaveStore:
         self.api_ids_path = self.data_dir / "api_ids.json"
         self.user_settings_path = self.data_dir / "user_settings.json"
         self.jrrp_cache_path = self.data_dir / "jrrp_cache.json"
+        self.notes_path = self.data_dir / "notes.json"
         self.custom_aliases_path = self.data_dir / "custom_aliases.yaml"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.saves_dir.mkdir(parents=True, exist_ok=True)
@@ -179,6 +180,34 @@ class SaveStore:
         data[str(user_id)] = {"day": day_key, "value": list(value)}
         self._save_json_object(self.jrrp_cache_path, data)
 
+    def load_notes(self, user_id: str) -> dict[str, Any]:
+        data = self._load_json_object(self.notes_path)
+        raw = data.get(str(user_id))
+        if not isinstance(raw, dict):
+            raw = {}
+        return {
+            "money": max(0, _as_int(raw.get("money"))),
+            "sign_in": str(raw.get("sign_in") or ""),
+            "sign_history": [str(item) for item in raw.get("sign_history", [])] if isinstance(raw.get("sign_history"), list) else [],
+            "task_time": str(raw.get("task_time") or ""),
+            "task": list(raw.get("task", [])) if isinstance(raw.get("task"), list) else [],
+            "noticeCode": max(0, _as_int(raw.get("noticeCode"))),
+            "theme": str(raw.get("theme") or "default"),
+        }
+
+    def save_notes(self, user_id: str, notes: dict[str, Any]) -> None:
+        data = self._load_json_object(self.notes_path)
+        data[str(user_id)] = {
+            "money": max(0, _as_int(notes.get("money"))),
+            "sign_in": str(notes.get("sign_in") or ""),
+            "sign_history": [str(item) for item in notes.get("sign_history", [])] if isinstance(notes.get("sign_history"), list) else [],
+            "task_time": str(notes.get("task_time") or ""),
+            "task": list(notes.get("task", [])) if isinstance(notes.get("task"), list) else [],
+            "noticeCode": max(0, _as_int(notes.get("noticeCode"))),
+            "theme": str(notes.get("theme") or "default"),
+        }
+        self._save_json_object(self.notes_path, data)
+
     def add_custom_alias(self, song_id: str, alias: str) -> bool:
         song_id = song_id.strip()
         alias = alias.strip()
@@ -270,3 +299,10 @@ class SaveStore:
     def _save_json_object(path: Path, data: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0

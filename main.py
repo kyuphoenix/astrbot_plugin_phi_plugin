@@ -234,6 +234,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_rks(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'rks')
 
+    @phi.command('retask', alias={'\u5237\u65b0\u4efb\u52a1'})
+    async def phi_retask(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'retask')
+
     @phi.command('score', alias={'\u5355\u66f2\u6210\u7ee9'})
     async def phi_score(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'score')
@@ -245,6 +249,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('sessiontoken', alias={'tk', 'token'})
     async def phi_sessiontoken(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'sessiontoken')
+
+    @phi.command('send', alias={'\u9001', '\u8f6c'})
+    async def phi_send(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'send')
 
     @phi.command('setnick', alias={'setnic', '\u8bbe\u7f6e\u522b\u540d'})
     async def phi_setnick(self, event: AstrMessageEvent):
@@ -258,6 +266,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_song(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'song')
 
+    @phi.command('sign', alias={'signin', '\u7b7e\u5230', '\u6253\u5361'})
+    async def phi_sign(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'sign')
+
     @phi.command('suggest', alias={'\u63a8\u5206', '\u63a8\u5206\u5efa\u8bae'})
     async def phi_suggest(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'suggest')
@@ -269,6 +281,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('tag')
     async def phi_tag(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'tag')
+
+    @phi.command('task', alias={'tasks', '\u6211\u7684\u4efb\u52a1'})
+    async def phi_task(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'task')
 
     @phi.command('tips')
     async def phi_tips(self, event: AstrMessageEvent):

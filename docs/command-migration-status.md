@@ -62,10 +62,10 @@ Status legend:
 | `/bind`, `/cn bind`, `/gb bind` | `phi bind`, `phi cnbind`, `phi gbbind` | Partial | Text/QR in upstream | Implemented including TapTap QR login. Need compare final messages, default endpoint behavior, and auto-update details. |
 | `/unbind` | `phi unbind` | Partial | Text in upstream | Implemented. Upstream has confirmation flow; current behavior should be checked. |
 | `/clean` | `phi clean` | Partial | Text in upstream | Implemented. Need compare semantics with upstream clean. |
-| `/sessionToken` | `phi sessiontoken`, `phi token`, `phi tk` | Partial | Text in upstream | Implemented with masking. Upstream also has `tk help`, currently missing. |
-| `/tk help` | Missing | Missing | Help/document image/link | Need implement token help entry or remove from help until implemented. |
+| `/sessionToken` | `phi sessiontoken`, `phi token`, `phi tk` | Partial | Text in upstream | Implemented with masking and text `tk help`; exact upstream wording still needs comparison. |
+| `/tk help` | `phi tk help`, `phi token help` | Partial | Text in upstream/help docs | Implemented as text help through `sessiontoken.py`; exact upstream help image/link wording still needs comparison. |
 | `/auth` | `phi auth`, `phi login` | Partial | API binding text in upstream | Implemented. Need compare API token flow and error messages. |
-| `/api help` | Missing | Missing | API help panel | Need implement or remove from help until implemented. |
+| `/api help` | `phi api help` | Partial | API help panel/text | Implemented as text help through `api.py`; admin API-management subcommands remain missing. |
 | `/setApiToken` | Missing | Missing | API setting text | Admin/API management command not ported. |
 | `/tkls`, `/lstk` | Missing | Missing | API setting text | Token list command not ported. |
 | `/tokenManage`, `/tkManage` | Missing | Missing | API setting text | Token management command not ported. |
@@ -87,17 +87,17 @@ Status legend:
 
 | Upstream command | Current AstrBot command | Status | Upstream template/resource | Notes / next action |
 |---|---|---:|---|---|
-| `/jrrp`, `/今日人品` | Missing | Missing | `html/jrrp/jrrp.art` | Need daily random/luck state and renderer. |
+| `/jrrp`, `/今日人品` | `phi jrrp`, `phi 今日人品` | Partial | `html/jrrp/jrrp.art`, `jrrp.css` | Daily luck is persisted and image mode uses original jrrp resources/base64 assets. Need exact upstream wording/date-special behavior comparison. |
 | `/guess` | Missing | Missing | `html/guess/guess.art` | Need game session state and answer handling. |
 | `/tipgame` | Missing | Missing | Guess-game text/image | Need game session state and hint logic. |
 | `/ltr` | Missing | Missing | Guess-letter game resources | Need game session state and reveal/open command handling. |
 | `/tip`, `/ans`, `/open` | Missing | Missing | Guess-game support commands | Need integrate with active game sessions. |
-| `/sign`, `/签到` | Missing | Missing | `html/sign/sign.art` | Need Notes economy and daily sign-in storage. |
-| `/task`, `/我的任务` | Missing | Missing | `html/tasks/tasks.art` | Need task generation/storage and renderer. |
-| `/retask`, `/刷新任务` | Missing | Missing | Text/tasks renderer | Need Notes cost and task refresh logic. |
-| `/send`, `/送`, `/转` | Missing | Missing | Text in upstream | Need Notes transfer logic. |
-| `/theme` | Missing | Missing | Text/config in upstream | Need user setting storage and render-theme integration. |
-| `/myset`, `/用户设置`, `/个人设置` | Missing | Missing | `html/setting/userSetting.art` | Need user settings view/edit and renderer. |
+| `/sign`, `/签到`, `/打卡` | `phi sign`, `phi 签到`, `phi 打卡` | Partial | `html/sign/sign.art`, `sign.css` | Added AstrBot Notes storage, daily reward/history, calendar, jrrp reuse, task preview, and original sign resource chain. Needs exact notice/theme parity and broader runtime testing. |
+| `/task`, `/我的任务` | `phi task`, `phi tasks`, `phi 我的任务` | Partial | Upstream currently renders through `html/sign/sign.art`; legacy `html/tasks/tasks.art` exists | Added task generation/storage and image mode reuses sign dashboard like current upstream `money.js`. API-average task generation is best-effort with local fallback. |
+| `/retask`, `/刷新任务` | `phi retask`, `phi 刷新任务` | Partial | Upstream currently renders through `html/sign/sign.art`; legacy `html/tasks/tasks.art` exists | Added daily free refresh, 20 Notes paid refresh, preserve-finished behavior, and sign-dashboard render. Needs exact upstream edge-case wording. |
+| `/send`, `/送`, `/转` | `phi send`, `phi 送`, `phi 转` | Partial | Text in upstream | Added local Notes transfer with upstream 80% recipient amount and self-transfer joke penalty. AstrBot command layer does not validate group member existence yet. |
+| `/theme` | `phi theme` | Partial | Text/config in upstream | Added user theme persistence. Rendered templates still mostly use default theme until per-user theme application is wired broadly. |
+| `/myset`, `/用户设置`, `/个人设置` | `phi myset`, `phi 用户设置`, `phi 个人设置` | Partial | `html/setting/userSetting.art`, `userSetting.css` | Added setting view/update and image mode uses original setting resources/base64 assets. Need exact upstream option list and global setting command parity. |
 | `/set` | Missing | Missing | `html/setting/setting.art` | Admin/global setting management not ported. |
 
 ## Admin And Maintenance Commands

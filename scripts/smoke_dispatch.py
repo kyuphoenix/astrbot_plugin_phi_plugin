@@ -316,6 +316,41 @@ async def main() -> None:
             safe_line = first_line.encode("utf-8", errors="backslashreplace").decode("utf-8")
             print(f"{command}: {safe_line}")
 
+        notes_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=FakeLoginClient(config),
+        )
+        notes_ctx.store.save_snapshot(
+            "notes-user",
+            sample_save(
+                rks=12.3456,
+                score=950000,
+                acc=98.5,
+                modified="2026-05-29T12:00:00+00:00",
+            ),
+        )
+        sign_result = await dispatch(notes_ctx, "notes-user", "sign", "")
+        if "签到成功" not in sign_result.value:
+            raise SystemExit(f"sign should grant daily notes, got {sign_result.value!r}")
+        notes_data = notes_ctx.store.load_notes("notes-user")
+        if notes_data["money"] <= 0 or not notes_data.get("sign_history"):
+            raise SystemExit(f"sign should persist money and sign history, got {notes_data!r}")
+        task_result = await dispatch(notes_ctx, "notes-user", "task", "")
+        if "Phi-Plugin 任务列表" not in task_result.value:
+            raise SystemExit(f"task should render task list in text mode, got {task_result.value!r}")
+        notes_data["money"] = 50
+        notes_ctx.store.save_notes("notes-user", notes_data)
+        retask_result = await dispatch(notes_ctx, "notes-user", "retask", "")
+        if "任务已刷新" not in retask_result.value:
+            raise SystemExit(f"retask should refresh tasks, got {retask_result.value!r}")
+        send_result = await dispatch(notes_ctx, "notes-user", "send", "98765 5")
+        if "转账成功" not in send_result.value or notes_ctx.store.load_notes("98765")["money"] != 4:
+            raise SystemExit(f"send should transfer notes with upstream 80% fee, got {send_result.value!r}")
+
         if ROUTE_MODULES.get("pgr") != "pgr":
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
         if ctx.store.load_user_settings("smoke-user").get("theme") != "star":
