@@ -11,7 +11,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from ..data.illustrations import find_illustration_file
+from ..data.illustrations import find_illustration_file, random_illustration_file
+from ..data.resources import latest_version_log, load_version_log
 from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
 from ..paths import PluginPaths
 from ..query.progress import extract_modified_datetime, extract_money, format_datetime
@@ -45,8 +46,7 @@ def help_html(paths: PluginPaths, *, cmd_head: str = "phi") -> str:
             body.append("</div></div></div></div>")
         body.append("</div>")
     body.append('<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>')
-    body.append('<canvas id="stars"></canvas><script>themeStar();</script>')
-    return original_page(paths, "help/help.css", "\n".join(body), theme="star")
+    return original_page(paths, "help/help.css", "\n".join(body), theme="default", background=_random_background(paths))
 
 
 def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -> str:
@@ -56,9 +56,9 @@ def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
     stats = _level_stats(records)
     gameuser = _gameuser(snapshot)
     date_text = format_datetime(extract_modified_datetime(snapshot.raw))
-    background = _record_illustration(paths, records[0]) if records else asset_uri(paths, "html/otherimg/phigros.png")
+    background = _random_background(paths)
 
-    body: list[str] = [_b30_title(paths, gameuser, stats, date_text)]
+    body: list[str] = [_b30_title(paths, gameuser, stats, date_text, _b30_sp_info(paths, result, snapshot))]
     body.append('<div class="b19">')
     for index, record in enumerate(phi_records, 1):
         body.append(_b30_record_card(paths, record, f"P{index}", phi=True))
@@ -74,8 +74,7 @@ def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
             suggest=_record_suggest(result, record, index),
         ))
     body.append("</div>")
-    body.append('<canvas id="stars"></canvas><script>themeStar();</script>')
-    return original_page(paths, "b19/b19.css", "\n".join(body), theme="star", background=background)
+    return original_page(paths, "b19/b19.css", "\n".join(body), theme="default", background=background)
 
 
 def ill_html(paths: PluginPaths, illustration: str, illustrator: str = "") -> str:
@@ -101,11 +100,13 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
       {'<img src="' + star1 + '" alt="曲绘-模糊"><img src="' + star2 + '" alt="曲绘-模糊" style="min-height:0;width:100%;height:auto;bottom:0;filter:none;">' if theme == "star" else '<img src="' + (background or fallback) + '" alt="曲绘-模糊">'}
     </div>
     """
+    theme_script = '<script>{}</script>'.format(_js_text(paths, "html/common/theme/star/star.js")) if theme == "star" else ""
+    theme_body = '<canvas id="stars"></canvas><script>themeStar();</script>' if theme == "star" else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-cn">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
+  <meta name="viewport" content="width=1200">
   <link rel="shortcut icon" href="#">
   <style>{_css_text(paths, "html/common/common.css")}</style>
   <style>{_css_text(paths, f"html/{css_rel}")}</style>
@@ -115,8 +116,10 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
 <body class="elem-hydro default-mode">
   {background_html}
   <script>var _res_path = "";</script>
-  <script>{_js_text(paths, "html/common/theme/star/star.js")}</script>
+  {theme_script}
   {body}
+  {theme_body}
+  <script>{_auto_font_script()}</script>
 </body>
 </html>"""
 
@@ -128,7 +131,13 @@ def asset_uri(paths: PluginPaths, relative: str) -> str:
     return _file_data_uri(base)
 
 
-def _b30_title(paths: PluginPaths, gameuser: dict[str, Any], stats: list[dict[str, Any]], date_text: str) -> str:
+def _b30_title(
+    paths: PluginPaths,
+    gameuser: dict[str, Any],
+    stats: list[dict[str, Any]],
+    date_text: str,
+    sp_info: list[str] | None = None,
+) -> str:
     avatar_path = paths.resources / "html" / "avatar" / f"{gameuser['avatar']}.png"
     avatar = _file_data_uri(avatar_path) or asset_uri(paths, "html/avatar/Introduction.png")
     challenge = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
@@ -137,6 +146,10 @@ def _b30_title(paths: PluginPaths, gameuser: dict[str, Any], stats: list[dict[st
     cleared = "".join(f'<div class="poz"><p>{item["cleared"]}</p></div>' for item in stats)
     fc = "".join(f'<div class="poz"><p>{item["fc"]}</p></div>' for item in stats)
     phi = "".join(f'<div class="poz"><p>{item["phi"]}</p></div>' for item in stats)
+    sp_info_html = ""
+    if sp_info:
+        chips = "".join(f'<div class="spInfo colorful-background clip-box"><p>{_esc(item)}</p></div>' for item in sp_info)
+        sp_info_html = f'<div class="spInfoBox">{chips}</div>'
     return f"""
 <div class="title">
   <div class="playerInfo">
@@ -147,6 +160,7 @@ def _b30_title(paths: PluginPaths, gameuser: dict[str, Any], stats: list[dict[st
     <div class="clgBox"><div class="Challenge"><img src="{challenge}" alt="Challenge"><p>{gameuser['ChallengeModeRank']}</p></div></div>
     <div class="date"><p>{_esc(date_text)}</p></div>
     <div class="dataBox clip-box"><img src="{data_img}" alt="data"><p>{_esc(gameuser['data'])}</p></div>
+    {sp_info_html}
   </div>
   <div class="recordInfo clip-box">
     <div class="whiteLine clip-box"></div>
@@ -226,6 +240,19 @@ def _record_suggest(result: Best30Result, record: ScoreRecord, index: int) -> tu
     return f"{acc:.2f}%", _suggest_type(acc)
 
 
+def _b30_sp_info(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -> list[str]:
+    info: list[str] = []
+    latest = latest_version_log(paths.info)
+    save_version = _as_int(snapshot.game_version)
+    if latest is not None and save_version and save_version < latest.version_code:
+        save_log = load_version_log(paths.info, save_version)
+        info.append(f"{save_log.version_label if save_log else save_version} Update to {latest.version_label}")
+        info.append(f"Real RKS: {result.computed_rks:.4f}")
+    elif abs(result.computed_rks - result.official_rks) > 1e-4:
+        info.append(f"Real RKS: {result.computed_rks:.4f}")
+    return info
+
+
 def _min_up_rks(rks: float) -> float:
     value = math.floor(rks * 100) / 100 + 0.005 - rks
     return value + 0.01 if value < 0 else value
@@ -257,20 +284,69 @@ def _render_reset_css() -> str:
 html {
   margin: 0;
   padding: 0;
+  width: 1200px !important;
+  min-width: 1200px !important;
+  max-width: 1200px !important;
   background: #000;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
 }
 body {
   margin: 0;
   padding: 0;
-  overflow-x: visible;
+  width: 1200px !important;
+  min-width: 1200px !important;
+  max-width: 1200px !important;
+  overflow-x: hidden !important;
 }
 .background {
   left: 0;
-  min-width: 1200px;
-  width: 100vw;
+  width: 1200px !important;
+  min-width: 1200px !important;
+  max-width: 1200px !important;
 }
 """
+
+
+def _auto_font_script() -> str:
+    return """
+function phiIsBiggerThanParent(node, parent) {
+  return node.scrollWidth > parent.offsetWidth || node.scrollHeight > parent.offsetHeight;
+}
+function phiAdjustFontSize() {
+  const nodes = document.getElementsByName("pvis");
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    const parent = node && node.parentElement;
+    if (!node || !parent || !phiIsBiggerThanParent(node, parent)) continue;
+    let current = Number(window.getComputedStyle(node, null).getPropertyValue("font-size").replace("px", ""));
+    let left = 1;
+    let right = current;
+    while (left < right) {
+      const mid = Math.floor((left + right + 1) / 2);
+      node.style.fontSize = mid + "px";
+      if (phiIsBiggerThanParent(node, parent)) {
+        right = mid - 1;
+      } else {
+        left = mid;
+      }
+    }
+    node.style.fontSize = left + "px";
+  }
+}
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(phiAdjustFontSize);
+}
+window.addEventListener("load", phiAdjustFontSize);
+window.addEventListener("resize", phiAdjustFontSize);
+requestAnimationFrame(phiAdjustFontSize);
+"""
+
+
+def _random_background(paths: PluginPaths) -> str:
+    path = random_illustration_file(paths)
+    if path is not None:
+        return _file_data_uri(path)
+    return asset_uri(paths, "html/otherimg/phigros.png")
 
 
 def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:

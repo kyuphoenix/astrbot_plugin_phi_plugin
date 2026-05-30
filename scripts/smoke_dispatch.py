@@ -197,6 +197,8 @@ async def main() -> None:
             raise SystemExit("b30 html should render overflow records after B27")
         if "RKS 12." in b30_html:
             raise SystemExit("b30 html acc-side pill should show push suggestion, not duplicated RKS text")
+        if "Real RKS:" not in b30_html:
+            raise SystemExit("b30 html should render original Real RKS info chip when computed rks differs")
         if "suggest-tip" not in b30_html or "width: 1200px" not in b30_html:
             raise SystemExit("b30 html should keep original suggestion pill and page-width reset")
         catalog = load_catalog(paths.info)
@@ -290,6 +292,10 @@ async def main() -> None:
             raise SystemExit("official html renderer should receive self-contained help HTML without local file URLs")
         if "data:image/" not in html_render_calls[0][0]:
             raise SystemExit("official html renderer should inline local help images as data URIs")
+        if "themeStar()" in html_render_calls[0][0]:
+            raise SystemExit("help html should use random blurred illustration background, not the fixed star theme")
+        if "phiAdjustFontSize" not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer should include original auto font sizing script")
         if html_render_calls[0][2] is not False:
             raise SystemExit("official html renderer should return a local file path")
         if html_render_calls[0][1] != {}:
@@ -376,6 +382,12 @@ async def main() -> None:
             raise SystemExit("image pgr should render with self-contained HTML without local file URLs")
         if "data:image/" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should inline local image resources")
+        if "themeStar()" in b30_render_calls[0][0] or "Star1" in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
+        if "Real RKS:" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should include original Real RKS chip when save version is older")
+        if "phiAdjustFontSize" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should include original song-name auto font sizing script")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
