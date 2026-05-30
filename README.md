@@ -9,12 +9,12 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi search <关键词>`：搜索曲目
 - `phi rand`：随机曲目
 - `phi ill <曲名或别名>`：发送本地曲绘（存在时）
-- `phi bind <sessionToken|查询ID>`：绑定 token，并尝试登录查询 API 获取 internal_id；也可直接绑定查询 ID
+- `phi bind <sessionToken|查询ID|qrcode>`：绑定 token、查询 ID 或 TapTap 二维码登录，并在绑定后自动同步一次玩家数据
 - `phi cnbind <sessionToken>` / `phi gbbind <sessionToken>`：按国服/国际服入口绑定 token
-- `phi auth <API Token>` / `phi login <API Token>`：通过查询平台 API Token 换取并保存 sessionToken
+- `phi auth <API Token>` / `phi login <API Token>`：通过查询平台 API Token 换取并保存 sessionToken，随后自动同步一次玩家数据
 - `phi unbind`：解绑并清理缓存
 - `phi clean`：清理当前用户插件数据
-- `phi update`：尝试从查询 API 拉取并缓存标准化存档
+- `phi update`：尝试从查询 API 拉取标准化存档，并展示本地历史对比得到的进步摘要
 - `phi b30` / `phi rks`：基于缓存存档输出 B30/RKS 摘要
 - `phi pgr` / 顶层 `pgr`：同样查询 B30/RKS
 - `phi score <曲名或别名>`：查询单曲成绩
@@ -50,11 +50,13 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录；插件包内 `resources/` 只存放随插件发布的静态曲库资源。
 
-如果 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
+如果 `phi bind` 或 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
 
-`phi bind <sessionToken>` 会先本地保存 token，再尝试调用查询 API `/bind` 获取 internal_id。若 API 暂时不可用，token 绑定仍可保留；`phi bind <查询ID>` 则会按 API ID 方式绑定并清理旧 token，避免凭据冲突。已经保存 token 时，直接运行 `phi bind` 会尝试重新登录查询 API 并补齐查询 ID。TapTap 二维码扫码登录仍在迁移中，当前会返回明确提示。
+`phi bind <sessionToken>` 会先本地保存 token，再尝试调用查询 API `/bind` 获取 internal_id，并立即拉取一次存档写入 AstrBot 数据目录。若绑定 API 暂时不可用，token 绑定仍可保留，插件会继续尝试用 token 同步存档；`phi bind <查询ID>` 则会按 API ID 方式绑定并清理旧 token，避免凭据冲突。已经保存 token 时，直接运行 `phi bind` 会尝试重新登录查询 API、补齐查询 ID 并刷新存档缓存。TapTap 二维码登录使用 `phi bind qrcode`。
 
-`phi auth <API Token>` 对齐原插件 `auth` 流程，会调用 `/getPgrToken` 获取用户 sessionToken 并保存到 AstrBot 插件数据目录。为降低泄露风险，AstrBot 版不会在聊天中明文输出完整 sessionToken；需要确认本地状态时可使用 `phi sessiontoken` 查看脱敏信息。
+`phi auth <API Token>` 对齐原插件 `auth` 流程，会调用 `/getPgrToken` 获取用户 sessionToken 并保存到 AstrBot 插件数据目录，随后自动同步一次存档，因此通常可以直接运行 `phi pgr`。为降低泄露风险，AstrBot 版不会在聊天中明文输出完整 sessionToken；需要确认本地状态时可使用 `phi sessiontoken` 查看脱敏信息。
+
+`phi update` 会保留“拉取并缓存最新存档”的副作用，但面向用户展示的是进步情况：RKS / Data / 课题分变化、当前存档时间记录到的成绩数，以及按日期聚合的近期成绩变化。插件会优先合并查询平台返回的历史记录，接口不可用时回退到本地历史。本地历史记录写入 AstrBot 数据目录下的 `history/`，解绑或换绑账号时会随缓存一起清理，避免不同账号的进步记录串档。
 
 ## 本地验证
 

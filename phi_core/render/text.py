@@ -7,11 +7,13 @@ from ..models import (
     Best30Result,
     ChartEntry,
     LevelScoreSummary,
+    ProgressScoreChange,
     ScoreListEntry,
     ScoreRecord,
     SearchHit,
     Song,
     SuggestEntry,
+    UpdateProgressSummary,
     UserSummary,
 )
 
@@ -28,7 +30,7 @@ phi bind <sessionToken|查询ID|qrcode> - 绑定 Phigros token、查询平台 ID
 phi auth <API Token> - 使用查询平台 API Token 登录并保存 sessionToken
 phi unbind - 解绑并清理缓存
 phi clean - 清理当前用户数据
-phi update - 拉取并缓存存档
+phi update - 更新存档并查看进步情况
 phi b30 / phi rks / phi pgr - 查询 B30/RKS
 phi score <曲名/别名> - 查询单曲成绩
 phi info - 查询个人统计
@@ -113,7 +115,7 @@ def render_no_cached_save() -> str:
 
 
 def render_bind_ok(api_id: str | None = None, warning: str = "") -> str:
-    lines = ["绑定成功。接下来可以使用 phi update 拉取存档。"]
+    lines = ["绑定成功。正在尝试自动同步玩家数据，成功后可直接使用 phi pgr。"]
     if api_id:
         lines.append(f"查询 ID: {api_id}")
     if warning:
@@ -142,7 +144,7 @@ def render_auth_need_token() -> str:
 
 
 def render_auth_ok(api_id: str | None = None) -> str:
-    lines = ["登录成功，sessionToken 已保存。接下来可以使用 phi update 拉取存档。"]
+    lines = ["登录成功，sessionToken 已保存。正在尝试自动同步玩家数据。"]
     if api_id:
         lines.append(f"查询 ID: {api_id}")
     lines.append("出于安全原因，本插件不会在聊天中明文输出完整 token。")
@@ -186,6 +188,59 @@ def render_update_ok(summary: UserSummary) -> str:
         f"RKS: {summary.ranking_score:.4f}\n"
         f"成绩记录: {summary.total_records}"
     )
+
+
+def render_auto_sync_ok(summary: UserSummary) -> str:
+    player = summary.player_name or summary.player_id or "未知"
+    return (
+        "自动同步玩家数据完成。\n"
+        f"玩家: {player}\n"
+        f"RKS: {summary.ranking_score:.4f}\n"
+        f"成绩记录: {summary.total_records}\n"
+        "现在可以直接使用 phi pgr / phi b30。"
+    )
+
+
+def render_auto_sync_failed(message: str) -> str:
+    return (
+        "自动同步玩家数据失败，绑定信息已保存。\n"
+        "稍后可以使用 phi update 重试。\n"
+        f"错误信息: {message}"
+    )
+
+
+def render_update_progress(summary: UpdateProgressSummary) -> str:
+    player = summary.player_name or summary.player_id or "未知"
+    lines = [
+        "存档更新完成，进步摘要：",
+        f"玩家: {player}",
+        f"存档时间: {summary.modified_at}",
+        f"RKS: {summary.ranking_score:.4f}{_format_float_delta(summary.rks_delta, digits=4)}",
+        f"成绩记录: {summary.total_records}",
+    ]
+    if summary.challenge_mode_rank is not None:
+        lines.append(f"课题分: {summary.challenge_mode_rank}{_format_number_delta(summary.challenge_delta)}")
+    if summary.data_money is not None:
+        lines.append(f"Data: {_format_money(summary.data_money)}{_format_data_delta(summary.data_delta)}")
+
+    if summary.current_update_count:
+        prefix = "首次记录" if summary.is_first_record else "当前存档时间记录"
+        lines.append(f"{prefix}: {summary.current_update_count} 份成绩")
+    else:
+        lines.append("未收集到新的成绩变化。")
+
+    if summary.recent_days:
+        lines.extend(["", "近期成绩变化："])
+        for day in summary.recent_days:
+            lines.append(f"[{day.date}] 共 {day.update_count} 份")
+            for change in day.changes:
+                lines.append(_progress_change_line(change))
+    else:
+        lines.extend(["", "近期成绩变化：暂无本地历史记录。"])
+
+    if summary.player_id:
+        lines.append(f"\nPlayerId: {summary.player_id}")
+    return "\n".join(lines)
 
 
 def render_update_failed(message: str) -> str:
@@ -385,3 +440,60 @@ def _record_line(index: int, record: ScoreRecord, include_song: bool = True) -> 
         f"{record.score:,} / {record.acc:.4f}% / "
         f"定数 {record.difficulty:.1f} / RKS {record.rks:.4f} / {record.rating}{fc}"
     )
+
+
+def _progress_change_line(change: ProgressScoreChange) -> str:
+    score_delta = "" if change.score_old is None else f" ({_format_int_delta(change.score_new - change.score_old)})"
+    acc_delta = "" if change.acc_old is None else _format_float_delta(change.acc_new - change.acc_old, digits=4, suffix="%")
+    rks_delta = "" if change.rks_old is None else _format_float_delta(change.rks_new - change.rks_old, digits=4)
+    fc = " FC" if change.fc_new and change.rating_new != "phi" else ""
+    old_label = " NEW" if change.score_old is None else ""
+    return (
+        f"- {change.rank} {change.song_title}: "
+        f"{change.score_new:,}{score_delta} / "
+        f"{change.acc_new:.4f}%{acc_delta} / "
+        f"RKS {change.rks_new:.4f}{rks_delta} / "
+        f"{change.rating_new.upper()}{fc}{old_label}"
+    )
+
+
+def _format_float_delta(value: float | None, *, digits: int, suffix: str = "") -> str:
+    if value is None or abs(value) < 10 ** (-(digits + 1)):
+        return ""
+    sign = "+" if value > 0 else ""
+    return f" ({sign}{value:.{digits}f}{suffix})"
+
+
+def _format_number_delta(value: int | float | None) -> str:
+    if value is None or value == 0:
+        return ""
+    if isinstance(value, float) and not value.is_integer():
+        sign = "+" if value > 0 else ""
+        return f" ({sign}{value:.2f})"
+    return f" ({_format_int_delta(int(value))})"
+
+
+def _format_int_delta(value: int) -> str:
+    sign = "+" if value > 0 else ""
+    return f"{sign}{value:,}"
+
+
+def _format_money(money: list[int]) -> str:
+    units = ["KiB", "MiB", "GiB", "TiB", "PiB"]
+    parts = [f"{value}{unit}" for value, unit in reversed(list(zip(money, units))) if value]
+    return " ".join(parts) if parts else "0KiB"
+
+
+def _format_data_delta(value: int | None) -> str:
+    if value is None or value == 0:
+        return ""
+    sign = "+" if value > 0 else "-"
+    amount = abs(value)
+    units = ["KiB", "MiB", "GiB", "TiB", "PiB"]
+    index = 0
+    display = float(amount)
+    while display >= 1024 and index < len(units) - 1:
+        display /= 1024
+        index += 1
+    text = f"{display:.2f}".rstrip("0").rstrip(".")
+    return f" ({sign}{text}{units[index]})"

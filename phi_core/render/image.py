@@ -21,7 +21,7 @@ HELP_GROUPS = [
         "items": [
             ("phi bind <sessionToken|查询ID>", "绑定 token 或查询平台 ID"),
             ("phi auth <API Token>", "使用查询平台 API Token 登录并保存 sessionToken"),
-            ("phi update", "拉取并缓存云端存档"),
+            ("phi update", "更新存档并查看进步情况"),
             ("phi unbind", "解绑并清理缓存"),
             ("phi id", "查看查询 ID / PlayerId"),
             ("phi sessiontoken", "查看本地 token 脱敏信息"),

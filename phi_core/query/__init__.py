@@ -12,6 +12,7 @@ from .filters import (
     summarize_level_scores,
     top_records,
 )
+from .progress import extract_money, merge_histories, update_progress_history
 from .score import find_song_scores
 from .user_info import summarize_user
 
@@ -22,7 +23,9 @@ __all__ = [
     "compute_average_rks",
     "filter_score_entries",
     "find_song_scores",
+    "extract_money",
     "iter_score_records",
+    "merge_histories",
     "parse_range",
     "parse_score_filter",
     "random_challenge",
@@ -33,4 +36,5 @@ __all__ = [
     "summarize_level_scores",
     "summarize_user",
     "top_records",
+    "update_progress_history",
 ]

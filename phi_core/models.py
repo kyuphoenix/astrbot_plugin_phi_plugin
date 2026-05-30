@@ -136,3 +136,45 @@ class UserSummary:
     total_records: int
     phi_count: int
     fc_count: int
+
+
+@dataclass(slots=True)
+class ProgressScoreChange:
+    song_id: str
+    song_title: str
+    rank: str
+    date: str
+    score_new: int
+    acc_new: float
+    fc_new: bool
+    rating_new: str
+    rks_new: float
+    score_old: int | None = None
+    acc_old: float | None = None
+    fc_old: bool | None = None
+    rks_old: float | None = None
+
+
+@dataclass(slots=True)
+class ProgressDay:
+    date: str
+    update_count: int
+    changes: list[ProgressScoreChange] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class UpdateProgressSummary:
+    player_id: str
+    player_name: str
+    ranking_score: float
+    challenge_mode_rank: int | str | None
+    modified_at: str
+    total_records: int
+    current_update_count: int
+    shown_changes: int
+    recent_days: list[ProgressDay] = field(default_factory=list)
+    rks_delta: float | None = None
+    challenge_delta: int | float | None = None
+    data_money: list[int] | None = None
+    data_delta: int | None = None
+    is_first_record: bool = False

@@ -24,6 +24,8 @@ class FakeLoginClient(PhiApiClient):
     def __init__(self, config: PluginConfig):
         super().__init__(config)
         self.bind_calls: list[dict[str, object | None]] = []
+        self.save_counter = 0
+        self.history_uploads: list[dict] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -31,6 +33,23 @@ class FakeLoginClient(PhiApiClient):
 
     async def get_pgr_token(self, user_id: str, api_token: str):  # type: ignore[override]
         return PgrTokenResult(token="B" * 25, api_id="24680")
+
+    async def fetch_cloud_save(self, token=None, user_id=None, api_id=None):  # type: ignore[override]
+        self.save_counter += 1
+        return sample_save(
+            rks=12.3456 + self.save_counter / 10000,
+            score=950000 + self.save_counter,
+            acc=98.5 + self.save_counter / 100,
+            modified=f"2026-05-29T12:00:{self.save_counter:02d}+00:00",
+            api_id=str(api_id or "67890"),
+            token=str(token or "A" * 25),
+        )
+
+    async def fetch_history(self, user_id: str, *, token=None, api_id=None, fields=None):  # type: ignore[override]
+        return {}
+
+    async def set_history(self, user_id: str, history: dict, *, token=None, api_id=None):  # type: ignore[override]
+        self.history_uploads.append(history)
 
 
 class FakeTapTapLogin(TapTapQrLogin):
@@ -57,6 +76,60 @@ class FakeTapTapLogin(TapTapQrLogin):
             if maybe_awaitable is not None:
                 await maybe_awaitable
         return TapTapLoginResult(session_token="D" * 25, raw={})
+
+
+class FakeProgressClient(PhiApiClient):
+    def __init__(self, config: PluginConfig):
+        super().__init__(config)
+        self.saves = [
+            sample_save(rks=11.1111, score=930000, acc=96.5, modified="2026-05-29T13:00:00+00:00"),
+            sample_save(rks=11.2222, score=970000, acc=99.1, modified="2026-05-29T14:00:00+00:00"),
+        ]
+
+    async def fetch_cloud_save(self, token=None, user_id=None, api_id=None):  # type: ignore[override]
+        if len(self.saves) > 1:
+            return self.saves.pop(0)
+        return self.saves[0]
+
+    async def fetch_history(self, user_id: str, *, token=None, api_id=None, fields=None):  # type: ignore[override]
+        return {}
+
+    async def set_history(self, user_id: str, history: dict, *, token=None, api_id=None):  # type: ignore[override]
+        return None
+
+
+def sample_save(
+    *,
+    rks: float,
+    score: int,
+    acc: float,
+    modified: str,
+    api_id: str = "67890",
+    token: str = "A" * 25,
+) -> dict:
+    return {
+        "session": token,
+        "internal_id": api_id,
+        "saveInfo": {
+            "PlayerId": "SMOKE_PLAYER",
+            "modifiedAt": {"iso": modified},
+            "summary": {
+                "rankingScore": rks,
+                "challengeModeRank": 512,
+                "gameVersion": 123,
+                "updatedAt": modified,
+            },
+        },
+        "gameuser": {"name": "Smoke Tester"},
+        "gameProgress": {"money": [1, 2, 0, 0, 0]},
+        "gameRecord": {
+            "Glaciaxion.SunsetRay": [
+                {"score": score, "acc": acc, "fc": False},
+                {"score": 990000, "acc": 99.8, "fc": True},
+                {"score": 0, "acc": 0, "fc": False},
+            ]
+        },
+    }
 
 
 async def main() -> None:
@@ -208,13 +281,22 @@ async def main() -> None:
             raise SystemExit("auth did not persist returned sessionToken")
         if login_ctx.store.get_api_id("login-user") != "24680":
             raise SystemExit("auth did not persist returned api id")
+        auth_pgr = await dispatch(login_ctx, "login-user", "pgr", "")
+        if "官方 RKS" not in auth_pgr.value:
+            raise SystemExit(f"auth should auto-sync save for pgr, got {auth_pgr.value!r}")
 
         login_ctx.store.bind("bind-user", "A" * 25)
+        uploads_before_bind = len(login_client.history_uploads)
         result = await dispatch(login_ctx, "bind-user", "bind", "")
         if "查询 ID: 67890" not in result.value:
             raise SystemExit(f"bind existing token expected api id, got {result.value!r}")
         if login_client.bind_calls[-1]["is_global"] is not False:
             raise SystemExit(f"bind did not apply default global flag: {login_client.bind_calls[-1]!r}")
+        if len(login_client.history_uploads) <= uploads_before_bind:
+            raise SystemExit("bind did not upload refreshed history")
+        bind_pgr = await dispatch(login_ctx, "bind-user", "pgr", "")
+        if "官方 RKS" not in bind_pgr.value:
+            raise SystemExit(f"bind should auto-sync save for pgr, got {bind_pgr.value!r}")
 
         default_global_client = FakeLoginClient(PluginConfig(default_global=True, render_mode="text"))
         default_global_ctx = CommandContext(
@@ -244,6 +326,30 @@ async def main() -> None:
             raise SystemExit(f"bind api id expected success, got {result.value!r}")
         if login_ctx.store.get_token("api-user") is not None:
             raise SystemExit("bind api id did not clear stale token")
+        api_pgr = await dispatch(login_ctx, "api-user", "pgr", "")
+        if "官方 RKS" not in api_pgr.value:
+            raise SystemExit(f"api id bind should auto-sync save for pgr, got {api_pgr.value!r}")
+
+        progress_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=FakeProgressClient(config),
+        )
+        progress_ctx.store.bind("progress-user", "P" * 25, api_id="999")
+        first_update = await dispatch(progress_ctx, "progress-user", "update", "")
+        if "进步摘要" not in first_update.value or "首次记录" not in first_update.value:
+            raise SystemExit(f"first update should render progress summary, got {first_update.value!r}")
+        second_update = await dispatch(progress_ctx, "progress-user", "update", "")
+        if "RKS: 11.2222 (+0.1111)" not in second_update.value:
+            raise SystemExit(f"second update should show rks progress, got {second_update.value!r}")
+        if "Glaciaxion" not in second_update.value or "+40,000" not in second_update.value:
+            raise SystemExit(f"second update should show score progress, got {second_update.value!r}")
+        progress_pgr = await dispatch(progress_ctx, "progress-user", "pgr", "")
+        if "官方 RKS: 11.2222" not in progress_pgr.value:
+            raise SystemExit(f"update should refresh pgr cache, got {progress_pgr.value!r}")
 
         sent: list[CommandResult] = []
 
@@ -266,6 +372,9 @@ async def main() -> None:
             raise SystemExit(f"qrcode bind expected completion, got {result.value!r}")
         if qrcode_ctx.store.get_token("qr-user") != "D" * 25:
             raise SystemExit("qrcode bind did not persist returned sessionToken")
+        qr_pgr = await dispatch(qrcode_ctx, "qr-user", "pgr", "")
+        if "官方 RKS" not in qr_pgr.value:
+            raise SystemExit(f"qrcode bind should auto-sync save for pgr, got {qr_pgr.value!r}")
         if len(sent) != 3 or sent[0].kind != "image" or sent[1].kind != "text" or sent[2].kind != "text":
             raise SystemExit(f"qrcode bind did not emit qr image, hint, and scanned notice: {sent!r}")
         if "二维码已扫描" not in sent[2].value:

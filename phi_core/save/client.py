@@ -79,6 +79,44 @@ class PhiApiClient:
             raise SaveNotAvailable("查询 API 没有返回标准化存档对象。")
         return data
 
+    async def fetch_history(
+        self,
+        user_id: str,
+        *,
+        token: str | None = None,
+        api_id: str | None = None,
+        fields: list[str] | None = None,
+    ) -> dict[str, Any]:
+        payload = self._platform_payload(user_id)
+        if token:
+            payload["token"] = token
+        if api_id:
+            payload["api_user_id"] = str(api_id)
+        if fields:
+            payload["request"] = fields
+        data = await self._post("/get/history/history", payload)
+        if not isinstance(data, dict):
+            raise SaveNotAvailable("查询 API 没有返回历史记录对象。")
+        return data
+
+    async def set_history(
+        self,
+        user_id: str,
+        history: dict[str, Any],
+        *,
+        token: str | None = None,
+        api_id: str | None = None,
+    ) -> None:
+        payload = self._platform_payload(user_id)
+        if token:
+            payload["token"] = token
+        if api_id:
+            payload["api_user_id"] = str(api_id)
+        if "token" not in payload and "api_user_id" not in payload:
+            raise SaveNotAvailable("上传历史记录需要 sessionToken 或查询 ID。")
+        payload["data"] = history
+        await self._post("/set/history", payload)
+
     async def get_pgr_token(self, user_id: str, api_token: str) -> PgrTokenResult:
         payload = self._platform_payload(user_id)
         payload["api_token"] = api_token

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
+from ._sync import sync_save_with_progress
+from ..query import summarize_user
 from ..render import text as render
 from ..save import SaveNotAvailable, StoreError
 
@@ -33,10 +35,13 @@ async def _bind_api_id(ctx: CommandContext, user_id: str, api_id: str) -> Comman
         old_api_id = ctx.store.get_api_id(user_id)
         bind_result = await ctx.client.bind_user(user_id, api_id=api_id)
         ctx.store.set_api_id(user_id, bind_result.api_id)
-        ctx.store.clear_token(user_id)
-        if old_api_id != bind_result.api_id:
+        had_token = ctx.store.clear_token(user_id)
+        if old_api_id != bind_result.api_id or had_token:
             ctx.store.clear_snapshot(user_id)
-        return CommandResult.text(render.render_bind_ok(api_id=bind_result.api_id))
+            ctx.store.clear_history(user_id)
+        message = render.render_bind_ok(api_id=bind_result.api_id)
+        message += "\n\n" + await _auto_sync_message(ctx, user_id)
+        return CommandResult.text(message)
     except (SaveNotAvailable, StoreError) as exc:
         return CommandResult.text(f"绑定查询 ID 失败：{exc}")
 
@@ -90,6 +95,7 @@ async def _bind_token(
         if old_token != token:
             ctx.store.clear_api_id(user_id)
             ctx.store.clear_snapshot(user_id)
+            ctx.store.clear_history(user_id)
     except StoreError as exc:
         return CommandResult.text(str(exc))
 
@@ -99,10 +105,24 @@ async def _bind_token(
         warning = ""
         if bind_result.have_api_token is False:
             warning = "查询平台尚未记录 API Token；基础查分可继续使用，后续高级 API 功能可能需要补充。"
-        return CommandResult.text(render.render_bind_ok(api_id=bind_result.api_id, warning=warning))
+        message = render.render_bind_ok(api_id=bind_result.api_id, warning=warning)
+        message += "\n\n" + await _auto_sync_message(ctx, user_id)
+        return CommandResult.text(message)
     except SaveNotAvailable as exc:
         warning = f"本地 token 已保存，但查询 API 登录失败：{exc}"
-        return CommandResult.text(render.render_bind_ok(warning=warning))
+        message = render.render_bind_ok(warning=warning)
+        message += "\n\n" + await _auto_sync_message(ctx, user_id)
+        return CommandResult.text(message)
     except StoreError as exc:
         warning = f"本地 token 已保存，但查询 ID 保存失败：{exc}"
-        return CommandResult.text(render.render_bind_ok(warning=warning))
+        message = render.render_bind_ok(warning=warning)
+        message += "\n\n" + await _auto_sync_message(ctx, user_id)
+        return CommandResult.text(message)
+
+
+async def _auto_sync_message(ctx: CommandContext, user_id: str) -> str:
+    try:
+        result = await sync_save_with_progress(ctx, user_id)
+        return render.render_auto_sync_ok(summarize_user(result.snapshot, ctx.catalog))
+    except Exception as exc:
+        return render.render_auto_sync_failed(str(exc))

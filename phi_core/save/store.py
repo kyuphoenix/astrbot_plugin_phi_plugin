@@ -17,10 +17,12 @@ class SaveStore:
     def __init__(self, data_dir: Path):
         self.data_dir = Path(data_dir)
         self.saves_dir = self.data_dir / "saves"
+        self.histories_dir = self.data_dir / "history"
         self.bindings_path = self.data_dir / "bindings.json"
         self.api_ids_path = self.data_dir / "api_ids.json"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.saves_dir.mkdir(parents=True, exist_ok=True)
+        self.histories_dir.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def validate_token(token: str) -> bool:
@@ -76,16 +78,28 @@ class SaveStore:
         path.unlink(missing_ok=True)
         return existed
 
+    def clear_history(self, user_id: str) -> bool:
+        path = self.history_path(user_id)
+        existed = path.exists()
+        path.unlink(missing_ok=True)
+        return existed
+
     def unbind(self, user_id: str) -> bool:
         user_id = str(user_id)
         bindings = self._load_bindings()
         api_ids = self._load_api_ids()
-        existed = user_id in bindings or user_id in api_ids or self.save_path(user_id).exists()
+        existed = (
+            user_id in bindings
+            or user_id in api_ids
+            or self.save_path(user_id).exists()
+            or self.history_path(user_id).exists()
+        )
         bindings.pop(user_id, None)
         api_ids.pop(user_id, None)
         self._save_bindings(bindings)
         self._save_api_ids(api_ids)
         self.save_path(user_id).unlink(missing_ok=True)
+        self.history_path(user_id).unlink(missing_ok=True)
         return existed
 
     def clean(self, user_id: str) -> bool:
@@ -102,9 +116,28 @@ class SaveStore:
             return None
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def save_history(self, user_id: str, history: dict[str, Any]) -> None:
+        path = self.history_path(user_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def load_history(self, user_id: str) -> dict[str, Any]:
+        path = self.history_path(user_id)
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
     def save_path(self, user_id: str) -> Path:
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(user_id))
         return self.saves_dir / f"{safe}.json"
+
+    def history_path(self, user_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(user_id))
+        return self.histories_dir / f"{safe}.json"
 
     def _load_bindings(self) -> dict[str, str]:
         if not self.bindings_path.exists():

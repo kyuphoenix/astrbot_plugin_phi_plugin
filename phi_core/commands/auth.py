@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 
 from .common import CommandContext, CommandResult
+from ._sync import sync_save_with_progress
+from ..query import summarize_user
 from ..render import text as render
 from ..save import SaveNotAvailable, StoreError
 
@@ -23,11 +25,22 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         ctx.store.bind(user_id, result.token)
         if old_token != result.token:
             ctx.store.clear_snapshot(user_id)
+            ctx.store.clear_history(user_id)
         api_id = result.api_id if result.api_id and ctx.store.validate_api_id(result.api_id) else None
         if api_id:
             ctx.store.set_api_id(user_id, api_id)
         else:
             ctx.store.clear_api_id(user_id)
-        return CommandResult.text(render.render_auth_ok(api_id=api_id))
+        message = render.render_auth_ok(api_id=api_id)
+        message += "\n\n" + await _auto_sync_message(ctx, user_id)
+        return CommandResult.text(message)
     except (SaveNotAvailable, StoreError) as exc:
         return CommandResult.text(f"登录失败：{exc}")
+
+
+async def _auto_sync_message(ctx: CommandContext, user_id: str) -> str:
+    try:
+        result = await sync_save_with_progress(ctx, user_id)
+        return render.render_auto_sync_ok(summarize_user(result.snapshot, ctx.catalog))
+    except Exception as exc:
+        return render.render_auto_sync_failed(str(exc))
