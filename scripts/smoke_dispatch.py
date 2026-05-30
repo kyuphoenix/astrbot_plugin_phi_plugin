@@ -233,6 +233,14 @@ async def main() -> None:
         online_background = random_background_source(online_paths)
         if not isinstance(online_background, str) or "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in online_background:
             raise SystemExit("background picker should fall back to online random blurred illustrations before phigros.png")
+        original_remote_loader = original._remote_image_data_uri
+        try:
+            original._remote_image_data_uri = lambda _paths, _url: ""
+            online_help_html = original.help_html(online_paths)
+        finally:
+            original._remote_image_data_uri = original_remote_loader
+        if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in online_help_html:
+            raise SystemExit("html background should keep online illustration URL when local prefetch fails")
         trim_source = paths.render_cache / "trim-source.png"
         Image.new("RGB", (1280, 32), (0, 0, 0)).save(trim_source)
         with Image.open(trim_source) as image:

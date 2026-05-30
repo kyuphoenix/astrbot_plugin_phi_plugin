@@ -381,6 +381,7 @@ def _random_background(paths: PluginPaths) -> str:
         cached = _remote_image_data_uri(paths, source)
         if cached:
             return cached
+        return source
     fallback = _other_illustration_data_uri(paths)
     if fallback:
         return fallback
