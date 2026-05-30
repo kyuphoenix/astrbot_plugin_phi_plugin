@@ -368,6 +368,12 @@ async def main() -> None:
             raise SystemExit("official html renderer should inline local help images as data URIs")
         if "themeStar()" in html_render_calls[0][0]:
             raise SystemExit("help html should use random blurred illustration background, not the fixed star theme")
+        if "background: #000 !important" not in html_render_calls[0][0] or "z-index: 0 !important" not in html_render_calls[0][0]:
+            raise SystemExit("help html should override original body phigros fallback and negative background stacking")
+        if 'background: url("") center no-repeat' not in html_render_calls[0][0]:
+            raise SystemExit("help html should remove original common.css phigros body fallback before t2i")
+        if 'background-image: url("data:image/' not in html_render_calls[0][0]:
+            raise SystemExit("help html should inline the selected illustration into reset background css")
         if "phiAdjustFontSize" not in html_render_calls[0][0]:
             raise SystemExit("official html renderer should include original auto font sizing script")
         if html_render_calls[0][2] is not False:
@@ -468,6 +474,12 @@ async def main() -> None:
             raise SystemExit("image pgr should inline local image resources")
         if "themeStar()" in b30_render_calls[0][0] or "Star1" in b30_render_calls[0][0]:
             raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
+        if "background: #000 !important" not in b30_render_calls[0][0] or "z-index: 0 !important" not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should override original body phigros fallback and negative background stacking")
+        if 'background: url("") center no-repeat' not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should remove original common.css phigros body fallback before t2i")
+        if 'background-image: url("data:image/' not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should inline the selected illustration into reset background css")
         if "phigros.png" in b30_render_calls[0][0]:
             raise SystemExit("image pgr should not fall back to phigros when local illustrations exist")
         if "Real RKS:" not in b30_render_calls[0][0]:

@@ -99,9 +99,10 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
     star1 = asset_uri(paths, "html/otherimg/Star1.png")
     star2 = asset_uri(paths, "html/otherimg/Star2.png")
     fallback = asset_uri(paths, "html/otherimg/phigros.png")
+    page_background = background or fallback
     background_html = f"""
     <div class="background">
-      {'<img src="' + star1 + '" alt="曲绘-模糊"><img src="' + star2 + '" alt="曲绘-模糊" style="min-height:0;width:100%;height:auto;bottom:0;filter:none;">' if theme == "star" else '<img src="' + (background or fallback) + '" alt="曲绘-模糊">'}
+      {'<img src="' + star1 + '" alt="曲绘-模糊"><img src="' + star2 + '" alt="曲绘-模糊" style="min-height:0;width:100%;height:auto;bottom:0;filter:none;">' if theme == "star" else '<img src="' + page_background + '" alt="曲绘-模糊">'}
     </div>
     """
     theme_script = '<script>{}</script>'.format(_js_text(paths, "html/common/theme/star/star.js")) if theme == "star" else ""
@@ -114,7 +115,7 @@ def original_page(paths: PluginPaths, css_rel: str, body: str, *, theme: str = "
   <link rel="shortcut icon" href="#">
   <style>{_css_text(paths, "html/common/common.css")}</style>
   <style>{_css_text(paths, f"html/{css_rel}")}</style>
-  <style>{_render_reset_css()}</style>
+  <style>{_render_reset_css(page_background if theme != "star" else "")}</style>
   <title>phi-plugin</title>
 </head>
 <body class="elem-hydro default-mode">
@@ -315,7 +316,31 @@ def _suggest_type(acc: float) -> str:
     return "5"
 
 
-def _render_reset_css() -> str:
+def _render_reset_css(background: str = "") -> str:
+    background_css = ""
+    if background:
+        safe_background = background.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "")
+        background_css = f"""
+html::before {{
+  content: "";
+  position: fixed;
+  inset: -40px;
+  background-image: url("{safe_background}");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(20px) brightness(50%);
+  transform: scale(1.08);
+  z-index: 0;
+  pointer-events: none;
+}}
+body {{
+  background-image: url("{safe_background}") !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+}}
+"""
     return """
 html {
   margin: 0;
@@ -332,15 +357,36 @@ body {
   width: 1200px !important;
   min-width: 1200px !important;
   max-width: 1200px !important;
+  background: #000 !important;
   overflow-x: hidden !important;
 }
 .background {
+  position: fixed !important;
+  top: 0 !important;
   left: 0;
+  right: auto !important;
+  bottom: auto !important;
   width: 1200px !important;
   min-width: 1200px !important;
   max-width: 1200px !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
 }
-"""
+.background img {
+  width: 100% !important;
+  min-width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  object-fit: cover !important;
+  z-index: 0 !important;
+}
+body > :not(.background) {
+  position: relative;
+  z-index: 1;
+}
+""" + background_css
 
 
 def _auto_font_script() -> str:
@@ -428,6 +474,9 @@ def _css_text(paths: PluginPaths, relative: str) -> str:
         if lowered.startswith(("http:", "https:", "file:")):
             data_uri = _source_data_uri(paths, raw_url)
             return f'url("{data_uri}")' if data_uri else 'url("")'
+        normalized_url = raw_url.replace("\\", "/").lower()
+        if normalized_url.endswith("/otherimg/phigros.png") or normalized_url == "../otherimg/phigros.png":
+            return 'url("")'
         resolved = (base_dir / raw_url).resolve()
         data_uri = _file_data_uri(resolved)
         return f'url("{data_uri}")' if data_uri else 'url("")'
