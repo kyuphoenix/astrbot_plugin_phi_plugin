@@ -15,6 +15,7 @@ from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalo
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
 from .phi_core.render import panel as panel_render
+from .phi_core.data.ill_download import ensure_resources_blocking
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
 
@@ -26,6 +27,7 @@ class AstrBotPhiPlugin(Star):
         data_dir = Path(StarTools.get_data_dir("astrbot_plugin_phi_plugin"))
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
         self.paths.ensure_data_dir()
+        resource_result = ensure_resources_blocking(self.plugin_config, self.paths)
         self.catalog: SongCatalog = load_catalog(self.paths.info)
         self.store = SaveStore(self.paths.data_dir)
         apply_aliases(self.catalog, self.store.load_custom_aliases())
@@ -48,6 +50,11 @@ class AstrBotPhiPlugin(Star):
             f"render_backend={self.plugin_config.render_backend}; "
             f"data_dir={self.paths.data_dir}; font={font_path}; font_exists={Path(font_path).exists()}"
         )
+        if resource_result is not None:
+            logger.info(
+                "astrbot_plugin_phi_plugin downloaded upstream resources "
+                f"to {resource_result.target}; commit={resource_result.commit}"
+            )
 
     @filter.command_group("phi")
     def phi(self):

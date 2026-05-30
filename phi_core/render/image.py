@@ -240,12 +240,13 @@ def _font(paths: PluginPaths, size: int, *, title: bool = False) -> ImageFont.Fr
 
 
 def _font_candidates(paths: PluginPaths, *, title: bool) -> list[Path]:
-    font_dir = paths.resources / "fonts"
+    font_dir = paths.resources / "html" / "common" / "font"
     candidates = []
     if title:
         candidates.append(font_dir / "Aldrich-Regular.ttf")
     candidates.extend([
-        font_dir / "NotoSansSC-VF.ttf",
+        font_dir / "NotoSansJP.ttf",
+        font_dir / "NotoSans-Regular.ttf",
         font_dir / "NotoSansSC-Regular.otf",
         font_dir / "SourceHanSansSC-Regular.otf",
         Path("C:/Windows/Fonts/msyh.ttc"),
@@ -257,7 +258,6 @@ def _font_candidates(paths: PluginPaths, *, title: bool) -> list[Path]:
         Path("/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf"),
         Path("/System/Library/Fonts/PingFang.ttc"),
         Path("/System/Library/Fonts/STHeiti Light.ttc"),
-        font_dir / "NotoSansJP.ttf",
         font_dir / "Aldrich-Regular.ttf",
     ])
     return candidates

@@ -3,3 +3,4 @@ __pycache__/
 .pytest_cache/
 /data/
 .tmp_smoke_data/
+/resources/

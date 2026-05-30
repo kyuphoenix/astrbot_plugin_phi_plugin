@@ -13,6 +13,7 @@ class PluginPaths:
     original_ill: Path
     data_dir: Path
     downloads: Path
+    downloaded_resources: Path
     cache: Path
     render_cache: Path
     downloaded_original_ill: Path
@@ -20,8 +21,9 @@ class PluginPaths:
     @classmethod
     def from_root(cls, root: Path, data_dir: Path | None = None) -> "PluginPaths":
         root = root.resolve()
-        resources = root / "resources"
         data_root = (data_dir or (root / "data")).resolve()
+        downloads = data_root / "downloads"
+        resources = downloads
         return cls(
             root=root,
             resources=resources,
@@ -29,15 +31,17 @@ class PluginPaths:
             other_ill=resources / "otherill",
             original_ill=resources / "original_ill",
             data_dir=data_root,
-            downloads=data_root / "downloads",
+            downloads=downloads,
+            downloaded_resources=resources,
             cache=data_root / "cache",
             render_cache=data_root / "cache" / "render",
-            downloaded_original_ill=data_root / "downloads" / "original_ill",
+            downloaded_original_ill=downloads / "original_ill",
         )
 
     def ensure_data_dir(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.downloads.mkdir(parents=True, exist_ok=True)
+        self.downloaded_resources.mkdir(parents=True, exist_ok=True)
         self.cache.mkdir(parents=True, exist_ok=True)
         self.render_cache.mkdir(parents=True, exist_ok=True)
         self.downloaded_original_ill.mkdir(parents=True, exist_ok=True)

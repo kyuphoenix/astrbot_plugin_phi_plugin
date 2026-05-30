@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
+UPSTREAM_RESOURCES = ROOT.parent / "phi-plugin" / "resources"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -169,6 +170,13 @@ def sample_save(
     }
 
 
+def install_resource_fixture(paths: PluginPaths) -> None:
+    if not UPSTREAM_RESOURCES.exists():
+        raise SystemExit(f"missing upstream resource fixture: {UPSTREAM_RESOURCES}")
+    for name in ("html", "info", "otherill"):
+        shutil.copytree(UPSTREAM_RESOURCES / name, paths.downloads / name, dirs_exist_ok=True)
+
+
 async def main() -> None:
     data_dir = ROOT / ".tmp_smoke_data"
     if data_dir.exists():
@@ -177,6 +185,7 @@ async def main() -> None:
     try:
         paths = PluginPaths.from_root(ROOT, data_dir=data_dir)
         paths.ensure_data_dir()
+        install_resource_fixture(paths)
         downloaded_ill = paths.downloaded_original_ill / "illLow"
         downloaded_ill.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (32, 24), (120, 40, 90)).save(downloaded_ill / "Glaciaxion.SunsetRay.png")
@@ -216,7 +225,12 @@ async def main() -> None:
             raise SystemExit("b30 html should render original Real RKS info chip when computed rks differs")
         if "suggest-tip" not in b30_html or "width: 1200px" not in b30_html:
             raise SystemExit("b30 html should keep original suggestion pill and page-width reset")
-        online_background = random_background_source(PluginPaths.from_root(ROOT, data_dir=data_dir / "no-local-ill"))
+        online_paths = PluginPaths.from_root(ROOT, data_dir=data_dir / "no-local-ill")
+        online_paths.ensure_data_dir()
+        install_resource_fixture(online_paths)
+        if online_paths.other_ill.exists():
+            shutil.rmtree(online_paths.other_ill)
+        online_background = random_background_source(online_paths)
         if not isinstance(online_background, str) or "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in online_background:
             raise SystemExit("background picker should fall back to online random blurred illustrations before phigros.png")
         trim_source = paths.render_cache / "trim-source.png"
@@ -258,7 +272,7 @@ async def main() -> None:
             ("newnotice", "", "更新公告"),
             ("newlog", "", "最新版本"),
             ("randclg", "30-45", "随机课题"),
-            ("down", "bad", "格式：phi down ill"),
+            ("down", "bad", "格式：phi down resources"),
         ]
         for command, args, expected in cases:
             result = await dispatch(ctx, "smoke-user", command, args)
@@ -605,7 +619,7 @@ async def main() -> None:
         print("dispatch smoke passed")
     finally:
         if data_dir.exists():
-            shutil.rmtree(data_dir)
+            shutil.rmtree(data_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
