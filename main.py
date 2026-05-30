@@ -10,7 +10,7 @@ from astrbot.api.star import Context, Star, StarTools
 
 from .phi_core.commands import CommandContext, CommandResult, dispatch
 from .phi_core.config import PluginConfig
-from .phi_core.data import SongCatalog, SongSearcher, load_catalog
+from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
 from .phi_core.render import panel as panel_render
@@ -26,8 +26,9 @@ class AstrBotPhiPlugin(Star):
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
         self.paths.ensure_data_dir()
         self.catalog: SongCatalog = load_catalog(self.paths.info)
-        self.searcher = SongSearcher(self.catalog)
         self.store = SaveStore(self.paths.data_dir)
+        apply_aliases(self.catalog, self.store.load_custom_aliases())
+        self.searcher = SongSearcher(self.catalog)
         self.client = PhiApiClient(self.plugin_config)
         self.taptap = TapTapQrLogin(self.plugin_config, self.paths)
         self.command_context = CommandContext(
@@ -65,6 +66,7 @@ class AstrBotPhiPlugin(Star):
             taptap=self.command_context.taptap,
             html_render=self.html_render,
             sender=send_intermediate,
+            is_admin=bool(event.is_admin()),
         )
         result = await dispatch(command_context, event.get_sender_id(), command, args)
         yield await self._to_astrbot_result(event, result)

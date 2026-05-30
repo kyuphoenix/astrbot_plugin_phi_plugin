@@ -132,12 +132,70 @@ class PhiApiClient:
             raw=data,
         )
 
+    async def live_info(self) -> str:
+        data = await self._get("/live", {})
+        return str(data or "")
+
+    async def fetch_comments_by_song(self, song_id: str) -> list[dict[str, Any]]:
+        data = await self._post("/comment/get/bySongId", {"song_id": song_id})
+        return data if isinstance(data, list) else []
+
+    async def fetch_comments_by_user(
+        self,
+        user_id: str,
+        *,
+        token: str | None = None,
+        api_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        data = await self._post("/comment/get/byUserId", self._auth_payload(user_id, token=token, api_id=api_id))
+        return data if isinstance(data, list) else []
+
+    async def add_comment(self, user_id: str, token: str, comment: dict[str, Any]) -> None:
+        payload = self._auth_payload(user_id, token=token, api_id=None)
+        payload["data"] = {"comment": comment}
+        await self._post("/comment/add", payload)
+
+    async def delete_comment(self, user_id: str, token: str, comment_id: str) -> None:
+        payload = self._auth_payload(user_id, token=token, api_id=None)
+        payload["comment_id"] = str(comment_id)
+        await self._post("/comment/del", payload)
+
+    async def fetch_chart_tags(self, song_id: str, rank: str) -> dict[str, Any]:
+        data = await self._post("/chartsTag/get/bySongRank", {"song_id": song_id, "rank": rank})
+        return data if isinstance(data, dict) else {}
+
+    async def set_chart_tags(
+        self,
+        user_id: str,
+        *,
+        token: str | None,
+        api_id: str | None,
+        song_id: str,
+        rank: str,
+        tags: list[str],
+    ) -> None:
+        payload = self._auth_payload(user_id, token=token, api_id=api_id)
+        payload["song_id"] = song_id
+        payload["rank"] = rank
+        payload["content"] = tags
+        await self._post("/chartsTag/set/set", payload)
+
     @staticmethod
     def _platform_payload(user_id: str) -> dict[str, str]:
         return {
             "platform": "AstrBot",
             "platform_id": str(user_id),
         }
+
+    def _auth_payload(self, user_id: str, *, token: str | None, api_id: str | None) -> dict[str, Any]:
+        payload: dict[str, Any] = self._platform_payload(user_id)
+        if token:
+            payload["token"] = token
+        if api_id:
+            payload["api_user_id"] = str(api_id)
+        if "token" not in payload and "api_user_id" not in payload:
+            raise SaveNotAvailable("请先绑定 sessionToken 或查询 ID。")
+        return payload
 
     @staticmethod
     def _extract_api_id(data: dict[str, Any]) -> str | None:
@@ -149,6 +207,24 @@ class PhiApiClient:
         try:
             async with httpx.AsyncClient(timeout=self.config.request_timeout, verify=False) as client:
                 response = await client.post(url, json=payload)
+                response.raise_for_status()
+                body = response.json()
+        except httpx.HTTPError as exc:
+            raise SaveNotAvailable(f"API 请求失败：{exc}") from exc
+        except ValueError as exc:
+            raise SaveNotAvailable("API 响应不是有效 JSON。") from exc
+
+        if isinstance(body, dict) and body.get("error"):
+            raise SaveNotAvailable(str(body["error"]))
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body
+
+    async def _get(self, path: str, params: dict[str, Any]) -> Any:
+        url = f"{self.config.api_base_url}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=self.config.request_timeout, verify=False) as client:
+                response = await client.get(url, params=params)
                 response.raise_for_status()
                 body = response.json()
         except httpx.HTTPError as exc:

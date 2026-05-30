@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 TOKEN_RE = re.compile(r"^[A-Za-z0-9]{25}$")
 API_ID_RE = re.compile(r"^[0-9]+$")
 
@@ -20,6 +22,7 @@ class SaveStore:
         self.histories_dir = self.data_dir / "history"
         self.bindings_path = self.data_dir / "bindings.json"
         self.api_ids_path = self.data_dir / "api_ids.json"
+        self.custom_aliases_path = self.data_dir / "custom_aliases.yaml"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.saves_dir.mkdir(parents=True, exist_ok=True)
         self.histories_dir.mkdir(parents=True, exist_ok=True)
@@ -130,6 +133,43 @@ class SaveStore:
         except json.JSONDecodeError:
             return {}
         return data if isinstance(data, dict) else {}
+
+    def load_custom_aliases(self) -> dict[str, list[str]]:
+        if not self.custom_aliases_path.exists():
+            return {}
+        try:
+            data = yaml.safe_load(self.custom_aliases_path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        result: dict[str, list[str]] = {}
+        for key, value in data.items():
+            aliases: list[str] = []
+            if isinstance(value, list):
+                aliases = [str(item).strip() for item in value if str(item).strip()]
+            elif isinstance(value, str) and value.strip():
+                aliases = [value.strip()]
+            if aliases:
+                result[str(key)] = aliases
+        return result
+
+    def add_custom_alias(self, song_id: str, alias: str) -> bool:
+        song_id = song_id.strip()
+        alias = alias.strip()
+        if not song_id or not alias:
+            raise StoreError("曲目 ID 和别名不能为空。")
+        aliases = self.load_custom_aliases()
+        values = aliases.setdefault(song_id, [])
+        if alias in values:
+            return False
+        values.append(alias)
+        self.custom_aliases_path.parent.mkdir(parents=True, exist_ok=True)
+        self.custom_aliases_path.write_text(
+            yaml.safe_dump(aliases, allow_unicode=True, sort_keys=True),
+            encoding="utf-8",
+        )
+        return True
 
     def save_path(self, user_id: str) -> Path:
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(user_id))

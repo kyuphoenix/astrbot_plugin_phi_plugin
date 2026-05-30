@@ -16,6 +16,7 @@ from ..models import (
     UpdateProgressSummary,
     UserSummary,
 )
+from ..query.history import AchievementRow, ChapterSummary, HistoryB30Change, HistorySummary
 
 HELP_TEXT = """
 Phi Plugin Query Core
@@ -48,10 +49,19 @@ phi lvscore [条件] - 统计指定范围成绩
 phi lmtacc <acc> - 查看 ACC 下限后的 Best 列表
 phi suggest - 推分建议
 phi randclg [范围] - 随机三曲课题
+phi chap <章节|all> - 查询章节成绩概览
+phi achievement <定数整数> - 查询某一整档定数成就
+phi hisb30 - 查看历史 B30 进出记录
+phi 2025history - 查看历史年度总结
+phi setnick 原名 ---> 别名 - 管理员添加本地别名
+phi live - 查询直播速递
+phi cmt <曲名> / <曲名> <难度> 换行 <内容> - 查看或发表在线评论
+phi mycmt / recmt <ID> - 查看或删除自己的在线评论
+phi addtag <曲名> <难度> [标签...] - 查看或提交谱面标签
 phi newlog - 查看本地曲库更新日志
 phi newnotice - 查看本地公告
 
-暂未迁移：小游戏、签到任务、排行榜、评论、谱面标签、管理命令、完整原版图片模板。
+暂未迁移：小游戏、签到任务、排行榜、管理命令、完整原版图片模板。
 """.strip()
 
 
@@ -378,6 +388,132 @@ def render_random_challenge(target: int, charts: list[ChartEntry]) -> str:
     return "\n".join(lines)
 
 
+def render_chapter_summary(summary: ChapterSummary) -> str:
+    if summary.total_charts <= 0:
+        return f"章节「{summary.name}」下没有找到可统计谱面。"
+    lines = [
+        f"章节成绩：{summary.name}",
+        f"谱面: {summary.played_charts}/{summary.total_charts}",
+        "评级分布: " + " / ".join(f"{key}:{value}" for key, value in summary.rating_counts.items() if value),
+        "",
+        "难度进度:",
+    ]
+    for rank, item in summary.rank_counts.items():
+        if item.total:
+            lines.append(f"- {rank}: {item.played}/{item.total} / 平均 ACC {item.average_acc:.4f}%")
+    if summary.top_records:
+        lines.extend(["", "章节 Best:"])
+        for index, record in enumerate(summary.top_records, 1):
+            lines.append(_record_line(index, record))
+    return "\n".join(lines)
+
+
+def render_achievement(rows: list[AchievementRow], difficulty_floor: int) -> str:
+    if not rows:
+        return f"没有找到 {difficulty_floor}.0-{difficulty_floor}.9 的谱面。"
+    lines = [f"Player Achievements {difficulty_floor}.0-{difficulty_floor}.9", ""]
+    for row in rows:
+        lines.append(
+            f"{row.difficulty:.1f}: {row.played}/{row.total} / "
+            f"最低评级 {row.min_rating.upper()} / 最低分 {row.min_score:,} / "
+            f"平均 ACC {row.avg_acc:.4f}% / Phi {row.phi_count} / FC {row.fc_count}"
+        )
+    return "\n".join(lines)
+
+
+def render_history_b30(changes: list[HistoryB30Change]) -> str:
+    if not changes:
+        return "还没有足够的历史记录用于分析 B30 进出变化。请先使用 phi update 积累历史。"
+    lines = ["历史 B30 变化", ""]
+    for change in changes:
+        lines.append(f"[{change.date}]")
+        for index, record in change.new_phi:
+            lines.append(f"+ Phi{index}: {_record_short(record)}")
+        for index, record in change.new_b27:
+            lines.append(f"+ B27#{index}: {_record_short(record)}")
+        for record in change.exit_phi:
+            lines.append(f"- Phi: {_record_short(record)}")
+        for record in change.exit_b27:
+            lines.append(f"- B27: {_record_short(record)}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def render_history_summary(summary: HistorySummary) -> str:
+    lines = [
+        "年度历史总结",
+        f"有记录天数: {summary.total_days}",
+        f"更新次数: {summary.total_updates}",
+        f"历史成绩记录: {summary.total_score_records}",
+        "",
+        "打得最多:",
+    ]
+    lines.extend(_top_lines(summary.most_played))
+    lines.extend([
+        "",
+        f"RKS 上升最多: {_format_float_pair(summary.rks_max_up, 4)}",
+        f"RKS 下降最多: {_format_float_pair(summary.rks_max_down, 4)}",
+        f"Data 上升最多: {_format_data_pair(summary.data_max_up)}",
+        f"Data 下降最多: {_format_data_pair(summary.data_max_down)}",
+        "",
+        "新纪录最多:",
+    ])
+    lines.extend(_top_lines(summary.most_new_records))
+    lines.extend(["", "AP 最多:"])
+    lines.extend(_top_lines(summary.most_ap_days))
+    lines.extend(["", "每天最晚推分 Top3:"])
+    if summary.latest_push_times:
+        lines.extend(f"- {day}: {time}" for day, time in summary.latest_push_times)
+    else:
+        lines.append("- 暂无")
+    return "\n".join(lines)
+
+
+def render_live_info(info: str) -> str:
+    return "直播速递：\n" + (info.strip() if info and info.strip() else "暂无直播信息。")
+
+
+def render_comments(song: Song, comments: list[dict], *, limit: int = 10) -> str:
+    if not comments:
+        return f"「{song.title}」暂无在线评论。"
+    lines = [f"「{song.title}」评论列表："]
+    for item in comments[:limit]:
+        comment_id = item.get("id") or item.get("thisId") or "?"
+        rank = item.get("rank") or "?"
+        player = item.get("PlayerId") or item.get("playerId") or item.get("apiUserId") or "匿名"
+        content = str(item.get("comment") or "").replace("\n", " ").strip()
+        time = item.get("time") or item.get("createdAt") or ""
+        lines.append(f"{comment_id} | {rank} | {player} | {content}" + (f" | {time}" if time else ""))
+    if len(comments) > limit:
+        lines.append(f"... 还有 {len(comments) - limit} 条未显示。")
+    return "\n".join(lines)
+
+
+def render_my_comments(comments: list[dict], *, limit: int = 20) -> str:
+    if not comments:
+        return "您还没有评论。"
+    lines = ["您的评论列表：", "ID | 曲目 | 难度 | 内容 | 时间"]
+    for item in comments[:limit]:
+        comment_id = item.get("id") or item.get("thisId") or "?"
+        song_id = item.get("songId") or item.get("song_id") or "?"
+        rank = item.get("rank") or "?"
+        content = str(item.get("comment") or "").replace("\n", " ").strip()
+        time = item.get("time") or item.get("createdAt") or ""
+        lines.append(f"{comment_id} | {song_id} | {rank} | {content} | {time}")
+    if len(comments) > limit:
+        lines.append(f"... 还有 {len(comments) - limit} 条未显示。")
+    return "\n".join(lines)
+
+
+def render_chart_tags(song: Song, rank: str, tags: dict[str, object]) -> str:
+    if not tags:
+        return f"{song.title} {rank} 暂无在线谱面标签。"
+    lines = [f"{song.title} {rank} 谱面标签："]
+    for tag, value in sorted(tags.items(), key=lambda item: str(item[0])):
+        lines.append(f"- {tag}: {value}")
+    return "\n".join(lines)
+
+
 def render_tip(tip: str | None) -> str:
     return tip or "本地 tips.yaml 为空，暂时没有 Tips 可以抽。"
 
@@ -440,6 +576,32 @@ def _record_line(index: int, record: ScoreRecord, include_song: bool = True) -> 
         f"{record.score:,} / {record.acc:.4f}% / "
         f"定数 {record.difficulty:.1f} / RKS {record.rks:.4f} / {record.rating}{fc}"
     )
+
+
+def _record_short(record: ScoreRecord) -> str:
+    return (
+        f"{record.rank} {record.song_title} "
+        f"{record.score:,} / {record.acc:.4f}% / RKS {record.rks:.4f}"
+    )
+
+
+def _top_lines(items: list[tuple[str, int]]) -> list[str]:
+    if not items:
+        return ["- 暂无"]
+    return [f"- {name}: {count}" for name, count in items]
+
+
+def _format_float_pair(pair: tuple[str, float] | None, digits: int) -> str:
+    if pair is None:
+        return "暂无"
+    sign = "+" if pair[1] > 0 else ""
+    return f"{pair[0]} {sign}{pair[1]:.{digits}f}"
+
+
+def _format_data_pair(pair: tuple[str, int] | None) -> str:
+    if pair is None:
+        return "暂无"
+    return f"{pair[0]} {_format_data_delta(pair[1]).strip(' ()') or '0KiB'}"
 
 
 def _progress_change_line(change: ProgressScoreChange) -> str:

@@ -120,6 +120,26 @@ def load_catalog(info_dir: Path) -> SongCatalog:
     return SongCatalog(songs=songs, alias_to_id=alias_to_id)
 
 
+def apply_aliases(catalog: SongCatalog, aliases_raw: Any) -> None:
+    """Merge user-managed aliases into an already loaded catalog."""
+    if not isinstance(aliases_raw, dict):
+        return
+    for target, aliases in aliases_raw.items():
+        song_id = _resolve_alias_target(str(target), catalog.songs)
+        if not song_id:
+            continue
+        song = catalog.songs[song_id]
+        for alias in _coerce_aliases(aliases):
+            alias = alias.strip()
+            if not alias:
+                continue
+            if alias not in song.aliases:
+                song.aliases.append(alias)
+            key = normalize_key(alias)
+            if key:
+                catalog.alias_to_id[key] = song_id
+
+
 def _read_difficulty_csv(path: Path) -> dict[str, dict[str, str]]:
     result: dict[str, dict[str, str]] = {}
     with path.open("r", encoding="utf-8-sig", newline="") as handle:

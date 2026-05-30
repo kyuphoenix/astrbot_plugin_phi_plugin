@@ -26,6 +26,9 @@ class FakeLoginClient(PhiApiClient):
         self.bind_calls: list[dict[str, object | None]] = []
         self.save_counter = 0
         self.history_uploads: list[dict] = []
+        self.added_comments: list[dict] = []
+        self.deleted_comments: list[str] = []
+        self.set_tags: list[dict] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -50,6 +53,27 @@ class FakeLoginClient(PhiApiClient):
 
     async def set_history(self, user_id: str, history: dict, *, token=None, api_id=None):  # type: ignore[override]
         self.history_uploads.append(history)
+
+    async def live_info(self):  # type: ignore[override]
+        return "Smoke Live"
+
+    async def fetch_comments_by_song(self, song_id: str):  # type: ignore[override]
+        return [{"id": "7", "songId": song_id, "rank": "EZ", "PlayerId": "SMOKE", "comment": "hello", "time": "2026-05-29"}]
+
+    async def fetch_comments_by_user(self, user_id: str, *, token=None, api_id=None):  # type: ignore[override]
+        return [{"id": "7", "songId": "Glaciaxion.SunsetRay", "rank": "EZ", "comment": "hello", "time": "2026-05-29"}]
+
+    async def add_comment(self, user_id: str, token: str, comment: dict):  # type: ignore[override]
+        self.added_comments.append(comment)
+
+    async def delete_comment(self, user_id: str, token: str, comment_id: str):  # type: ignore[override]
+        self.deleted_comments.append(comment_id)
+
+    async def fetch_chart_tags(self, song_id: str, rank: str):  # type: ignore[override]
+        return {"节奏": 3, "配置": 2}
+
+    async def set_chart_tags(self, user_id: str, *, token=None, api_id=None, song_id: str, rank: str, tags: list[str]):  # type: ignore[override]
+        self.set_tags.append({"song_id": song_id, "rank": rank, "tags": tags})
 
 
 class FakeTapTapLogin(TapTapQrLogin):
@@ -284,6 +308,27 @@ async def main() -> None:
         auth_pgr = await dispatch(login_ctx, "login-user", "pgr", "")
         if "官方 RKS" not in auth_pgr.value:
             raise SystemExit(f"auth should auto-sync save for pgr, got {auth_pgr.value!r}")
+        live = await dispatch(login_ctx, "login-user", "live", "")
+        if "Smoke Live" not in live.value:
+            raise SystemExit(f"live should render API content, got {live.value!r}")
+        comments = await dispatch(login_ctx, "login-user", "comment", "Glaciaxion")
+        if "评论列表" not in comments.value or "hello" not in comments.value:
+            raise SystemExit(f"comment should list song comments, got {comments.value!r}")
+        add_comment = await dispatch(login_ctx, "login-user", "comment", "Glaciaxion EZ\nsmoke comment")
+        if "在线评论成功" not in add_comment.value or not login_client.added_comments:
+            raise SystemExit(f"comment should add online comment, got {add_comment.value!r}")
+        my_comments = await dispatch(login_ctx, "login-user", "mycmt", "")
+        if "您的评论列表" not in my_comments.value:
+            raise SystemExit(f"mycmt should list user comments, got {my_comments.value!r}")
+        delete_comment = await dispatch(login_ctx, "login-user", "recmt", "7")
+        if "删除在线评论成功" not in delete_comment.value or login_client.deleted_comments != ["7"]:
+            raise SystemExit(f"recmt should delete online comment, got {delete_comment.value!r}")
+        tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ")
+        if "谱面标签" not in tags.value or "节奏" not in tags.value:
+            raise SystemExit(f"addtag should list chart tags, got {tags.value!r}")
+        set_tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ 节奏 配置")
+        if "谱面标签已提交" not in set_tags.value or not login_client.set_tags:
+            raise SystemExit(f"addtag should set chart tags, got {set_tags.value!r}")
 
         login_ctx.store.bind("bind-user", "A" * 25)
         uploads_before_bind = len(login_client.history_uploads)
@@ -350,6 +395,45 @@ async def main() -> None:
         progress_pgr = await dispatch(progress_ctx, "progress-user", "pgr", "")
         if "官方 RKS: 11.2222" not in progress_pgr.value:
             raise SystemExit(f"update should refresh pgr cache, got {progress_pgr.value!r}")
+        progress_chap = await dispatch(progress_ctx, "progress-user", "chap", "C0")
+        if "章节成绩：Chapter Legacy 过去的章节" not in progress_chap.value or "Glaciaxion" not in progress_chap.value:
+            raise SystemExit(f"chap should render chapter score summary, got {progress_chap.value!r}")
+        progress_achievement = await dispatch(progress_ctx, "progress-user", "achievement", "1")
+        if "Player Achievements 1.0-1.9" not in progress_achievement.value:
+            raise SystemExit(f"achievement should render difficulty rows, got {progress_achievement.value!r}")
+        progress_hisb30 = await dispatch(progress_ctx, "progress-user", "hisb30", "")
+        if "历史 B30 变化" not in progress_hisb30.value or "Glaciaxion" not in progress_hisb30.value:
+            raise SystemExit(f"hisb30 should render history changes, got {progress_hisb30.value!r}")
+        progress_history = await dispatch(progress_ctx, "progress-user", "2025history", "")
+        if "年度历史总结" not in progress_history.value or "历史成绩记录" not in progress_history.value:
+            raise SystemExit(f"2025history should render history summary, got {progress_history.value!r}")
+
+        nick_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=PhiApiClient(config),
+            is_admin=True,
+        )
+        setnick = await dispatch(nick_ctx, "admin-user", "setnick", "Glaciaxion ---> 烟花冰川")
+        if "设置完成" not in setnick.value:
+            raise SystemExit(f"setnick should persist alias, got {setnick.value!r}")
+        alias_hit = nick_ctx.searcher.best("烟花冰川")
+        if alias_hit is None or alias_hit.title != "Glaciaxion":
+            raise SystemExit("setnick did not update in-memory search aliases")
+        non_admin_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=PhiApiClient(config),
+        )
+        denied = await dispatch(non_admin_ctx, "normal-user", "setnick", "Glaciaxion ---> test")
+        if "只有管理员" not in denied.value:
+            raise SystemExit(f"setnick should require admin, got {denied.value!r}")
 
         sent: list[CommandResult] = []
 
