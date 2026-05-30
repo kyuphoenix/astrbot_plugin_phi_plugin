@@ -323,8 +323,8 @@ def _render_reset_css(background: str = "") -> str:
         background_css = f"""
 html::before {{
   content: "";
-  position: fixed;
-  inset: -40px;
+  position: absolute;
+  inset: 0;
   background-image: url("{safe_background}");
   background-position: center;
   background-size: cover;
@@ -358,7 +358,7 @@ body {
   overflow-x: hidden !important;
 }
 .background {
-  position: fixed !important;
+  position: absolute !important;
   top: 0 !important;
   left: 0;
   right: auto !important;
@@ -366,8 +366,8 @@ body {
   width: 1200px !important;
   min-width: 1200px !important;
   max-width: 1200px !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
+  height: 100% !important;
+  min-height: 100% !important;
   z-index: 0 !important;
   pointer-events: none !important;
 }
@@ -380,6 +380,9 @@ body {
   filter: blur(20px) brightness(50%) !important;
   transform: scale(1.2) !important;
   z-index: 0 !important;
+}
+body {
+  position: relative !important;
 }
 body > :not(.background) {
   position: relative;

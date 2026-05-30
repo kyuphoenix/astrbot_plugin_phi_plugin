@@ -370,6 +370,8 @@ async def main() -> None:
             raise SystemExit("help html should use random blurred illustration background, not the fixed star theme")
         if "background: #000 !important" not in html_render_calls[0][0] or "z-index: 0 !important" not in html_render_calls[0][0]:
             raise SystemExit("help html should override original body phigros fallback and negative background stacking")
+        if "position: fixed !important" in html_render_calls[0][0] or "height: 100vh !important" in html_render_calls[0][0]:
+            raise SystemExit("help html background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in html_render_calls[0][0]:
             raise SystemExit("help html should remove original common.css phigros body fallback before t2i")
         if 'background-image: url("data:image/' not in html_render_calls[0][0]:
@@ -484,6 +486,8 @@ async def main() -> None:
             raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
         if "background: #000 !important" not in b30_render_calls[0][0] or "z-index: 0 !important" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should override original body phigros fallback and negative background stacking")
+        if "position: fixed !important" in b30_render_calls[0][0] or "height: 100vh !important" in b30_render_calls[0][0]:
+            raise SystemExit("image pgr background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should remove original common.css phigros body fallback before t2i")
         if 'background-image: url("data:image/' not in b30_render_calls[0][0]:
