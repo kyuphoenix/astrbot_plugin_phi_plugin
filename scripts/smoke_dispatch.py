@@ -192,6 +192,7 @@ async def main() -> None:
             ("newnotice", "", "更新公告"),
             ("newlog", "", "最新版本"),
             ("randclg", "30-45", "随机课题"),
+            ("down", "bad", "格式：phi down ill"),
         ]
         for command, args, expected in cases:
             result = await dispatch(ctx, "smoke-user", command, args)
@@ -246,14 +247,14 @@ async def main() -> None:
         with Image.open(html_result.value) as rendered:
             if rendered.width < 1000 or rendered.height < 500:
                 raise SystemExit(f"help image has unexpected size: {rendered.size}")
-        if not html_render_calls or "Phi Plugin Query Core" not in html_render_calls[0][0]:
-            raise SystemExit("official html renderer was not called with the help template")
+        if not html_render_calls or "html/help/help.css" not in html_render_calls[0][0] or 'class="help_box"' not in html_render_calls[0][0]:
+            raise SystemExit("official html renderer was not called with the original help resources")
         if html_render_calls[0][2] is not False:
             raise SystemExit("official html renderer should return a local file path")
         if html_render_calls[0][1] != {}:
             raise SystemExit("official html renderer should receive pre-rendered HTML with an empty data dict")
-        if "data:font/ttf;base64," not in html_render_calls[0][0]:
-            raise SystemExit("official html renderer should receive pre-rendered HTML with embedded font subsets")
+        if "resources/html/common/common.css" not in html_render_calls[0][0].replace("\\", "/"):
+            raise SystemExit("official html renderer should receive original common css resources")
         if html_render_calls[0][3] is None or html_render_calls[0][3].get("type") != "png":
             raise SystemExit("official html renderer should be asked for png output")
 
@@ -308,6 +309,28 @@ async def main() -> None:
         auth_pgr = await dispatch(login_ctx, "login-user", "pgr", "")
         if "官方 RKS" not in auth_pgr.value:
             raise SystemExit(f"auth should auto-sync save for pgr, got {auth_pgr.value!r}")
+        b30_render_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+        async def fake_b30_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+            b30_render_calls.append((template, data, return_url, options))
+            path = paths.render_cache / "fake-b30-render.png"
+            Image.new("RGB", (1200, 1600), (8, 24, 50)).save(path)
+            return str(path)
+
+        image_login_ctx = CommandContext(
+            config=PluginConfig(render_mode="image", render_backend="html"),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=login_ctx.store,
+            client=login_client,
+            html_render=fake_b30_render,
+        )
+        image_pgr = await dispatch(image_login_ctx, "login-user", "pgr", "")
+        if image_pgr.kind != "image" or not Path(image_pgr.value).exists():
+            raise SystemExit(f"image pgr should render an image, got {image_pgr!r}")
+        if not b30_render_calls or "html/b19/b19.css" not in b30_render_calls[0][0] or 'class="b19"' not in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should render with original b19 resources")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")

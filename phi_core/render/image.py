@@ -34,6 +34,7 @@ HELP_GROUPS = [
             ("phi search <关键词>", "搜索曲目与别名"),
             ("phi rand", "随机抽取一首曲目"),
             ("phi ill <曲名/别名>", "发送本地曲绘"),
+            ("phi down ill", "下载或更新原版曲绘资源"),
             ("phi alias <曲名/别名>", "查询本地别名库"),
             ("phi tips / newlog", "随机 Tips 或查看本地更新日志"),
         ],

@@ -9,6 +9,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi search <关键词>`：搜索曲目
 - `phi rand`：随机曲目
 - `phi ill <曲名或别名>`：发送本地曲绘（存在时）
+- `phi down ill` / `phi 下载曲绘`：下载或更新原版曲绘到 AstrBot 数据目录
 - `phi bind <sessionToken|查询ID|qrcode>`：绑定 token、查询 ID 或 TapTap 二维码登录，并在绑定后自动同步一次玩家数据
 - `phi cnbind <sessionToken>` / `phi gbbind <sessionToken>`：按国服/国际服入口绑定 token
 - `phi auth <API Token>` / `phi login <API Token>`：通过查询平台 API Token 换取并保存 sessionToken，随后自动同步一次玩家数据
@@ -40,15 +41,15 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 命令运行逻辑拆分在 `phi_core/commands/` 下：每个原插件函数级命令对应一个独立脚本，路由器会自动发现带有 `ALIASES` 和 `handle` 的命令模块。暂未迁移完整业务逻辑的命令也保留独立脚本并返回清晰提示，方便后续逐个补齐。
 
-图片渲染使用 AstrBot 官方 `Star.html_render`，通过 `HTML + Jinja2` 模板走 AstrBot 内置截图服务，尽量贴近原版 phi-plugin 的 Puppeteer 模板截图流程。Pillow 面板回退已移除，方便暴露真实 HTML 渲染问题。渲染器会复用原版插件的本地字体思路，使用 `resources/fonts/` 中的 Noto/Aldrich 字体绘制中文和英文，并会把当前面板需要的字符裁剪成小字体 data URI，避免远端 T2I 服务读取不到本机字体导致中文渲染失败。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`，字体子集缓存写入 `cache/fonts/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
-
-原版 `resources/html/` 已复制到当前插件，后续可以逐个把 `b19/list/lvsco/table/suggest/newnotice` 等 HTML 模板接入 AstrBot T2I。当前新增迁移命令先提供文字版逻辑，确保参数解析、曲库资源和缓存存档计算可用。
+图片渲染使用 AstrBot 官方 `Star.html_render`，并优先复用原版 `resources/html/` 下的 CSS、字体与图片资源。`phi help`、`phi b30/rks/pgr` 已接入原版 `help`/`b19` 资源结构；其它纯文本结果暂时仍使用通用 HTML 面板。Pillow 面板回退已移除，方便暴露真实 HTML 渲染问题。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
 
 ## 迁移说明
 
-插件侧不依赖 Node.js、Yunzai、Redis 或自管 Puppeteer；HTML 图片模板交给 AstrBot 官方 `html_render` 渲染。小游戏、排行榜、评论、标签、签到任务、管理命令和插件自更新暂未迁移。
+插件侧不依赖 Node.js、Yunzai、Redis 或自管 Puppeteer；HTML 图片模板交给 AstrBot 官方 `html_render` 渲染。小游戏、排行榜、签到任务、管理命令和插件自更新暂未迁移。
 
 运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录；插件包内 `resources/` 只存放随插件发布的静态曲库资源。
+
+曲绘下载命令会把 `https://github.com/Catrong/phi-plugin-ill.git` 克隆或更新到 AstrBot 数据目录下的 `downloads/original_ill/`，渲染和 `phi ill` 会优先读取这里的曲绘资源。若配置了 `github_proxy`，下载命令会沿用该代理前缀。
 
 如果 `phi bind` 或 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
 
@@ -64,4 +65,5 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 python -m compileall .
 python scripts\smoke_command_routes.py
 python scripts\smoke_dispatch.py
+python scripts\smoke_send_components.py
 ```

@@ -26,6 +26,26 @@ async def render_help_panel(config: PluginConfig, paths: PluginPaths, html_rende
         raise
 
 
+async def render_html(
+    config: PluginConfig,
+    paths: PluginPaths,
+    html: str,
+    name: str,
+    html_render: HtmlRenderFunc | None = None,
+) -> Path:
+    if html_render is None:
+        raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
+    try:
+        rendered = await html_render(html, {}, False, _options())
+        result = _render_result_path(paths, rendered, name)
+        if result is not None:
+            return result
+        raise RuntimeError(f"AstrBot html_render returned a missing or invalid image path: {rendered!r}")
+    except Exception as exc:
+        logger.warning("phi original html render failed; Pillow fallback is disabled: %s", exc)
+        raise
+
+
 async def render_text_panel(
     config: PluginConfig,
     paths: PluginPaths,

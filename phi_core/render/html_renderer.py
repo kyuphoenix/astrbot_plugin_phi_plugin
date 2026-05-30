@@ -10,6 +10,7 @@ from jinja2 import Environment
 
 from ..paths import PluginPaths
 from . import image as pillow_image
+from . import original
 
 WIDTH = 1200
 logger = logging.getLogger("astrbot")
@@ -17,7 +18,7 @@ logger = logging.getLogger("astrbot")
 
 def backend_diagnostics(paths: PluginPaths) -> dict[str, Any]:
     return {
-        "template_dir": str(_template_dir(paths)),
+        "template_dir": str(paths.resources / "html"),
         "font": str(_font_path(paths)),
         "font_exists": _font_path(paths).exists(),
         "font_cache": str(_font_cache_dir(paths)),
@@ -26,15 +27,7 @@ def backend_diagnostics(paths: PluginPaths) -> dict[str, Any]:
 
 
 def help_html(paths: PluginPaths) -> str:
-    corpus = _collect_text(
-        ["Phi Plugin Query Core", "AstrBot native renderer / HTML edition", "Created with Playwright + Jinja2 renderer"],
-        pillow_image.HELP_GROUPS,
-    )
-    return _render_template(paths, "help.html", {
-        "groups": pillow_image.HELP_GROUPS,
-        "subtitle": "AstrBot native renderer / HTML edition",
-        **_asset_data(paths, corpus, title_corpus="Phi Plugin Query Core"),
-    })
+    return original.help_html(paths)
 
 
 def text_html(paths: PluginPaths, text: str, title: str = "Phi Plugin") -> str:

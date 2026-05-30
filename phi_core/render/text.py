@@ -27,6 +27,7 @@ phi song <曲名/别名> - 查询曲目信息
 phi search <关键词> - 搜索曲目
 phi rand - 随机曲目
 phi ill <曲名/别名> - 发送本地曲绘
+phi down ill - 下载或更新原版曲绘资源
 phi bind <sessionToken|查询ID|qrcode> - 绑定 Phigros token、查询平台 ID 或 TapTap 扫码登录
 phi auth <API Token> - 使用查询平台 API Token 登录并保存 sessionToken
 phi unbind - 解绑并清理缓存
