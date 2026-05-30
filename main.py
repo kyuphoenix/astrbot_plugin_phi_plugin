@@ -82,6 +82,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_api(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'api')
 
+    @phi.command('ans', alias={'\u7b54\u6848', '\u7ed3\u675f'})
+    async def phi_ans(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'ans')
+
     @phi.command('arcgros', alias={'arcgrosb19'})
     async def phi_arcgros(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'arcgros')
@@ -146,6 +150,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_gbbind(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'gbbind')
 
+    @phi.command('guess', alias={'\u731c\u66f2\u7ed8'})
+    async def phi_guess(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'guess')
+
     @phi.command('help', alias={'\u547d\u4ee4', '\u5e2e\u52a9', '\u6307\u4ee4', '\u83dc\u5355'})
     async def phi_help(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'help')
@@ -186,6 +194,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_lmtacc(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'lmtacc')
 
+    @phi.command('ltr', alias={'letter', '\u5f00\u5b57\u6bcd'})
+    async def phi_ltr(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'ltr')
+
     @phi.command('lvscore', alias={'lvsco', 'scolv'})
     async def phi_lvscore(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'lvscore')
@@ -205,6 +217,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('newnotice')
     async def phi_newnotice(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'newnotice')
+
+    @phi.command('open', alias={'\u63ed\u5f00', '\u6253\u5f00', '\u7ffb\u5f00', '\u5f00'})
+    async def phi_open(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'open')
 
     @phi.command('p30')
     async def phi_p30(self, event: AstrMessageEvent):
@@ -290,6 +306,14 @@ class AstrBotPhiPlugin(Star):
     async def phi_tips(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'tips')
 
+    @phi.command('tip', alias={'\u63d0\u793a'})
+    async def phi_tip(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'tip')
+
+    @phi.command('tipgame', alias={'\u63d0\u793a\u731c\u66f2'})
+    async def phi_tipgame(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'tipgame')
+
     @phi.command('theme')
     async def phi_theme(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'theme')
@@ -334,7 +358,19 @@ class AstrBotPhiPlugin(Star):
             html_render=self.html_render,
             sender=sender,
             is_admin=bool(event.is_admin()),
+            session_id=self._event_session_id(event),
         )
+
+    @staticmethod
+    def _event_session_id(event: AstrMessageEvent) -> str:
+        for getter in ("get_session_id", "get_group_id", "get_sender_id"):
+            try:
+                value = getattr(event, getter)()
+            except Exception:
+                value = ""
+            if value:
+                return str(value)
+        return ""
 
     @staticmethod
     def _extract_command_args(message: str, *, grouped: bool) -> str:

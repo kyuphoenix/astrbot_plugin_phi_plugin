@@ -596,6 +596,72 @@ def ill_html(paths: PluginPaths, illustration: str, illustrator: str = "") -> st
     return original_page(paths, "ill/ill.css", body, theme="default", background=illustration)
 
 
+def guess_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    width = _as_int(data.get("width")) or 120
+    height = _as_int(data.get("height")) or 120
+    x = _as_int(data.get("x"))
+    y = _as_int(data.get("y"))
+    style = bool(data.get("style"))
+    viewport_width = 2048 if style else width
+    viewport_height = 1080 if style else height
+    illustration = str(data.get("illustration") or "")
+    ans = str(data.get("ans") or "")
+    filter_style = str(data.get("filterStyle") or "")
+    body = f"""
+<style>
+:root {{
+  --phi-viewport-width: {viewport_width}px;
+  --phi-viewport-height: {viewport_height}px;
+}}
+html, body {{
+  width: {viewport_width}px !important;
+  min-width: {viewport_width}px !important;
+  max-width: {viewport_width}px !important;
+  height: {viewport_height}px !important;
+  min-height: {viewport_height}px !important;
+  max-height: {viewport_height}px !important;
+  background: #000 !important;
+  overflow: hidden !important;
+}}
+.background {{
+  display: none !important;
+}}
+</style>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="phiLineArt">
+    <feColorMatrix type="saturate" values="0" in="SourceGraphic" result="gray" />
+    <feComponentTransfer in="gray">
+      <feFuncR type="linear" slope="-1" intercept="1" />
+      <feFuncG type="linear" slope="-1" intercept="1" />
+      <feFuncB type="linear" slope="-1" intercept="1" />
+    </feComponentTransfer>
+    <feGaussianBlur stdDeviation="1" result="blur" />
+    <feBlend mode="color-dodge" in="blur" in2="gray" result="sketch" />
+    <feComponentTransfer in="sketch">
+      <feFuncR type="linear" slope="3" intercept="-2" />
+      <feFuncG type="linear" slope="3" intercept="-2" />
+      <feFuncB type="linear" slope="3" intercept="-2" />
+    </feComponentTransfer>
+  </filter>
+</svg>
+{f'<div class="ans"><img src="{_esc(ans)}" alt="答案"></div>' if ans else ''}
+"""
+    if style:
+        body += f"""
+<div class="img"
+  style="width: {width}px;height: {height}px;margin-left: {x}px;margin-top: {y}px;border: 1px solid #888;filter: drop-shadow(0 0 5px #fff);">
+  <img src="{_esc(illustration)}" alt="曲绘" style="margin-left: -{x}px;margin-top: -{y}px;{filter_style}">
+</div>
+"""
+    else:
+        body += f"""
+<div class="img" style="width: {width}px;height: {height}px;">
+  <img src="{_esc(illustration)}" alt="曲绘" style="margin-left: -{x}px;margin-top: -{y}px;{filter_style}">
+</div>
+"""
+    return original_page(paths, "guess/guess.css", body, theme="default", background="", width=viewport_width)
+
+
 def notice_html(paths: PluginPaths, notice: dict[str, Any]) -> str:
     notices = _notice_items(notice)
     if not notices:

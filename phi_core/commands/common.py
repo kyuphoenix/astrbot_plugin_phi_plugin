@@ -41,6 +41,7 @@ class CommandContext:
     html_render: Callable[[str, dict, bool, dict | None], Awaitable[str | bytes]] | None = None
     sender: Callable[[CommandResult], Awaitable[None]] | None = None
     is_admin: bool = False
+    session_id: str = ""
 
     def load_snapshot(self, user_id: str) -> SaveSnapshot | None:
         raw = self.store.load_snapshot(user_id)

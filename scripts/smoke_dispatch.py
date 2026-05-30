@@ -316,6 +316,43 @@ async def main() -> None:
             safe_line = first_line.encode("utf-8", errors="backslashreplace").decode("utf-8")
             print(f"{command}: {safe_line}")
 
+        guess_start = await dispatch(ctx, "game-guess-user", "guess", "")
+        if "猜曲绘" not in guess_start.value:
+            raise SystemExit(f"guess should start illustration game, got {guess_start.value!r}")
+        guess_wrong = await dispatch(ctx, "game-guess-user", "guess", "not glaciaxion")
+        if "不是" not in guess_wrong.value:
+            raise SystemExit(f"guess should reject wrong answer, got {guess_wrong.value!r}")
+        guess_right = await dispatch(ctx, "game-guess-user", "guess", "Glaciaxion")
+        if "答对" not in guess_right.value or "Glaciaxion" not in guess_right.value:
+            raise SystemExit(f"guess should accept correct answer and reveal song, got {guess_right.value!r}")
+
+        tipgame_start = await dispatch(ctx, "game-tip-user", "tipgame", "")
+        if "提示猜歌" not in tipgame_start.value or "1." not in tipgame_start.value:
+            raise SystemExit(f"tipgame should start with first hint, got {tipgame_start.value!r}")
+        tipgame_tip = await dispatch(ctx, "game-tip-user", "tip", "")
+        if "2." not in tipgame_tip.value:
+            raise SystemExit(f"tip should reveal another tip, got {tipgame_tip.value!r}")
+        tipgame_ans = await dispatch(ctx, "game-tip-user", "ans", "")
+        if "正确答案" not in tipgame_ans.value or "Glaciaxion" not in tipgame_ans.value:
+            raise SystemExit(f"ans should reveal tipgame answer, got {tipgame_ans.value!r}")
+
+        for index, song in enumerate(catalog.all_songs()[:12]):
+            path = downloaded_ill / f"{song.id}.png"
+            if not path.exists():
+                Image.new("RGB", (32, 24), ((index * 37) % 255, (index * 73) % 255, (index * 109) % 255)).save(path)
+        letter_start = await dispatch(ctx, "game-letter-user", "ltr", "")
+        if "开字母猜歌开启成功" not in letter_start.value or "1." not in letter_start.value:
+            raise SystemExit(f"ltr should start letter game, got {letter_start.value!r}")
+        letter_open = await dispatch(ctx, "game-letter-user", "open", "A")
+        if "字符" not in letter_open.value:
+            raise SystemExit(f"open should reveal or report a letter, got {letter_open.value!r}")
+        letter_tip = await dispatch(ctx, "game-letter-user", "tip", "")
+        if "曲库范围" not in letter_tip.value and "答案如下" not in letter_tip.value:
+            raise SystemExit(f"letter tip should update puzzle or finish, got {letter_tip.value!r}")
+        letter_ans = await dispatch(ctx, "game-letter-user", "ans", "")
+        if "公布答案" not in letter_ans.value or "1." not in letter_ans.value:
+            raise SystemExit(f"ans should reveal letter game answers, got {letter_ans.value!r}")
+
         notes_ctx = CommandContext(
             config=config,
             paths=paths,
@@ -591,6 +628,7 @@ async def main() -> None:
             ("chart", ".chart-info", "Chart Information"),
             ("jrrp", ".jrrpBkg", "今日运势"),
             ("myset", ".page-wrap", "Phi-Plugin 用户设置"),
+            ("guess", ".img", 'id="phiLineArt"'),
         ):
             before = len(b30_render_calls)
             command_args = {
