@@ -3,9 +3,9 @@ from __future__ import annotations
 import math
 
 from .common import CommandContext, CommandResult
+from ._rendering import render_original_html
 from ..query import compute_b30
 from ..render import original
-from ..render import panel
 from ..render import text as render
 from ..save.codec import SaveNotAvailable
 
@@ -97,12 +97,6 @@ async def render_best30(ctx: CommandContext, user_id: str) -> CommandResult:
     result = compute_b30(snapshot, ctx.catalog, limit=limit)
     await _attach_acc_averages(ctx, result)
     if ctx.config.render_mode == "image":
-        path = await panel.render_html(
-            ctx.config,
-            ctx.paths,
-            original.b30_html(ctx.paths, result, snapshot),
-            "b30",
-            html_render=ctx.html_render,
-        )
+        path = await render_original_html(ctx, original.b30_html(ctx.paths, result, snapshot), "b30")
         return CommandResult.image(path)
     return CommandResult.text(render.render_b30(result, limit=limit))

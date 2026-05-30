@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
+from ._rendering import render_original_html
 from ..data import latest_version_log, load_version_log, resolve_version_code
+from ..render import original
 from ..render import text as render
 
 ALIASES = {"newlog"}
 
 
-def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
+async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     version = resolve_version_code(ctx.paths.info, args.strip()) if args.strip() else None
     log = load_version_log(ctx.paths.info, version) if version is not None else latest_version_log(ctx.paths.info)
+    if ctx.config.render_mode == "image":
+        path = await render_original_html(ctx, original.newlog_html(ctx.paths, log), "newlog")
+        return CommandResult.image(path)
     return CommandResult.text(render.render_newlog(log))

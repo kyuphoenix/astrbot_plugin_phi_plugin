@@ -508,6 +508,28 @@ async def main() -> None:
             raise SystemExit("image pgr should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
         if "accAvg" not in b30_render_calls[0][0] or "Avg: 99.4321%" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should include original per-chart average acc status")
+        for command, css_marker, body_marker in (
+            ("best", ".content-box", 'class="content-box"'),
+            ("p30", ".content-box", "All Perfect Mode"),
+            ("x30", ".content-box", "1 Good Mode"),
+            ("fc30", ".content-box", "Full Combo Mode"),
+            ("info", ".Player_Info", "PLAYER_INFO"),
+        ):
+            before = len(b30_render_calls)
+            result = await dispatch(image_login_ctx, "login-user", command, "")
+            if result.kind != "image" or not Path(result.value).exists():
+                raise SystemExit(f"image {command} should render an image, got {result!r}")
+            if len(b30_render_calls) != before + 1:
+                raise SystemExit(f"image {command} should call the shared original html renderer")
+            html = b30_render_calls[-1][0]
+            if css_marker not in html or body_marker not in html:
+                raise SystemExit(f"image {command} should render with original resources, missing {css_marker!r}/{body_marker!r}")
+            if "file:///" in html or "raw.githubusercontent.com" in html:
+                raise SystemExit(f"image {command} should pass self-contained HTML to remote t2i")
+            if "data:image/" not in html:
+                raise SystemExit(f"image {command} should inline image resources as data URIs")
+            if "phiAdjustFontSize" not in html:
+                raise SystemExit(f"image {command} should include shared auto font sizing script")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
@@ -592,6 +614,34 @@ async def main() -> None:
             raise SystemExit(f"second update should show rks progress, got {second_update.value!r}")
         if "Glaciaxion" not in second_update.value or "+40,000" not in second_update.value:
             raise SystemExit(f"second update should show score progress, got {second_update.value!r}")
+        progress_render_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+        async def fake_progress_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+            progress_render_calls.append((template, data, return_url, options))
+            path = paths.render_cache / f"fake-progress-render-{len(progress_render_calls)}.png"
+            Image.new("RGB", (1200, 900), (11, 29, 64)).save(path)
+            return str(path)
+
+        progress_image_ctx = CommandContext(
+            config=PluginConfig(render_mode="image", render_backend="html"),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=progress_ctx.store,
+            client=FakeProgressClient(config),
+            html_render=fake_progress_render,
+        )
+        progress_image_ctx.store.bind("progress-image-user", "P" * 25, api_id="999")
+        progress_image_update = await dispatch(progress_image_ctx, "progress-image-user", "update", "")
+        if progress_image_update.kind != "image" or not Path(progress_image_update.value).exists():
+            raise SystemExit(f"image update should render an image, got {progress_image_update!r}")
+        update_html = progress_render_calls[-1][0]
+        if ".record_box" not in update_html or 'class="record_box"' not in update_html:
+            raise SystemExit("image update should render through original update resources")
+        if "file:///" in update_html or "raw.githubusercontent.com" in update_html:
+            raise SystemExit("image update should pass self-contained HTML to remote t2i")
+        if "data:image/" not in update_html:
+            raise SystemExit("image update should inline image resources as data URIs")
         progress_pgr = await dispatch(progress_ctx, "progress-user", "pgr", "")
         if "官方 RKS: 11.2222" not in progress_pgr.value:
             raise SystemExit(f"update should refresh pgr cache, got {progress_pgr.value!r}")

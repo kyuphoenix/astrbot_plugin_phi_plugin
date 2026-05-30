@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
+from ._rendering import render_original_html
 from ._sync import sync_save_with_progress
+from ..render import original
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -15,6 +17,13 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text(render.render_not_bound())
     try:
         result = await sync_save_with_progress(ctx, user_id)
+        if ctx.config.render_mode == "image" and ctx.html_render is not None:
+            path = await render_original_html(
+                ctx,
+                original.update_html(ctx.paths, result.progress, history=ctx.store.load_history(user_id)),
+                "update",
+            )
+            return CommandResult.image(path)
         return CommandResult.text(render.render_update_progress(result.progress))
     except SaveNotAvailable as exc:
         return CommandResult.text(render.render_update_failed(str(exc)))
