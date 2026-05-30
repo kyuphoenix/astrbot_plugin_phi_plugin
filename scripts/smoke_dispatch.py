@@ -293,6 +293,8 @@ async def main() -> None:
             ("id", "", "查询 ID: 12345"),
             ("sessiontoken", "", "AAAA"),
             ("auth", "", "请提供查询平台 API Token"),
+            ("sessiontoken", "help", "sessionToken 有关帮助"),
+            ("api", "help", "Phi API 帮助"),
             ("best", "", "还没有可用"),
             ("tips", "", ""),
             ("alias", "Glaciaxion", "name: Glaciaxion"),
@@ -302,6 +304,9 @@ async def main() -> None:
             ("newlog", "", "最新版本"),
             ("randclg", "30-45", "随机课题"),
             ("down", "bad", "格式：phi down resources"),
+            ("jrrp", "", "今日人品"),
+            ("myset", "", "Phi-Plugin 用户设置"),
+            ("theme", "2", "设置成功"),
         ]
         for command, args, expected in cases:
             result = await dispatch(ctx, "smoke-user", command, args)
@@ -313,6 +318,8 @@ async def main() -> None:
 
         if ROUTE_MODULES.get("pgr") != "pgr":
             raise SystemExit(f"pgr route mismatch: {ROUTE_MODULES.get('pgr')}")
+        if ctx.store.load_user_settings("smoke-user").get("theme") != "star":
+            raise SystemExit("theme command should persist the selected user theme")
 
         missing_html_ctx = CommandContext(
             config=PluginConfig(render_mode="image", render_backend="html"),
@@ -547,6 +554,8 @@ async def main() -> None:
             ("randclg", ".tot-box", 'class="tot-box"'),
             ("song", ".big-box", 'class="big-box"'),
             ("chart", ".chart-info", "Chart Information"),
+            ("jrrp", ".jrrpBkg", "今日运势"),
+            ("myset", ".page-wrap", "Phi-Plugin 用户设置"),
         ):
             before = len(b30_render_calls)
             command_args = {

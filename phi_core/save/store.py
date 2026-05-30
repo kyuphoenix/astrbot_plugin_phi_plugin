@@ -22,6 +22,8 @@ class SaveStore:
         self.histories_dir = self.data_dir / "history"
         self.bindings_path = self.data_dir / "bindings.json"
         self.api_ids_path = self.data_dir / "api_ids.json"
+        self.user_settings_path = self.data_dir / "user_settings.json"
+        self.jrrp_cache_path = self.data_dir / "jrrp_cache.json"
         self.custom_aliases_path = self.data_dir / "custom_aliases.yaml"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.saves_dir.mkdir(parents=True, exist_ok=True)
@@ -154,6 +156,29 @@ class SaveStore:
                 result[str(key)] = aliases
         return result
 
+    def load_user_settings(self, user_id: str) -> dict[str, Any]:
+        data = self._load_json_object(self.user_settings_path)
+        raw = data.get(str(user_id))
+        return dict(raw) if isinstance(raw, dict) else {}
+
+    def save_user_settings(self, user_id: str, settings: dict[str, Any]) -> None:
+        data = self._load_json_object(self.user_settings_path)
+        data[str(user_id)] = dict(settings)
+        self._save_json_object(self.user_settings_path, data)
+
+    def get_jrrp_cache(self, user_id: str, day_key: str) -> list[Any] | None:
+        data = self._load_json_object(self.jrrp_cache_path)
+        raw = data.get(str(user_id))
+        if not isinstance(raw, dict) or raw.get("day") != day_key:
+            return None
+        value = raw.get("value")
+        return list(value) if isinstance(value, list) else None
+
+    def save_jrrp_cache(self, user_id: str, day_key: str, value: list[Any]) -> None:
+        data = self._load_json_object(self.jrrp_cache_path)
+        data[str(user_id)] = {"day": day_key, "value": list(value)}
+        self._save_json_object(self.jrrp_cache_path, data)
+
     def add_custom_alias(self, song_id: str, alias: str) -> bool:
         song_id = song_id.strip()
         alias = alias.strip()
@@ -230,3 +255,18 @@ class SaveStore:
 
     def _save_api_ids(self, api_ids: dict[str, str]) -> None:
         self.api_ids_path.write_text(json.dumps(api_ids, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _load_json_object(path: Path) -> dict[str, Any]:
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _save_json_object(path: Path, data: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

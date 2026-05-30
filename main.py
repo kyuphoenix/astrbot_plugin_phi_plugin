@@ -78,6 +78,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_alias(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'alias')
 
+    @phi.command('api')
+    async def phi_api(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'api')
+
     @phi.command('arcgros', alias={'arcgrosb19'})
     async def phi_arcgros(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'arcgros')
@@ -166,6 +170,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_info(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'info')
 
+    @phi.command('jrrp', alias={'\u4eca\u65e5\u4eba\u54c1'})
+    async def phi_jrrp(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'jrrp')
+
     @phi.command('list')
     async def phi_list(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'list')
@@ -185,6 +193,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('mycmt')
     async def phi_mycmt(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'mycmt')
+
+    @phi.command('myset', alias={'mysetting', '\u7528\u6237\u8bbe\u7f6e', '\u4e2a\u4eba\u8bbe\u7f6e'})
+    async def phi_myset(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'myset')
 
     @phi.command('newlog')
     async def phi_newlog(self, event: AstrMessageEvent):
@@ -261,6 +273,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('tips')
     async def phi_tips(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'tips')
+
+    @phi.command('theme')
+    async def phi_theme(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'theme')
 
     @phi.command('unbind', alias={'\u89e3\u7ed1'})
     async def phi_unbind(self, event: AstrMessageEvent):

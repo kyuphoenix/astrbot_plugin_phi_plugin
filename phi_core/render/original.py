@@ -735,6 +735,103 @@ def update_html(paths: PluginPaths, summary: UpdateProgressSummary, *, history: 
     return original_page(paths, "update/update.css", body, theme="default", background=_random_background(paths), width=800)
 
 
+def jrrp_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    sentence = data.get("sentence") if isinstance(data.get("sentence"), dict) else {}
+    good = [str(item) for item in data.get("good", [])][:4]
+    bad = [str(item) for item in data.get("bad", [])][:4]
+    body = f"""
+<style>
+:root {{
+  --phi-viewport-width: 2048px;
+  --phi-viewport-height: 1080px;
+}}
+html, body {{
+  height: 1080px !important;
+  min-height: 1080px !important;
+  max-height: 1080px !important;
+}}
+.background {{
+  display: none !important;
+}}
+</style>
+<div class="jrrpBkg">
+  <img src="{_esc(str(data.get("bkg") or _random_background(paths)))}" alt="background">
+</div>
+<div class="upperImg">
+  <img src="{asset_uri(paths, "html/jrrp/ShineAfter.removebg.png")}" alt="upper">
+</div>
+<div class="title"><p>——·今日运势·——</p></div>
+<div class="lucky ac-{_as_int(data.get("luckRank"))}"><p>{_as_int(data.get("lucky"))}</p></div>
+<div class="date">
+  <div class="year"><p>{_esc(data.get("year", ""))}</p><p>YYYY</p></div>
+  <div class="mounth"><p>{_esc(data.get("month", ""))}</p><p>MM</p></div>
+  <div class="day"><p>{_esc(data.get("day", ""))}</p><p>DD</p></div>
+</div>
+<div class="left">
+  <div class="afont"><p><i>宜</i></p></div>
+  {"".join(f"<p>{_esc(word)}</p>" for word in good)}
+</div>
+<div class="right">
+  <div class="afont"><p><i>忌</i></p></div>
+  {"".join(f"<p>{_esc(word)}</p>" for word in bad)}
+</div>
+<div class="sentences"><p name="pvis">{_esc(sentence.get("hitokoto", ""))}</p></div>
+<div class="from"><p name="pvis">——「{_esc(sentence.get("from", ""))}」</p></div>
+"""
+    return original_page(paths, "jrrp/jrrp.css", body, theme="default", background="", width=2048)
+
+
+def user_setting_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    groups = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        options_html = []
+        for option in item.get("options", []):
+            if not isinstance(option, dict):
+                continue
+            selected = " selected" if option.get("selected") else ""
+            tag = '<span class="option-tag">已选中</span>' if option.get("selected") else ""
+            options_html.append(
+                f"""
+<div class="option-card{selected}">
+  <div class="option-title-line">
+    <p class="option-title">{_esc(option.get("title", ""))}</p>
+    {tag}
+  </div>
+  <p class="option-desc">{_esc(option.get("description", ""))}</p>
+</div>"""
+            )
+        groups.append(
+            f"""
+<div class="setting-group">
+  <div class="setting-head">
+    <p class="setting-title">{_esc(item.get("title", ""))}</p>
+    <p class="setting-current">当前：{_esc(item.get("currentTitle", ""))}</p>
+  </div>
+  <p class="setting-desc">{_esc(item.get("description", ""))}</p>
+  <div class="option-row">{"".join(options_html)}</div>
+</div>"""
+        )
+    body = f"""
+<div class="page-wrap">
+  <div class="panel">
+    <div class="title-box">
+      <p class="page-title">{_esc(data.get("pageTitle", "Phi-Plugin 用户设置"))}</p>
+      <p class="page-desc">{_esc(data.get("pageDescription", ""))}</p>
+    </div>
+    {"".join(groups)}
+  </div>
+  <div class="createdbox">
+    <div class="phi-plugin"><p>AstrBot Phi Plugin</p></div>
+    <div class="ver"><p>HTML</p></div>
+  </div>
+</div>
+"""
+    return original_page(paths, "setting/userSetting.css", body, theme="default", background=_random_background(paths), width=1080)
+
+
 def info_html(
     paths: PluginPaths,
     summary: UserSummary,
