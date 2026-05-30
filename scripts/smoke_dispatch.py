@@ -254,14 +254,6 @@ async def main() -> None:
         with Image.open(trimmed) as image:
             if image.width != 1200:
                 raise SystemExit(f"right-border trim should crop blank edge to 1200px, got {image.size}")
-        wide_source = paths.render_cache / "wide-source.png"
-        Image.new("RGB", (1280, 32), (20, 80, 120)).save(wide_source)
-        wide_trimmed = panel._render_result_path(paths, str(wide_source), "wide-smoke")
-        if wide_trimmed is None:
-            raise SystemExit("wide render trim should return an image path")
-        with Image.open(wide_trimmed) as image:
-            if image.width != 1200:
-                raise SystemExit(f"wide render trim should force the original 1200px page width, got {image.size}")
         catalog = load_catalog(paths.info)
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(
@@ -398,6 +390,8 @@ async def main() -> None:
             raise SystemExit("official html renderer should be asked for png output")
         if html_render_calls[0][3].get("viewport_width") != 1200 or html_render_calls[0][3].get("viewport_height") is None:
             raise SystemExit("official html renderer should receive an explicit viewport to avoid reused-context width drift")
+        if html_render_calls[0][3].get("scale") != "css":
+            raise SystemExit("official html renderer should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
         ill_result = await dispatch(html_ctx, "smoke-user", "ill", "Glaciaxion")
         if ill_result.kind != "image" or not Path(ill_result.value).exists():
             raise SystemExit(f"official ill render path failed: {ill_result!r}")
@@ -506,6 +500,8 @@ async def main() -> None:
             raise SystemExit("image pgr should include original song-name auto font sizing script")
         if b30_render_calls[0][3] is None or b30_render_calls[0][3].get("viewport_width") != 1200:
             raise SystemExit("image pgr should receive an explicit 1200px viewport to avoid reused-context width drift")
+        if b30_render_calls[0][3].get("scale") != "css":
+            raise SystemExit("image pgr should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
         if "accAvg" not in b30_render_calls[0][0] or "Avg: 99.4321%" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should include original per-chart average acc status")
         live = await dispatch(login_ctx, "login-user", "live", "")
