@@ -164,6 +164,32 @@ class PhiApiClient:
         data = await self._post("/chartsTag/get/bySongRank", {"song_id": song_id, "rank": rank})
         return data if isinstance(data, dict) else {}
 
+    async def fetch_chart_tag_names(self) -> list[str]:
+        data = await self._get("/chartsTag/get/tagNames", {})
+        if not isinstance(data, list):
+            return []
+        return [str(item) for item in data if str(item).strip()]
+
+    async def fetch_chart_user_votes(
+        self,
+        user_id: str,
+        *,
+        token: str | None,
+        api_id: str | None,
+        song_id: str,
+        rank: str,
+    ) -> list[str]:
+        payload = self._auth_payload(user_id, token=token, api_id=api_id)
+        payload["data"] = [{"song_id": song_id, "rank": [rank]}]
+        data = await self._post("/chartsTag/get/usersVote", payload)
+        if not isinstance(data, list) or not data:
+            return []
+        first = data[0]
+        if not isinstance(first, dict):
+            return []
+        tags = first.get("tags")
+        return [str(item) for item in tags] if isinstance(tags, list) else []
+
     async def fetch_all_song_acc_avg(
         self,
         song_ids: list[str],

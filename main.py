@@ -102,6 +102,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_chap(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'chap')
 
+    @phi.command('chart')
+    async def phi_chart(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'chart')
+
     @phi.command('clean')
     async def phi_clean(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'clean')
@@ -121,6 +125,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('data')
     async def phi_data(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'data')
+
+    @phi.command('delnick', alias={'delnic', '\u5220\u9664\u522b\u540d'})
+    async def phi_delnick(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'delnick')
 
     @phi.command('down', alias={'downill', 'download', 'illupdate', '\u4e0b\u8f7d', '\u4e0b\u8f7d\u66f2\u7ed8', '\u66f4\u65b0\u66f2\u7ed8'})
     async def phi_down(self, event: AstrMessageEvent):
@@ -230,6 +238,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_setnick(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'setnick')
 
+    @phi.command('settag')
+    async def phi_settag(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'settag')
+
     @phi.command('song', alias={'\u66f2'})
     async def phi_song(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'song')
@@ -241,6 +253,10 @@ class AstrBotPhiPlugin(Star):
     @phi.command('table', alias={'\u5b9a\u6570\u8868'})
     async def phi_table(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'table')
+
+    @phi.command('tag')
+    async def phi_tag(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'tag')
 
     @phi.command('tips')
     async def phi_tips(self, event: AstrMessageEvent):

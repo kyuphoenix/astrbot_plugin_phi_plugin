@@ -171,6 +171,30 @@ class SaveStore:
         )
         return True
 
+    def remove_custom_alias(self, song_id: str, alias: str) -> bool:
+        song_id = song_id.strip()
+        alias = alias.strip()
+        if not song_id or not alias:
+            raise StoreError("曲目 ID 和别名不能为空。")
+        aliases = self.load_custom_aliases()
+        values = aliases.get(song_id)
+        if not values or alias not in values:
+            return False
+        values.remove(alias)
+        if values:
+            aliases[song_id] = values
+        else:
+            aliases.pop(song_id, None)
+        self.custom_aliases_path.parent.mkdir(parents=True, exist_ok=True)
+        if aliases:
+            self.custom_aliases_path.write_text(
+                yaml.safe_dump(aliases, allow_unicode=True, sort_keys=True),
+                encoding="utf-8",
+            )
+        else:
+            self.custom_aliases_path.unlink(missing_ok=True)
+        return True
+
     def save_path(self, user_id: str) -> Path:
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(user_id))
         return self.saves_dir / f"{safe}.json"

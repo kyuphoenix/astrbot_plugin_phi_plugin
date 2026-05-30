@@ -491,6 +491,97 @@ def song_html(paths: PluginPaths, song: Song) -> str:
     return original_page(paths, "atlas/atlas.css", body, theme="default", background=illustration)
 
 
+def chart_html(
+    paths: PluginPaths,
+    song: Song,
+    rank: str,
+    *,
+    tags: dict[str, Any] | None = None,
+    user_tags: list[str] | None = None,
+    chart_preview: str = "",
+) -> str:
+    chart = song.charts.get(rank)
+    if chart is None:
+        raise ValueError(f"{song.title} does not have {rank} chart")
+    note_info = _chart_note_info(paths, song.id, rank, chart.combo)
+    tag_items = _chart_tag_items(tags or {}, user_tags or [])
+    tag_max = max([item["value"] for item in tag_items], default=1)
+    illustration = _song_illustration(paths, song)
+    distribution = "".join(_chart_distribution_bar(row) for row in note_info["distribution"])
+    tag_rows = "".join(_chart_tag_row(item, tag_max) for item in tag_items) or '<div class="tag-row empty"><p>No online tags</p></div>'
+    preview_html = ""
+    if chart_preview:
+        preview_html = f"""
+<div class="backBlock">
+  <div class="totalBox" id="box">
+    <img src="{chart_preview}" alt="chart preview">
+  </div>
+</div>"""
+    body = f"""
+{preview_html}
+<div class="info-box chart-panel">
+  <div class="basic-box">
+    <div class="ill-box">
+      <div class="box-title"><p>Illustration</p></div>
+      <div class="box-content dot-box">
+        {_dot_box()}
+        <img src="{illustration}" alt="{_esc(song.title)}">
+      </div>
+    </div>
+    <div class="basic-info">
+      <div class="box-title"><p>Basic Information</p></div>
+      <div class="box-content dot-box">
+        {_dot_box()}
+        <div class="info-content">
+          {_chart_content_item("曲目", song.title)}
+          {_chart_content_item("曲目时长", song.length or "-")}
+          {_chart_content_item("难度", f"{rank} {_chart_difficulty_text(chart)}")}
+          {_chart_content_item("谱师", chart.charter or "-")}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chart-info">
+    <div class="box-title"><p>Chart Information</p></div>
+    <div class="box-content dot-box">
+      {_dot_box()}
+      <div class="info-content chart-info-content">
+        <div class="notes-box">
+          <div class="content-title"><p>Notes</p></div>
+          <div class="content">
+            {_chart_note_count("tap-p", note_info["tap"], "Tap")}
+            {_chart_note_count("drag-p", note_info["drag"], "Drag")}
+            {_chart_note_count("hold-p", note_info["hold"], "Hold")}
+            {_chart_note_count("flick-p", note_info["flick"], "Flick")}
+            {_chart_note_count("", note_info["combo"], "Combo")}
+          </div>
+        </div>
+        <div class="words-box">
+          <div class="content-title"><p>Chart Tag</p></div>
+          <div class="box-tip"><p>{'API' if tag_items else 'No data'}</p></div>
+          <div class="words chart-tags">{tag_rows}</div>
+        </div>
+        <div class="notes-bar">
+          <div class="content-title"><p>Notes Distribution</p></div>
+          <div class="box-tip"><p>谱面时长：{_esc(note_info["chart_length"])}</p></div>
+          <div class="bar-box" id="bar-box">{distribution}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
+"""
+    return original_page(
+        paths,
+        ("chartInfo/chartInfo.css", "chartImg/chartImg.css"),
+        body,
+        theme="default",
+        background=illustration,
+        width=1200,
+    )
+
+
 def ill_html(paths: PluginPaths, illustration: str, illustrator: str = "") -> str:
     body = f"""
 <img src="{illustration}" alt="曲绘">
@@ -1567,6 +1658,118 @@ def _atlas_info(title: str, value: str) -> str:
     if not value:
         return ""
     return f'<div class="other-box"><div class="title"><p>{_esc(title)}</p></div><div class="dcr"><p>{_esc(value)}</p></div></div>'
+
+
+def _chart_note_info(paths: PluginPaths, song_id: str, rank: str, fallback_combo: int | None) -> dict[str, Any]:
+    data = _load_notes_info(paths).get(song_id.removesuffix(".0"))
+    rank_data = data.get(rank) if isinstance(data, dict) else None
+    totals = rank_data.get("t") if isinstance(rank_data, dict) else None
+    if isinstance(totals, list):
+        counts = [_as_int(value) for value in totals[:4]]
+        while len(counts) < 4:
+            counts.append(0)
+    else:
+        combo = _as_int(fallback_combo)
+        counts = [0, 0, 0, 0]
+        if combo:
+            counts[0] = combo
+    combo = sum(counts) or _as_int(fallback_combo)
+    distribution = rank_data.get("d") if isinstance(rank_data, dict) else None
+    if not isinstance(distribution, list):
+        distribution = _fallback_distribution(counts)
+    max_time = rank_data.get("m") if isinstance(rank_data, dict) else None
+    return {
+        "tap": counts[0],
+        "drag": counts[1],
+        "hold": counts[2],
+        "flick": counts[3],
+        "combo": combo,
+        "distribution": distribution,
+        "chart_length": _chart_length(max_time),
+    }
+
+
+def _load_notes_info(paths: PluginPaths) -> dict[str, Any]:
+    path = paths.info / "notesInfo.json"
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _fallback_distribution(counts: list[int]) -> list[list[float]]:
+    total = sum(counts)
+    if total <= 0:
+        return [[0, 0, 0, 0, 0] for _ in range(12)]
+    row = [round(value / total * 100, 2) for value in counts]
+    row.append(100)
+    return [row for _ in range(12)]
+
+
+def _chart_length(value: Any) -> str:
+    seconds = _as_int(value)
+    if seconds <= 0:
+        return "--:--"
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def _chart_tag_items(tags: dict[str, Any], user_tags: list[str]) -> list[dict[str, Any]]:
+    selected = set(user_tags)
+    result = []
+    for name, value in sorted(tags.items(), key=lambda item: (-_as_int(item[1]), str(item[0]))):
+        result.append({"name": str(name), "value": _as_int(value), "selected": str(name) in selected})
+    return result
+
+
+def _chart_distribution_bar(row: Any) -> str:
+    values = list(row) if isinstance(row, list) else []
+    values = [float(_as_number(value)) for value in values[:5]]
+    while len(values) < 5:
+        values.append(0.0)
+    return f"""
+<div class="bar" style="height: {values[4]:.2f}%">
+  <div class="bar-item TAP-BKG" style="height: {values[0]:.2f}%"></div>
+  <div class="bar-item DRAG-BKG" style="height: {values[1]:.2f}%"></div>
+  <div class="bar-item HOLD-BKG" style="height: {values[2]:.2f}%"></div>
+  <div class="bar-item FLICK-BKG" style="height: {values[3]:.2f}%"></div>
+</div>"""
+
+
+def _chart_tag_row(item: dict[str, Any], max_value: int) -> str:
+    width = _percentage(item["value"], max_value)
+    selected = " selected" if item.get("selected") else ""
+    return f"""
+<div class="tag-row{selected}">
+  <p name="pvis">{_esc(item["name"])}</p>
+  <div class="tag-meter"><span style="width:{width:.2f}%"></span></div>
+  <b>{item["value"]}</b>
+</div>"""
+
+
+def _dot_box() -> str:
+    return '<div class="dot left top"></div><div class="dot left bottom"></div><div class="dot right top"></div><div class="dot right bottom"></div>'
+
+
+def _chart_content_item(title: str, value: str) -> str:
+    return f'<div class="content-item"><div class="content-title"><p>{_esc(title)}</p></div><div class="content"><p name="pvis">{_esc(value)}</p></div></div>'
+
+
+def _chart_note_count(css_class: str, value: int, label: str) -> str:
+    return f'<div class="notes-content {_esc(css_class)}"><p>{value}</p><p>{_esc(label)}</p></div>'
+
+
+def _chart_difficulty_text(chart: Any) -> str:
+    return _esc(chart.difficulty_text or (f"{chart.difficulty:.1f}" if chart.difficulty else "?"))
+
+
+def _as_number(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _song_illustration(paths: PluginPaths, song: Song) -> str:

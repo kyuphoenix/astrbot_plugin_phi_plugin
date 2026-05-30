@@ -86,6 +86,12 @@ class FakeLoginClient(PhiApiClient):
     async def fetch_chart_tags(self, song_id: str, rank: str):  # type: ignore[override]
         return {"节奏": 3, "配置": 2}
 
+    async def fetch_chart_tag_names(self):  # type: ignore[override]
+        return ["节奏", "配置", "读谱"]
+
+    async def fetch_chart_user_votes(self, user_id: str, *, token=None, api_id=None, song_id: str, rank: str):  # type: ignore[override]
+        return ["节奏"]
+
     async def set_chart_tags(self, user_id: str, *, token=None, api_id=None, song_id: str, rank: str, tags: list[str]):  # type: ignore[override]
         self.set_tags.append({"song_id": song_id, "rank": rank, "tags": tags})
 
@@ -527,6 +533,7 @@ async def main() -> None:
             ("rand", ".box-left", 'class="box-left"'),
             ("randclg", ".tot-box", 'class="tot-box"'),
             ("song", ".big-box", 'class="big-box"'),
+            ("chart", ".chart-info", "Chart Information"),
         ):
             before = len(b30_render_calls)
             command_args = {
@@ -539,6 +546,7 @@ async def main() -> None:
                 "achievement": "12",
                 "randclg": "30-45",
                 "song": "Glaciaxion",
+                "chart": "Glaciaxion EZ",
             }.get(command, "")
             result = await dispatch(image_login_ctx, "login-user", command, command_args)
             if result.kind != "image" or not Path(result.value).exists():
@@ -575,6 +583,15 @@ async def main() -> None:
         set_tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ 节奏 配置")
         if "谱面标签已提交" not in set_tags.value or not login_client.set_tags:
             raise SystemExit(f"addtag should set chart tags, got {set_tags.value!r}")
+        tag = await dispatch(login_ctx, "login-user", "tag", "Glaciaxion EZ")
+        if "谱面标签" not in tag.value or "节奏" not in tag.value:
+            raise SystemExit(f"tag should list chart tags, got {tag.value!r}")
+        before_settag = len(login_client.set_tags)
+        settag = await dispatch(login_ctx, "login-user", "settag", "Glaciaxion EZ 节奏 读谱")
+        if "谱面标签已提交" not in settag.value or len(login_client.set_tags) != before_settag + 1:
+            raise SystemExit(f"settag should set chart tags, got {settag.value!r}")
+        if login_client.set_tags[-1]["tags"] != ["节奏", "读谱"]:
+            raise SystemExit(f"settag should map tag names through API list, got {login_client.set_tags[-1]!r}")
 
         login_ctx.store.bind("bind-user", "A" * 25)
         uploads_before_bind = len(login_client.history_uploads)
@@ -691,12 +708,18 @@ async def main() -> None:
             client=PhiApiClient(config),
             is_admin=True,
         )
-        setnick = await dispatch(nick_ctx, "admin-user", "setnick", "Glaciaxion ---> 烟花冰川")
+        setnick = await dispatch(nick_ctx, "admin-user", "setnick", "Glaciaxion ---> codex-smoke-alias-98765")
         if "设置完成" not in setnick.value:
             raise SystemExit(f"setnick should persist alias, got {setnick.value!r}")
-        alias_hit = nick_ctx.searcher.best("烟花冰川")
+        alias_hit = nick_ctx.searcher.best("codex-smoke-alias-98765")
         if alias_hit is None or alias_hit.title != "Glaciaxion":
             raise SystemExit("setnick did not update in-memory search aliases")
+        delnick = await dispatch(nick_ctx, "admin-user", "delnick", "Glaciaxion ---> codex-smoke-alias-98765")
+        if "删除完成" not in delnick.value:
+            raise SystemExit(f"delnick should remove custom alias, got {delnick.value!r}")
+        alias_removed = nick_ctx.searcher.best("codex-smoke-alias-98765")
+        if alias_removed is not None and alias_removed.title == "Glaciaxion":
+            raise SystemExit("delnick did not update in-memory search aliases")
         non_admin_ctx = CommandContext(
             config=config,
             paths=paths,
@@ -708,6 +731,9 @@ async def main() -> None:
         denied = await dispatch(non_admin_ctx, "normal-user", "setnick", "Glaciaxion ---> test")
         if "只有管理员" not in denied.value:
             raise SystemExit(f"setnick should require admin, got {denied.value!r}")
+        denied_delnick = await dispatch(non_admin_ctx, "normal-user", "delnick", "Glaciaxion ---> test")
+        if "只有管理员" not in denied_delnick.value:
+            raise SystemExit(f"delnick should require admin, got {denied_delnick.value!r}")
 
         sent: list[CommandResult] = []
 

@@ -28,16 +28,16 @@ Status legend:
 | `/data` | `phi data` | Aligned | Text in upstream | Implemented as text, matching the lightweight nature of upstream data output. |
 | `/update` | `phi update` | Partial | `html/update/update.art`, `update.css` | Image chain uses original resources. Need closer task data, timeline grouping, and any remaining original progress details. |
 | `/hisb30` | `phi hisb30` | Partial | `html/historyB30/historyB30.art`, `historyB30.css` | Image mode now renders history B30 changes through original history resources. Still needs upstream exact rows/color semantics and historical-constant caveats. |
-| `/2025history`, `/????` | `phi 2025history`, `phi ????` | Partial | `html/analyzeSaveHistory/analyzeSaveHistory.art`, `analyzeSaveHistory.css` | Image mode now renders local history analysis through original analyzeSaveHistory resources. Still needs exact upstream stat fields/note-count details. |
+| `/2025history`, `/年度总结` | `phi 2025history`, `phi 年度总结` | Partial | `html/analyzeSaveHistory/analyzeSaveHistory.art`, `analyzeSaveHistory.css` | Image mode now renders local history analysis through original analyzeSaveHistory resources. Still needs exact upstream stat fields/note-count details. |
 
 ## Song, Chart, And Catalog Commands
 
 | Upstream command | Current AstrBot command | Status | Upstream template/resource | Notes / next action |
 |---|---|---:|---|---|
 | `/song` | `phi song` | Partial | `html/atlas/atlas.art`, `atlas.css` | Image mode now uses original atlas resources for song details with base64 illustrations. Still needs comments option and exact chart/note-field parity. |
-| `/chart` | Missing | Missing | `html/chartInfo/chartInfo.art`, `html/chartImg/chartImg.art` | Need chart detail command and renderer. |
-| `/tag` | Missing | Missing | API/text in upstream chart module | Current closest command is `addtag` for online tags. Need read-only `tag` alias and upstream argument behavior. |
-| `/settag` | Missing | Missing | API/text in upstream chart module | Current closest command is `addtag/subtag/retag`; route and naming do not match upstream. |
+| `/chart` | `phi chart` | Partial | `html/chartInfo/chartInfo.art`, `html/chartImg/chartImg.art` | Added original-resource chart info render with base64 illustration, notes distribution, and online tag data. Full chart preview image generation/download still needs parity. |
+| `/tag` | `phi tag` | Partial | API/text in upstream chart module | Added read-only online chart tag lookup matching upstream command name. Need compare API permission messages and user-vote markers. |
+| `/settag` | `phi settag` | Partial | API/text in upstream chart module | Added upstream command name with API tag-name lookup and numeric/name tag selection. Need compare exact permission/error wording. |
 | `/cmt`, `/comment` | `phi cmt`, `phi comment` | Partial | Text/API in upstream | Implemented, but parsing/default rank and permission behavior may differ. Need compare with upstream. |
 | `/mycmt` | `phi mycmt` | Partial | Text/API in upstream | Implemented, but output format and API error behavior need parity check. |
 | `/recmt` | `phi recmt` | Partial | Text/API in upstream | Implemented, but upstream confirmation/permission flow may differ. |
@@ -48,7 +48,7 @@ Status legend:
 | `/search` | `phi search` | Partial | Text in upstream | Implemented as text. Need verify BPM/difficulty/combo filter parity against upstream. |
 | `/alias` | `phi alias` | Aligned | Text in upstream | Implemented as text. |
 | `/setnick` | `phi setnick` | Partial | Admin text in upstream | Implemented. Need `delnick` command for full alias management parity. |
-| `/delnick` | Missing | Missing | Admin text in upstream | Need implement deletion of custom alias. |
+| `/delnick` | `phi delnick` | Partial | Admin text in upstream | Added deletion for AstrBot local custom aliases. Upstream route is commented out, so this intentionally only removes user-managed aliases, not bundled aliases. |
 | `/com`, `/计算` | `phi com`, `phi 计算` | Aligned | Text in upstream | Implemented. |
 | `/tips` | `phi tips` | Aligned | Text in upstream | Implemented. |
 | `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art` | Current image path uses original resources but Python-built table. Need closer upstream new-song/update-log structure if desired. |

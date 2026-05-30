@@ -140,6 +140,16 @@ def apply_aliases(catalog: SongCatalog, aliases_raw: Any) -> None:
                 catalog.alias_to_id[key] = song_id
 
 
+def remove_alias(catalog: SongCatalog, song_id: str, alias: str) -> None:
+    song = catalog.songs.get(normalize_song_id(song_id))
+    if song is None:
+        return
+    song.aliases = [item for item in song.aliases if item != alias]
+    key = normalize_key(alias)
+    if key and catalog.alias_to_id.get(key) == song.id:
+        catalog.alias_to_id.pop(key, None)
+
+
 def _read_difficulty_csv(path: Path) -> dict[str, dict[str, str]]:
     result: dict[str, dict[str, str]] = {}
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
