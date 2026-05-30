@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from phi_core.commands import CommandContext, ROUTE_MODULES, dispatch
 from phi_core.config import PluginConfig
-from phi_core.data.illustrations import random_background_source
+from phi_core.data.illustrations import find_background_illustration_file, random_background_source
 from phi_core.data import SongSearcher, load_catalog
 from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord
 from phi_core.paths import PluginPaths
@@ -180,6 +180,9 @@ async def main() -> None:
         downloaded_ill = paths.downloaded_original_ill / "illLow"
         downloaded_ill.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (32, 24), (120, 40, 90)).save(downloaded_ill / "Glaciaxion.SunsetRay.png")
+        Image.new("RGB", (32, 24), (80, 120, 40)).save(paths.downloaded_original_ill / "RootOnly.Smoke.png")
+        if find_background_illustration_file(paths, "RootOnly.Smoke") is None:
+            raise SystemExit("background lookup should also find illustrations saved in original_ill root")
         sample_records = [
             ScoreRecord(
                 song_id="Glaciaxion.SunsetRay",
@@ -297,6 +300,27 @@ async def main() -> None:
             Image.new("RGB", (1200, 800), (7, 23, 45)).save(path)
             return str(path)
 
+        retry_calls = 0
+
+        async def flaky_html_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+            nonlocal retry_calls
+            retry_calls += 1
+            if retry_calls == 1:
+                raise RuntimeError("transient t2i disconnect")
+            path = paths.render_cache / "fake-retry-render.png"
+            Image.new("RGB", (1200, 800), (9, 24, 60)).save(path)
+            return str(path)
+
+        retry_path = await panel.render_html(
+            PluginConfig(render_mode="image", render_backend="html", render_max_retries=1),
+            paths,
+            "<html><body>retry</body></html>",
+            "retry",
+            html_render=flaky_html_render,
+        )
+        if retry_calls != 2 or not retry_path.exists():
+            raise SystemExit("html renderer should retry once after a transient failure")
+
         html_ctx = CommandContext(
             config=PluginConfig(render_mode="image", render_backend="html"),
             paths=paths,
@@ -410,6 +434,8 @@ async def main() -> None:
             raise SystemExit("image pgr should inline local image resources")
         if "themeStar()" in b30_render_calls[0][0] or "Star1" in b30_render_calls[0][0]:
             raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
+        if "phigros.png" in b30_render_calls[0][0]:
+            raise SystemExit("image pgr should not fall back to phigros when local illustrations exist")
         if "Real RKS:" not in b30_render_calls[0][0]:
             raise SystemExit("image pgr should include original Real RKS chip when save version is older")
         if "phiAdjustFontSize" not in b30_render_calls[0][0]:

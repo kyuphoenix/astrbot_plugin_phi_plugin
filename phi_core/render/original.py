@@ -6,6 +6,7 @@ import base64
 import hashlib
 import mimetypes
 import math
+import random
 import re
 import urllib.request
 from collections import Counter
@@ -13,7 +14,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from ..data.illustrations import find_illustration_file, random_background_source
+from ..data.illustrations import find_background_illustration_file, find_illustration_file, random_background_source
 from ..data.resources import latest_version_log, load_version_log
 from ..models import Best30Result, LEVELS, SaveSnapshot, ScoreRecord
 from ..paths import PluginPaths
@@ -58,7 +59,7 @@ def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
     stats = _level_stats(records)
     gameuser = _gameuser(snapshot)
     date_text = format_datetime(extract_modified_datetime(snapshot.raw))
-    background = _random_background(paths)
+    background = _random_background_for_records(paths, [*phi_records, *records])
 
     body: list[str] = [_b30_title(paths, gameuser, stats, date_text, _b30_sp_info(paths, result, snapshot))]
     body.append('<div class="b19">')
@@ -384,6 +385,23 @@ def _random_background(paths: PluginPaths) -> str:
     if fallback:
         return fallback
     return asset_uri(paths, "html/otherimg/phigros.png")
+
+
+def _random_background_for_records(paths: PluginPaths, records: list[ScoreRecord]) -> str:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for record in records:
+        path = find_background_illustration_file(paths, record.song_id)
+        if path is None:
+            continue
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        candidates.append(path)
+    if candidates:
+        return _file_data_uri(random.choice(candidates))
+    return _random_background(paths)
 
 
 def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:

@@ -13,7 +13,6 @@ ONLINE_ILL_BASE = "https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main
 
 
 def find_illustration_file(paths: PluginPaths, song_id: str, *, prefer_low: bool = False) -> Path | None:
-    base_id = str(song_id).removesuffix(".0")
     folders = [
         paths.downloaded_original_ill / "illLow",
         paths.downloaded_original_ill / "ill",
@@ -36,10 +35,29 @@ def find_illustration_file(paths: PluginPaths, song_id: str, *, prefer_low: bool
             paths.original_ill / "illLow",
         ]
     for folder in folders:
-        for ext in ILLUSTRATION_EXTENSIONS:
-            path = folder / f"{base_id}{ext}"
-            if path.exists() and path.is_file():
-                return path
+        found = _find_named_illustration(folder, song_id)
+        if found is not None:
+            return found
+    return None
+
+
+def find_background_illustration_file(paths: PluginPaths, song_id: str) -> Path | None:
+    folders = [
+        paths.downloaded_original_ill / "illBlur",
+        paths.original_ill / "illBlur",
+        paths.downloaded_original_ill / "illLow",
+        paths.original_ill / "illLow",
+        paths.downloaded_original_ill / "ill",
+        paths.original_ill / "ill",
+        paths.downloaded_original_ill / "SP",
+        paths.original_ill / "SP",
+        paths.downloaded_original_ill,
+        paths.original_ill,
+    ]
+    for folder in folders:
+        found = _find_named_illustration(folder, song_id)
+        if found is not None:
+            return found
     return None
 
 
@@ -103,6 +121,8 @@ def _available_background_illustrations(paths: PluginPaths) -> list[Path]:
         paths.original_ill / "ill",
         paths.downloaded_original_ill / "SP",
         paths.original_ill / "SP",
+        paths.downloaded_original_ill,
+        paths.original_ill,
     ]
     result: list[Path] = []
     seen: set[Path] = set()
@@ -151,3 +171,25 @@ def _available_online_illustration_ids(paths: PluginPaths) -> list[str]:
                 if text:
                     ids.append(text.removesuffix(".0"))
     return sorted(set(ids))
+
+
+def _find_named_illustration(folder: Path, song_id: str) -> Path | None:
+    if not folder.exists() or not folder.is_dir():
+        return None
+    for name in _candidate_names(song_id):
+        for ext in ILLUSTRATION_EXTENSIONS:
+            path = folder / f"{name}{ext}"
+            if path.exists() and path.is_file():
+                return path
+    return None
+
+
+def _candidate_names(song_id: str) -> tuple[str, ...]:
+    raw = str(song_id).strip()
+    base = raw.removesuffix(".0")
+    with_suffix = raw if raw.endswith(".0") else f"{raw}.0"
+    result: list[str] = []
+    for item in (raw, base, with_suffix):
+        if item and item not in result:
+            result.append(item)
+    return tuple(result)

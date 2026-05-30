@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import asyncio
 import logging
 from pathlib import Path
 import uuid
@@ -16,7 +17,7 @@ async def render_help_panel(config: PluginConfig, paths: PluginPaths, html_rende
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await html_render(html_renderer.help_html(paths), {}, False, _options())
+        rendered = await _render_with_retries(config, html_render, html_renderer.help_html(paths))
         result = _render_result_path(paths, rendered, "help")
         if result is not None:
             return result
@@ -36,7 +37,7 @@ async def render_html(
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await html_render(html, {}, False, _options())
+        rendered = await _render_with_retries(config, html_render, html)
         result = _render_result_path(paths, rendered, name)
         if result is not None:
             return result
@@ -56,7 +57,7 @@ async def render_text_panel(
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await html_render(html_renderer.text_html(paths, text, title=title), {}, False, _options())
+        rendered = await _render_with_retries(config, html_render, html_renderer.text_html(paths, text, title=title))
         result = _render_result_path(paths, rendered, "panel")
         if result is not None:
             return result
@@ -78,6 +79,7 @@ def render_diagnostics(config: PluginConfig, paths: PluginPaths) -> str:
             f"downloaded_illBlur_count: {_count_files(paths.downloaded_original_ill / 'illBlur')}",
             f"downloaded_illLow_count: {_count_files(paths.downloaded_original_ill / 'illLow')}",
             f"downloaded_ill_count: {_count_files(paths.downloaded_original_ill / 'ill')}",
+            f"downloaded_root_ill_count: {_count_files(paths.downloaded_original_ill)}",
             f"html_template_dir: {html_diag['template_dir']}",
             f"html_font: {html_diag['font']}",
             f"html_font_exists: {html_diag['font_exists']}",
@@ -91,6 +93,29 @@ def _count_files(path: Path) -> int:
     if not path.exists() or not path.is_dir():
         return 0
     return sum(1 for item in path.iterdir() if item.is_file())
+
+
+async def _render_with_retries(config: PluginConfig, html_render: HtmlRenderFunc, html: str) -> str | bytes:
+    attempts = max(1, config.render_max_retries + 1)
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return await html_render(html, {}, False, _options())
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= attempts:
+                break
+            delay = min(0.5 * attempt, 2.0)
+            logger.warning(
+                "phi html render attempt %s/%s failed: %s; retrying in %.1fs",
+                attempt,
+                attempts,
+                exc,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 def _options() -> dict:

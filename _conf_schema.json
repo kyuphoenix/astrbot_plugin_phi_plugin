@@ -39,6 +39,12 @@
     "default": 270,
     "slider": {"min": 30, "max": 600, "step": 10}
   },
+  "render_max_retries": {
+    "description": "HTML/T2I 渲染失败后的最大重试次数",
+    "type": "int",
+    "default": 2,
+    "slider": {"min": 0, "max": 5, "step": 1}
+  },
   "github_proxy": {
     "description": "GitHub 代理地址，当前仅预留",
     "type": "string",
