@@ -238,6 +238,14 @@ class AstrBotPhiPlugin(Star):
     async def phi_randclg(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'randclg')
 
+    @phi.command('rankfind', alias={'\u67e5\u8be2\u6392\u540d'})
+    async def phi_rankfind(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'rankfind')
+
+    @phi.command('ranklist', alias={'\u6392\u884c\u699c'})
+    async def phi_ranklist(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'ranklist')
+
     @phi.command('recmt')
     async def phi_recmt(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'recmt')

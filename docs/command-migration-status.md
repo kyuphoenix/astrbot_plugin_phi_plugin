@@ -79,8 +79,8 @@ Status legend:
 
 | Upstream command | Current AstrBot command | Status | Upstream template/resource | Notes / next action |
 |---|---|---:|---|---|
-| `/ranklist`, `/排行榜` | Missing | Missing | `html/rankingList/rankingList.art` | Need online ranking list API integration and renderer. |
-| `/rankfind`, `/查询排名` | Missing | Missing | Ranking text/image | Need online ranking lookup implementation. |
+| `/ranklist`, `/排行榜` | `phi ranklist`, `phi 排行榜` | Partial | `html/rankingList/rankingList.art`, `rankingList.css` | Added online API integration and original-resource image chain with base64 assets. Local Yunzai Redis fallback, exact permission wording, and deeper API field parity still need comparison. |
+| `/rankfind`, `/查询排名` | `phi rankfind`, `phi 查询排名` | Partial | Ranking text/API | Added online `/get/ranklist/rksRank` lookup. Local Yunzai Redis fallback is intentionally not ported; exact API permission/error wording still needs comparison. |
 | `/godlist`, `/封神榜` | Skipped | Skipped | Commented out upstream | Upstream route is commented out; no action unless explicitly requested. |
 
 ## Entertainment, Notes, And Settings

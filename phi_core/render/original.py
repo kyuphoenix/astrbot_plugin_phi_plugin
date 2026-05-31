@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from ..data.loader import SongCatalog
+from ..data.loader import normalize_key as normalize_song_key
 from ..data.illustrations import background_source_candidates, find_background_illustration_file, find_illustration_file
 from ..data.resources import VersionLog, latest_version_log, load_version_log
 from ..models import (
@@ -330,6 +331,81 @@ def score_html(
 </div>
 """
     return original_page(paths, ("userinfo/userinfo.css", "score/score.css"), body, theme="default", background=illustration, width=1920)
+
+
+def ranking_list_html(paths: PluginPaths, data: dict[str, Any], catalog: SongCatalog | None = None) -> str:
+    users = data.get("users") if isinstance(data.get("users"), list) else []
+    me = data.get("me") if isinstance(data.get("me"), dict) else {}
+    me_line = _ranking_large_line(paths, me, catalog)
+    user_lines = [
+        _ranking_small_line(paths, item if isinstance(item, dict) else {}, fallback_index=index + 1, catalog=catalog)
+        for index, item in enumerate(users[:5])
+    ]
+    while len(user_lines) < 5:
+        user_lines.append({"playerId": "无效用户", "index": len(user_lines) + 1})
+    background = str(me_line.get("backgroundurl") or _random_background(paths))
+
+    user_html = "".join(_ranking_user_html(paths, user) for user in user_lines)
+    body = f"""
+<style>
+:root {{
+  --phi-viewport-width: 2048px;
+  --phi-viewport-height: 1080px;
+}}
+html, body {{
+  width: 2048px !important;
+  min-width: 2048px !important;
+  max-width: 2048px !important;
+  height: 1080px !important;
+  min-height: 1080px !important;
+  max-height: 1080px !important;
+  overflow: hidden !important;
+}}
+body {{
+  display: block !important;
+}}
+.background img {{
+  filter: none !important;
+  transform: none !important;
+}}
+</style>
+<div class="background">
+  <img src="{_esc(background)}" alt="background">
+</div>
+<div class="list">
+  <div class="list_bkg"></div>
+  {user_html}
+</div>
+<div class="info">
+  <div class="txt_box">
+    <p>Updated at:</p>
+    <p>{_esc(me_line.get("updated", ""))}</p>
+  </div>
+  <div class="player_profile_box">
+    <p name="pvis">{_esc(me_line.get("selfIntro") or "个人简介被胡桃吃掉惹...")}</p>
+  </div>
+  <div class="rks_line">
+    <div class="svg-box">
+      {_update_graph_inner(me_line.get("rks_history", []), me_line.get("rks_range", [0.0, 0.0]), me_line.get("rks_date", ["", ""]))}
+    </div>
+  </div>
+  <div class="clg_info"><p>ChallengeMode History</p></div>
+  <div class="clg_list_box">
+    <div class="clg_line"></div>
+    <div class="clg_list">
+      {''.join(_ranking_challenge_history(paths, item) for item in me_line.get("clg_list", []))}
+    </div>
+  </div>
+  <div class="b30list">
+    {''.join(_ranking_b30_group(paths, group) for group in me_line.get("b30list", []))}
+  </div>
+  <div class="createdbox">
+    <div class="phi-plugin"><p>AstrBot Phi Plugin</p></div>
+    <div class="ver"><p>HTML</p></div>
+  </div>
+</div>
+"""
+    return original_page(paths, "rankingList/rankingList.css", body, theme="default", background=background, width=2048)
 
 
 def chap_html(paths: PluginPaths, summary: Any, *, snapshot: SaveSnapshot) -> str:
@@ -1277,6 +1353,242 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
         if path is not None:
             return _file_data_uri(path)
     return _random_background(paths)
+
+
+def _ranking_large_line(paths: PluginPaths, me: dict[str, Any], catalog: SongCatalog | None) -> dict[str, Any]:
+    raw_save = me.get("save") if isinstance(me.get("save"), dict) else me
+    snapshot = _snapshot_from_rank_save(raw_save)
+    if snapshot is None:
+        return {
+            "backgroundurl": _random_background(paths),
+            "updated": "NO INFO",
+            "selfIntro": "",
+            "rks_history": [],
+            "rks_range": [0.0, 0.0],
+            "rks_date": ["", ""],
+            "b30list": _ranking_empty_b30_groups(),
+            "clg_list": [],
+        }
+    history = me.get("history") if isinstance(me.get("history"), dict) else {}
+    b30 = compute_rank_b30(snapshot, catalog) if catalog is not None else None
+    rks_history, rks_range, rks_date = _series_lines(
+        history,
+        "rks",
+        current=(_date_label(extract_modified_datetime(snapshot.raw)), snapshot.ranking_score),
+    )
+    return {
+        **_ranking_small_line(paths, raw_save, fallback_index=0, catalog=catalog),
+        "backgroundurl": _rank_background(paths, raw_save, catalog),
+        "updated": format_datetime(extract_modified_datetime(snapshot.raw)),
+        "selfIntro": str(_rank_gameuser(raw_save).get("selfIntro") or ""),
+        "rks_history": rks_history,
+        "rks_range": rks_range,
+        "rks_date": [rks_date[0], rks_date[1]],
+        "b30list": _ranking_b30_lists(b30) if b30 is not None else _ranking_empty_b30_groups(),
+        "clg_list": _ranking_challenge_list(history),
+    }
+
+
+def _ranking_small_line(
+    paths: PluginPaths,
+    raw: dict[str, Any],
+    *,
+    fallback_index: int,
+    catalog: SongCatalog | None,
+) -> dict[str, Any]:
+    save_info = _rank_save_info(raw)
+    summary = save_info.get("summary") if isinstance(save_info.get("summary"), dict) else {}
+    gameuser = _rank_gameuser(raw)
+    challenge = _as_int(summary.get("challengeModeRank") or gameuser.get("challengeModeRank"))
+    avatar = _avatar_name(paths, str(summary.get("avatar") or gameuser.get("avatar") or "Introduction"))
+    rks = _as_float(summary.get("rankingScore") or gameuser.get("rankingScore") or raw.get("rks")) or 0.0
+    return {
+        "backgroundurl": _rank_background(paths, raw, catalog),
+        "avatar": avatar,
+        "playerId": str(save_info.get("PlayerId") or gameuser.get("PlayerId") or gameuser.get("name") or "NO INFO"),
+        "rks": rks,
+        "ChallengeMode": max(0, min(5, challenge // 100)),
+        "ChallengeModeRank": challenge % 100,
+        "index": _as_int(raw.get("index")) or fallback_index,
+        "me": bool(raw.get("me")),
+    }
+
+
+def _ranking_user_html(paths: PluginPaths, user: dict[str, Any]) -> str:
+    background = str(user.get("backgroundurl") or "")
+    if not background:
+        return '<div class="aUser"><div class="playerId"><p name="pvis">NO INFO</p></div></div>'
+    avatar = str(user.get("avatar") or "Introduction")
+    avatar_uri = asset_uri(paths, f"html/avatar/{avatar}.png") or asset_uri(paths, "html/avatar/Introduction.png")
+    challenge_uri = asset_uri(paths, f"html/otherimg/{_as_int(user.get('ChallengeMode'))}.png")
+    you = " you" if user.get("me") else ""
+    profile_img = "" if user.get("me") else f'<img src="{_esc(background)}" alt="{_esc(background)}">'
+    return f"""
+<div class="aUser{you}">
+  <div class="profileIll">{profile_img}</div>
+  <div class="avatar_box"><div class="avatar"><img src="{avatar_uri}" alt="{_esc(avatar)}"></div></div>
+  <div class="num"><p>#{_as_int(user.get("index"))}</p></div>
+  <div class="playerId"><p name="pvis">{_esc(user.get("playerId", "NO INFO"))}</p></div>
+  <div class="clgBox"><div class="Challenge"><img src="{challenge_uri}" alt="Challenge"><p>{_as_int(user.get("ChallengeModeRank"))}</p></div></div>
+  <div class="rks"><p>{float(user.get("rks") or 0):.4f}</p></div>
+</div>"""
+
+
+def _ranking_challenge_list(history: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = history.get("challengeModeRank") if isinstance(history.get("challengeModeRank"), list) else []
+    result: list[dict[str, Any]] = []
+    previous: int | None = None
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        value = _as_int(item.get("value"))
+        if previous is not None and value == previous:
+            continue
+        previous = value
+        result.append({
+            "ChallengeMode": max(0, min(5, value // 100)),
+            "ChallengeModeRank": value % 100,
+            "date": _date_label(item.get("date")),
+        })
+    return result[-8:]
+
+
+def _ranking_challenge_history(paths: PluginPaths, item: dict[str, Any]) -> str:
+    challenge_uri = asset_uri(paths, f"html/otherimg/{_as_int(item.get('ChallengeMode'))}.png")
+    return f"""
+<div class="a_clg_box">
+  <div class="clg_box"><div class="Challenge"><img src="{challenge_uri}" alt="Challenge"><p>{_as_int(item.get("ChallengeModeRank"))}</p></div></div>
+  <p>{_esc(item.get("date", ""))}</p>
+</div>"""
+
+
+def _ranking_b30_lists(result: Best30Result) -> list[dict[str, Any]]:
+    return [
+        {"key": "P3", "title": "Perfect 3", "list": result.phi_records[:3]},
+        {"key": "B3", "title": "Best 3", "list": result.records[:3]},
+        {"key": "F3", "title": "Floor 3", "list": result.records[24:27]},
+        {"key": "L3", "title": "Overflow 3", "list": result.records[27:30]},
+    ]
+
+
+def _ranking_empty_b30_groups() -> list[dict[str, Any]]:
+    return [
+        {"key": "P3", "title": "Perfect 3", "list": []},
+        {"key": "B3", "title": "Best 3", "list": []},
+        {"key": "F3", "title": "Floor 3", "list": []},
+        {"key": "L3", "title": "Overflow 3", "list": []},
+    ]
+
+
+def _ranking_b30_group(paths: PluginPaths, group: dict[str, Any]) -> str:
+    records = group.get("list") if isinstance(group.get("list"), list) else []
+    cards = [_ranking_b30_card(paths, record) for record in records[:3] if isinstance(record, ScoreRecord)]
+    while len(cards) < 3:
+        cards.append('<div class="ill_box"><p>NO INFO</p></div>')
+    return f"""
+<div class="b30Alist {_esc(group.get("key", ""))}">
+  <p>{_esc(group.get("title", ""))}</p>
+  {''.join(cards)}
+</div>"""
+
+
+def _ranking_b30_card(paths: PluginPaths, record: ScoreRecord) -> str:
+    rating = _rating_asset(record.rating)
+    rating_uri = asset_uri(paths, f"html/otherimg/{rating}.png")
+    return f"""
+<div class="ill_box">
+  <img src="{_record_illustration(paths, record)}" alt="{_esc(record.song_title)}">
+  <div class="b30_dif {record.rank}-BKG"><p>{_esc(record.rank)} {record.difficulty:.1f}</p></div>
+  <div class="Rating"><img src="{rating_uri}" alt="{_esc(rating)}"></div>
+</div>"""
+
+
+def _snapshot_from_rank_save(raw_save: Any) -> SaveSnapshot | None:
+    if not isinstance(raw_save, dict):
+        return None
+    save_info = _rank_save_info(raw_save)
+    summary = save_info.get("summary") if isinstance(save_info.get("summary"), dict) else {}
+    if not isinstance(save_info, dict) or not summary:
+        return None
+    return SaveSnapshot(
+        user_id="ranklist",
+        session_token=str(raw_save.get("session") or ""),
+        player_id=str(save_info.get("PlayerId") or ""),
+        player_name=str(_rank_gameuser(raw_save).get("name") or save_info.get("PlayerId") or ""),
+        ranking_score=_as_float(summary.get("rankingScore")) or 0.0,
+        challenge_mode_rank=summary.get("challengeModeRank"),
+        game_version=summary.get("gameVersion"),
+        raw=raw_save,
+    )
+
+
+def compute_rank_b30(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> Best30Result:
+    if catalog is None:
+        return Best30Result(snapshot.ranking_score, 0.0, [], 0, [])
+    records = sorted(iter_score_records(snapshot, catalog), key=lambda item: item.rks, reverse=True)
+    phi_records = sorted((record for record in records if record.acc >= 100), key=lambda item: item.rks, reverse=True)[:3]
+    computed_records = [*phi_records, *records[:27]]
+    computed = sum(record.rks for record in computed_records) / 30 if computed_records else 0.0
+    return Best30Result(snapshot.ranking_score, computed, records[:33], len(records), phi_records)
+
+
+def _rank_save_info(raw: dict[str, Any]) -> dict[str, Any]:
+    value = raw.get("saveInfo")
+    return value if isinstance(value, dict) else {}
+
+
+def _rank_gameuser(raw: dict[str, Any]) -> dict[str, Any]:
+    value = raw.get("gameuser")
+    return value if isinstance(value, dict) else {}
+
+
+def _rank_background(paths: PluginPaths, raw: dict[str, Any], catalog: SongCatalog | None) -> str:
+    gameuser = _rank_gameuser(raw)
+    raw_background = str(gameuser.get("background") or raw.get("backgroundurl") or raw.get("background") or "").strip()
+    if raw_background:
+        uri = _source_data_uri(paths, raw_background)
+        if uri:
+            return uri
+        for song_id in _background_song_id_candidates(raw_background, catalog):
+            path = find_background_illustration_file(paths, song_id)
+            if path is not None:
+                return _file_data_uri(path)
+            song = catalog.get(song_id) if catalog is not None else None
+            if song is not None:
+                return _song_illustration(paths, song)
+    return _random_background(paths)
+
+
+def _background_song_id_candidates(value: str, catalog: SongCatalog | None) -> list[str]:
+    candidates = [
+        value,
+        value.removesuffix(".0"),
+        value.replace("Another Me ", "Another Me (KALPA)"),
+        value.replace("Another Me", "Another Me (Rising Sun Traxx)") if value == "Another Me" else value,
+        value.replace("Re_Nascence (Psystyle Ver.) ", "Re_Nascence (Psystyle Ver.)"),
+        value.replace("Energy Synergy Matrix", "ENERGY SYNERGY MATRIX"),
+        value.replace("Le temps perdu-", "Le temps perdu"),
+    ]
+    if catalog is not None:
+        key = normalize_song_key(value)
+        song_id = catalog.alias_to_id.get(key)
+        if song_id:
+            candidates.append(song_id)
+    result: list[str] = []
+    for item in candidates:
+        text = str(item or "").strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def _avatar_name(paths: PluginPaths, avatar: str) -> str:
+    if avatar == "Cipher : /2&//<|0":
+        avatar = "Cipher1"
+    elif avatar == "Oblivion: PHIN":
+        avatar = "OblivionPHIN"
+    path = paths.resources / "html" / "avatar" / f"{avatar}.png"
+    return avatar if path.exists() else "Introduction"
 
 
 def _info_intro(snapshot: SaveSnapshot, summary: UserSummary) -> str:

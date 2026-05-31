@@ -206,6 +206,24 @@ class PhiApiClient:
         })
         return data if isinstance(data, dict) else {}
 
+    async def fetch_ranklist_user(self, user_id: str) -> dict[str, Any]:
+        data = await self._post("/get/ranklist/user", self._platform_payload(user_id))
+        if not isinstance(data, dict):
+            raise SaveNotAvailable("API 没有返回排行榜数据。")
+        return data
+
+    async def fetch_ranklist_rank(self, rank: int) -> dict[str, Any]:
+        data = await self._post("/get/ranklist/rank", {"request_rank": int(rank)})
+        if not isinstance(data, dict):
+            raise SaveNotAvailable("API 没有返回排行榜数据。")
+        return data
+
+    async def fetch_ranklist_rks_rank(self, rks: float) -> dict[str, Any]:
+        data = await self._post("/get/ranklist/rksRank", {"request_rks": float(rks)})
+        if not isinstance(data, dict):
+            raise SaveNotAvailable("API 没有返回 RKS 排名数据。")
+        return data
+
     async def set_chart_tags(
         self,
         user_id: str,

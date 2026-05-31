@@ -33,6 +33,8 @@ class FakeLoginClient(PhiApiClient):
         self.deleted_comments: list[str] = []
         self.set_tags: list[dict] = []
         self.history_fetches: list[dict[str, object]] = []
+        self.ranklist_rank_requests: list[int] = []
+        self.ranklist_rks_requests: list[float] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -107,6 +109,58 @@ class FakeLoginClient(PhiApiClient):
 
     async def set_chart_tags(self, user_id: str, *, token=None, api_id=None, song_id: str, rank: str, tags: list[str]):  # type: ignore[override]
         self.set_tags.append({"song_id": song_id, "rank": rank, "tags": tags})
+
+    async def fetch_ranklist_user(self, user_id: str):  # type: ignore[override]
+        return self._ranklist_payload(me_index=3)
+
+    async def fetch_ranklist_rank(self, rank: int):  # type: ignore[override]
+        self.ranklist_rank_requests.append(rank)
+        return self._ranklist_payload(me_index=max(1, rank))
+
+    async def fetch_ranklist_rks_rank(self, rks: float):  # type: ignore[override]
+        self.ranklist_rks_requests.append(rks)
+        return {"rksRank": 12, "totNum": 345}
+
+    def _ranklist_payload(self, *, me_index: int) -> dict:
+        users = []
+        for offset in range(5):
+            index = max(1, me_index - 2 + offset)
+            users.append({
+                "index": index,
+                "me": index == me_index,
+                **sample_save(
+                    rks=12.6 - index / 100,
+                    score=960000 + index,
+                    acc=98.6 + index / 100,
+                    modified=f"2026-05-{20 + offset:02d}T12:00:00+00:00",
+                    api_id=str(70000 + index),
+                    token="R" * 25,
+                ),
+            })
+        return {
+            "totDataNum": 345,
+            "users": users,
+            "me": {
+                "save": sample_save(
+                    rks=12.5432,
+                    score=980000,
+                    acc=99.2,
+                    modified="2026-05-29T12:00:00+00:00",
+                    api_id="76543",
+                    token="R" * 25,
+                ),
+                "history": {
+                    "rks": [
+                        {"date": f"2026-05-{index + 1:02d}T00:00:00+00:00", "value": 12 + index / 100}
+                        for index in range(18)
+                    ],
+                    "challengeModeRank": [
+                        {"date": f"2026-05-{index + 1:02d}T00:00:00+00:00", "value": 500 + index}
+                        for index in range(8)
+                    ],
+                },
+            },
+        }
 
 
 class FakeTapTapLogin(TapTapQrLogin):
@@ -629,6 +683,7 @@ async def main() -> None:
             ("jrrp", ".jrrpBkg", "今日运势"),
             ("myset", ".page-wrap", "Phi-Plugin 用户设置"),
             ("guess", ".img", 'id="phiLineArt"'),
+            ("ranklist", ".list_bkg", 'class="list"'),
         ):
             before = len(b30_render_calls)
             command_args = {
@@ -642,6 +697,7 @@ async def main() -> None:
                 "randclg": "30-45",
                 "song": "Glaciaxion",
                 "chart": "Glaciaxion EZ",
+                "ranklist": "9",
             }.get(command, "")
             result = await dispatch(image_login_ctx, "login-user", command, command_args)
             if result.kind != "image" or not Path(result.value).exists():
@@ -668,9 +724,23 @@ async def main() -> None:
                 info_fetches = [item for item in login_client.history_fetches if item["user_id"] == "login-user"]
                 if not info_fetches or "rks" not in (info_fetches[-1]["fields"] or []):
                     raise SystemExit(f"image info should fetch long remote history before rendering, got {info_fetches!r}")
+            if command == "ranklist":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 2048 or options.get("viewport_height") != 1080:
+                    raise SystemExit(f"image ranklist should use original 2048x1080 viewport, got {options!r}")
+                if ".b30list" not in html or "ChallengeMode History" not in html:
+                    raise SystemExit("image ranklist should render the original right-side detail panel")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
+        rankfind = await dispatch(login_ctx, "login-user", "rankfind", "12.34")
+        if "12/345" not in rankfind.value or login_client.ranklist_rks_requests[-1] != 12.34:
+            raise SystemExit(f"rankfind should query online rks rank, got {rankfind.value!r}")
+        ranklist_text = await dispatch(login_ctx, "login-user", "ranklist", "9")
+        if "RankingScore 排行榜" not in ranklist_text.value or "总数据量：345" not in ranklist_text.value:
+            raise SystemExit(f"ranklist text should summarize online ranking data, got {ranklist_text.value!r}")
+        if login_client.ranklist_rank_requests[-1] != 9:
+            raise SystemExit(f"ranklist should pass explicit rank to API, got {login_client.ranklist_rank_requests!r}")
         comments = await dispatch(login_ctx, "login-user", "comment", "Glaciaxion")
         if "评论列表" not in comments.value or "hello" not in comments.value:
             raise SystemExit(f"comment should list song comments, got {comments.value!r}")
