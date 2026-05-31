@@ -38,6 +38,8 @@ class FakeLoginClient(PhiApiClient):
         self.history_fetches: list[dict[str, object]] = []
         self.ranklist_rank_requests: list[int] = []
         self.ranklist_rks_requests: list[float] = []
+        self.score_ranklist_requests: list[dict[str, object]] = []
+        self.song_apfc_requests: list[str] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -140,6 +142,35 @@ class FakeLoginClient(PhiApiClient):
     async def fetch_ranklist_rks_rank(self, rks: float):  # type: ignore[override]
         self.ranklist_rks_requests.append(rks)
         return {"rksRank": 12, "totNum": 345}
+
+    async def fetch_score_ranklist_user(self, user_id: str, *, token=None, api_id=None, song_id: str, rank: str, order_by: str = "acc"):  # type: ignore[override]
+        self.score_ranklist_requests.append({"user_id": user_id, "song_id": song_id, "rank": rank, "order_by": order_by})
+        users = []
+        for index in range(1, 5):
+            users.append({
+                "index": index,
+                "gameuser": {
+                    "PlayerId": f"SCORE_USER_{index}",
+                    "rankingScore": 12.5 - index / 100,
+                    "challengeModeRank": 500 + index,
+                    "avatar": "Introduction",
+                },
+                "record": {
+                    "score": 990000 - index,
+                    "acc": 99.5 - index / 100,
+                    "fc": index % 2 == 0,
+                    "updated_at": 1779468654 + index,
+                },
+            })
+        return {"totDataNum": 456, "userRank": 2, "users": users}
+
+    async def fetch_song_ap_fc_count(self, song_id: str):  # type: ignore[override]
+        self.song_apfc_requests.append(song_id)
+        return {
+            "EZ": {"apCount": 1, "fcCount": 2, "total": 4},
+            "HD": {"apCount": 2, "fcCount": 3, "total": 5},
+            "IN": {"apCount": 3, "fcCount": 4, "total": 6},
+        }
 
     def _ranklist_payload(self, *, me_index: int) -> dict:
         users = []
@@ -752,7 +783,7 @@ async def main() -> None:
                 "list": "12",
                 "lvscore": "12",
                 "table": "12",
-                "score": "Glaciaxion",
+                "score": "Glaciaxion -dif EZ -or score",
                 "chap": "C0",
                 "achievement": "12",
                 "randclg": "30-45",
@@ -774,6 +805,14 @@ async def main() -> None:
                 raise SystemExit(f"image {command} should inline image resources as data URIs")
             if "phiAdjustFontSize" not in html:
                 raise SystemExit(f"image {command} should include shared auto font sizing script")
+            if command == "score":
+                if "RANK_LIST" not in html or "Selected >> EZ" not in html or "AP: 25.00%" not in html:
+                    raise SystemExit("image score should render online ranklist and AP/FC statistics")
+                if not login_client.score_ranklist_requests:
+                    raise SystemExit("image score should request online score ranklist")
+                request = login_client.score_ranklist_requests[-1]
+                if request["rank"] != "EZ" or request["order_by"] != "score":
+                    raise SystemExit(f"image score did not pass -dif/-or options to API: {request!r}")
             if command == "info":
                 options = b30_render_calls[-1][3] or {}
                 if options.get("viewport_width") != 1920 or options.get("viewport_height") != 1500:

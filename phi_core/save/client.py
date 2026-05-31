@@ -305,6 +305,29 @@ class PhiApiClient:
             raise SaveNotAvailable("API 没有返回 RKS 排名数据。")
         return data
 
+    async def fetch_score_ranklist_user(
+        self,
+        user_id: str,
+        *,
+        token: str | None,
+        api_id: str | None,
+        song_id: str,
+        rank: str,
+        order_by: str = "acc",
+    ) -> dict[str, Any]:
+        payload = self._auth_payload(user_id, token=token, api_id=api_id)
+        payload["songId"] = song_id
+        payload["rank"] = rank
+        payload["orderBy"] = order_by
+        data = await self._post("/get/scoreList/user", payload)
+        if not isinstance(data, dict):
+            raise SaveNotAvailable("API 没有返回单曲成绩排行榜数据。")
+        return data
+
+    async def fetch_song_ap_fc_count(self, song_id: str) -> dict[str, Any]:
+        data = await self._post("/get/scoreList/songApFcCount", {"songId": song_id})
+        return data if isinstance(data, dict) else {}
+
     async def set_chart_tags(
         self,
         user_id: str,

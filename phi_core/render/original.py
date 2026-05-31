@@ -289,6 +289,9 @@ def score_html(
     snapshot: SaveSnapshot,
     *,
     history: list[ScoreRecord] | None = None,
+    ranklist: dict[str, Any] | None = None,
+    selected_rank: str | None = None,
+    ap_fc_count: dict[str, Any] | None = None,
 ) -> str:
     gameuser = _gameuser(snapshot)
     illustration = _song_illustration(paths, song)
@@ -299,8 +302,9 @@ def score_html(
         chart = song.charts.get(rank)
         if chart is None:
             continue
-        score_cards.append(_score_rank_card(paths, rank, chart.difficulty or 0.0, record_map.get(rank)))
+        score_cards.append(_score_rank_card(paths, rank, chart.difficulty or 0.0, record_map.get(rank), ap_fc_count))
     history_rows = "".join(_score_history_row(paths, record) for record in (history or records)[:12])
+    ranklist_panel = _score_ranklist_panel(paths, ranklist, selected_rank) if ranklist else ""
     body = f"""
 <div class="left">
   <div class="Player_Info"><p>PLAYER & SONGS_INFO</p></div>
@@ -330,8 +334,91 @@ def score_html(
   <div class="data_title"><div class="data_title-left"><p>SCORE_HISTORY</p></div></div>
   <div class="scoreHistory">{history_rows or '<div class="oneHistory EZ"><div class="HistoryDate"><p>NO HISTORY</p></div></div>'}</div>
 </div>
+{ranklist_panel}
 """
-    return original_page(paths, ("userinfo/userinfo.css", "score/score.css"), body, theme="default", background=illustration, width=1920)
+    css = ("userinfo/userinfo.css", "score/score.css", "score/scoreRankList.css") if ranklist else ("userinfo/userinfo.css", "score/score.css")
+    return original_page(paths, css, body, theme="default", background=illustration, width=2400 if ranklist else 1920)
+
+
+def _score_ranklist_panel(paths: PluginPaths, data: dict[str, Any] | None, selected_rank: str | None) -> str:
+    if not isinstance(data, dict):
+        return ""
+    users = data.get("users") if isinstance(data.get("users"), list) else []
+    total = _as_int(data.get("totDataNum"))
+    user_rank = _as_int(data.get("userRank"))
+    selected = selected_rank or str(data.get("selected") or "IN")
+    rows = "".join(_score_ranklist_user(paths, item if isinstance(item, dict) else {}, user_rank) for item in users[:10])
+    if not rows:
+        rows = '<div class="rankUser"><div class="rankUserInfo"><div class="rankUserName"><p>No rank data</p></div></div></div>'
+    return f"""
+<div class="ranklist">
+  <div class="Player_Info"><p>RANK_LIST</p></div>
+  <div class="selected"><p>{user_rank} / {total}</p><p>Selected >> {_esc(selected)}</p></div>
+  {rows}
+</div>"""
+
+
+def _score_ranklist_user(paths: PluginPaths, item: dict[str, Any], user_rank: int) -> str:
+    gameuser = item.get("gameuser") if isinstance(item.get("gameuser"), dict) else {}
+    record = item.get("record") if isinstance(item.get("record"), dict) else {}
+    challenge = _as_int(gameuser.get("challengeModeRank"))
+    challenge_mode = max(0, challenge // 100)
+    challenge_rank = challenge % 100
+    avatar = str(gameuser.get("avatar") or "Introduction")
+    avatar_uri = asset_uri(paths, f"html/avatar/{avatar}.png") or asset_uri(paths, "html/avatar/Introduction.png")
+    challenge_uri = asset_uri(paths, f"html/otherimg/{challenge_mode}.png")
+    rating = _score_ranklist_rating(record)
+    index = _as_int(item.get("index"))
+    return f"""
+<div class="rankUser{' rankUserMe' if index == user_rank else ''}">
+  <div class="ranking"><p>#{index}</p><p>{_esc(_score_ranklist_date(record.get("updated_at")))}</p></div>
+  <div class="rankUserAvatar"><img src="{avatar_uri}" alt="{_esc(avatar)}"></div>
+  <div class="rankUserInfo">
+    <div class="rankUserName"><p name="pvis">{_esc(gameuser.get("PlayerId") or gameuser.get("name") or "UNKNOWN")}</p></div>
+    <div class="rankUserRks"><p>{_as_number(gameuser.get("rankingScore")):.4f}</p></div>
+    <div class="rankUserClg"><div class="Challenge"><img src="{challenge_uri}" alt="{challenge_mode}"><span>{challenge_rank}</span></div></div>
+  </div>
+  <div class="rankUserScore"><div class="rankUserScoreAcc"><p>{_as_number(record.get("acc")):.4f}%</p></div><div class="rankUserScoreValue"><p>{_as_int(record.get("score"))}</p></div></div>
+  <div class="rankUserScoreRating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div>
+</div>"""
+
+
+def _score_ranklist_rating(record: dict[str, Any]) -> str:
+    if record.get("Rating"):
+        return _rating_asset(str(record.get("Rating")))
+    score = _as_int(record.get("score"))
+    fc = bool(record.get("fc"))
+    if score >= 1_000_000:
+        return "phi"
+    if fc:
+        return "FC"
+    if score >= 960_000:
+        return "V"
+    if score >= 920_000:
+        return "S"
+    if score >= 880_000:
+        return "A"
+    if score >= 820_000:
+        return "B"
+    if score >= 700_000:
+        return "C"
+    if score > 0:
+        return "F"
+    return "NEW"
+
+
+def _score_ranklist_date(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    if isinstance(value, (int, float)):
+        timestamp = float(value)
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000
+        try:
+            return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+        except (OSError, ValueError):
+            return ""
+    return str(value)
 
 
 def ranking_list_html(paths: PluginPaths, data: dict[str, Any], catalog: SongCatalog | None = None) -> str:
@@ -2485,7 +2572,13 @@ def _lvscore_rank_box(rank: str, total: int) -> str:
     return f'<div class="left-mid-box-{flag}"><div class="rank-left"><p>{_esc(rank)}</p></div>{"<div class=\"rank-right\"><p>" + str(total) + " charts</p><p>" + str(total) + " unlocked</p></div>" if total else ""}</div>'
 
 
-def _score_rank_card(paths: PluginPaths, rank: str, difficulty: float, record: ScoreRecord | None) -> str:
+def _score_rank_card(
+    paths: PluginPaths,
+    rank: str,
+    difficulty: float,
+    record: ScoreRecord | None,
+    ap_fc_count: dict[str, Any] | None = None,
+) -> str:
     if record is None:
         return f"""
 <div class="one-stats-box {_esc(rank)}" id="NEW">
@@ -2495,6 +2588,7 @@ def _score_rank_card(paths: PluginPaths, rank: str, difficulty: float, record: S
 </div>"""
     rating = _rating_asset(record.rating)
     suggest, suggest_type = _score_card_suggest(record)
+    bottom = _score_ap_fc_line(rank, ap_fc_count) or f'<div class="APCount">Dif: {difficulty:.1f}</div><div class="FCCount">FC: {"YES" if record.fc else "NO"}</div><div class="total">rank:</div><div class="count">{_esc(rank)}</div>'
     return f"""
 <div class="one-stats-box {_esc(rank)}" id="{_esc(rating)}">
   <div class="rank"><p>{_esc(rank)}</p></div>
@@ -2504,8 +2598,20 @@ def _score_rank_card(paths: PluginPaths, rank: str, difficulty: float, record: S
     <div class="data_score"><p>{record.score:,}</p></div>
   </div>
   <div class="data_mid"><div class="data_rks"><p>{record.rks:.4f}</p></div><div class="data_acc"><p>{record.acc:.4f}%</p></div><div class="suggest suggest-kind-{suggest_type}"><div class="suggest-tip"></div><p>{_esc(suggest)}</p></div></div>
-  <div class="data_bottom"><div class="APCount">Dif: {difficulty:.1f}</div><div class="FCCount">FC: {'YES' if record.fc else 'NO'}</div><div class="total">rank:</div><div class="count">{_esc(rank)}</div></div>
+  <div class="data_bottom">{bottom}</div>
 </div>"""
+
+
+def _score_ap_fc_line(rank: str, ap_fc_count: dict[str, Any] | None) -> str:
+    data = ap_fc_count.get(rank) if isinstance(ap_fc_count, dict) else None
+    if not isinstance(data, dict):
+        return ""
+    total = _as_int(data.get("total"))
+    if total <= 0:
+        return ""
+    ap = _as_int(data.get("apCount")) / total * 100
+    fc = _as_int(data.get("fcCount")) / total * 100
+    return f'<div class="APCount">AP: {ap:.2f}%</div><div class="FCCount">FC: {fc:.2f}%</div><div class="total">total:</div><div class="count">{total}</div>'
 
 
 def _score_card_suggest(record: ScoreRecord) -> tuple[str, str]:
