@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..data import latest_version_log, load_version_log, resolve_version_code
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -15,9 +15,10 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     log = load_version_log(ctx.paths.info, version) if version is not None else latest_version_log(ctx.paths.info)
     update_logs = await _load_online_update_logs(ctx) if version is None else []
     if ctx.config.render_mode == "image":
-        image = CommandResult.image(await render_original_html(
+        image = CommandResult.image(await render_jinja_template(
             ctx,
-            original.newlog_html(ctx.paths, log, catalog=ctx.catalog, update_logs=update_logs),
+            "newSong/newSong",
+            jinja_adapter.newlog_data(ctx.paths, log, catalog=ctx.catalog, update_logs=update_logs),
             "newlog",
         ))
         if ctx.sender is not None:

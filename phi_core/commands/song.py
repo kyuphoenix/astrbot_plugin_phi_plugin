@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
-from ..render import original
+from ._rendering import render_jinja_template
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -30,7 +30,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
             "total": len(raw_comments),
         }
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(ctx, original.song_html(ctx.paths, song, comments=comments), "song")
+        path = await render_jinja_template(ctx, "atlas/atlas", jinja_adapter.atlas_data(ctx.paths, song, comments=comments), "song")
         return CommandResult.image(path)
     if with_comments:
         return CommandResult.text(render.render_comments(song, (comments or {}).get("list", [])))

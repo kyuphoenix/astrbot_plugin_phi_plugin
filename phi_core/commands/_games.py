@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..models import Song
-from ..render import original
+from ..render import jinja_adapter, original
 from ..render import text as render
 
 try:
@@ -367,22 +367,29 @@ async def _finish_with_answer(ctx: CommandContext, message: str, song: Song, sta
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         if ctx.sender is not None:
             await ctx.sender(CommandResult.text(f"{message}\n正确答案是：{song.title}"))
-            reveal_path = await render_original_html(ctx, original.guess_html(ctx.paths, reveal.to_template()), "guess-answer")
+            reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
             await ctx.sender(CommandResult.image(reveal_path))
-            song_path = await render_original_html(ctx, original.song_html(ctx.paths, song), "guess-song")
+            song_path = await render_jinja_template(ctx, "atlas/atlas", jinja_adapter.atlas_data(ctx.paths, song), "guess-song")
             return CommandResult.image(song_path)
-        reveal_path = await render_original_html(ctx, original.guess_html(ctx.paths, reveal.to_template()), "guess-answer")
+        reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
         return CommandResult.image(reveal_path)
     return CommandResult.text(f"{message}\n正确答案是：{song.title}\n\n{render.render_song(song)}")
 
 
 async def _image_game_result(ctx: CommandContext, message: str, image: GuessImageData, name: str) -> CommandResult:
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(ctx, original.guess_html(ctx.paths, image.to_template()), name)
+        path = await _render_guess_image(ctx, image, name)
         if ctx.sender is not None:
             await ctx.sender(CommandResult.text(message))
         return CommandResult.image(path)
     return CommandResult.text(message)
+
+
+async def _render_guess_image(ctx: CommandContext, image: GuessImageData, name: str):
+    data = jinja_adapter.guess_data(ctx.paths, image.to_template())
+    width = 2048 if image.style else image.width
+    height = 1080 if image.style else image.height
+    return await render_jinja_template(ctx, "guess/guess", data, name, width=width, height=height)
 
 
 def _new_guess_image(ctx: CommandContext, song: Song, *, crop_min: int, crop_max: int) -> GuessImageData:

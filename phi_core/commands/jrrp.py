@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
-from ..render import original
+from ..render import jinja_adapter
 
 ALIASES = {"jrrp", "今日人品"}
 
@@ -23,7 +23,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         ctx.store.save_jrrp_cache(user_id, today, cached)
     data = _panel_data(ctx, cached, now=now)
     if ctx.config.render_mode == "image":
-        return CommandResult.image(await render_original_html(ctx, original.jrrp_html(ctx.paths, data), "jrrp"))
+        path = await render_jinja_template(ctx, "jrrp/jrrp", jinja_adapter.jrrp_data(ctx.paths, data), "jrrp", width=2048, height=1080)
+        return CommandResult.image(path)
     return CommandResult.text(_text_result(data))
 
 
@@ -47,7 +48,7 @@ def _panel_data(ctx: CommandContext, value: list[Any], *, now: datetime | None =
     sentence_index = _as_int(value[1] if len(value) > 1 else 0)
     sentence = sentences[sentence_index % len(sentences)] if sentences else {"hitokoto": "今天也要好好打歌。", "from": "Phi"}
     return {
-        "bkg": original.image_data_uri(ctx.paths, ctx.paths.other_ill / "ShineAfter.ADeanJocularACE.0.png") or original.image_data_uri(ctx.paths, ctx.paths.other_ill / "phigros.png") or "",
+        "bkg": ctx.paths.other_ill / "ShineAfter.ADeanJocularACE.0.png",
         "lucky": lucky,
         "luckRank": 5 if lucky == 100 else 4 if lucky >= 80 else 3 if lucky >= 60 else 2 if lucky >= 40 else 1 if lucky >= 20 else 0,
         "year": now.year,

@@ -4,9 +4,9 @@ import math
 import re
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..query import compute_b30
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save.codec import SaveNotAvailable
 
@@ -99,7 +99,7 @@ async def render_best30(ctx: CommandContext, user_id: str, args: str = "") -> Co
     result = compute_b30(snapshot, ctx.catalog, limit=limit)
     await _attach_acc_averages(ctx, result)
     if ctx.config.render_mode == "image":
-        path = await render_original_html(ctx, original.b30_html(ctx.paths, result, snapshot), "b30")
+        path = await render_jinja_template(ctx, "b19/b19", jinja_adapter.b30_data(ctx.paths, result, snapshot), "b30")
         return CommandResult.image(path)
     return CommandResult.text(render.render_b30(result, limit=limit))
 

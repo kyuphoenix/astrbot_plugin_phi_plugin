@@ -10,6 +10,8 @@ class PluginConfig:
     default_global: bool = False
     render_mode: str = "image"
     render_backend: str = "html"
+    score_image_version: str = "modern"
+    ranklist_image_version: str = "modern"
     max_b30: int = 33
     list_score_max_num: int = 80
     api_base_url: str = "https://phib19.top:8080"
@@ -43,11 +45,19 @@ class PluginConfig:
         render_mode = str(get("render_mode", "image") or "image").strip().casefold()
         if render_mode not in {"image", "text"}:
             render_mode = "image"
+        score_image_version = str(get("score_image_version", "modern") or "modern").strip().casefold()
+        if score_image_version not in {"modern", "old"}:
+            score_image_version = "modern"
+        ranklist_image_version = str(get("ranklist_image_version", "modern") or "modern").strip().casefold()
+        if ranklist_image_version not in {"modern", "old"}:
+            ranklist_image_version = "modern"
 
         return cls(
             default_global=bool(get("default_global", False)),
             render_mode=render_mode,
             render_backend="html",
+            score_image_version=score_image_version,
+            ranklist_image_version=ranklist_image_version,
             max_b30=max(33, min(50, int(get("max_b30", 33)))),
             list_score_max_num=max(1, min(500, int(get("list_score_max_num", 80)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),

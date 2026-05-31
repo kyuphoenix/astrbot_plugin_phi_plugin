@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ._b30_common import _api_song_id, _lookup_avg, _rks_range
 from ._user_settings import normalize_settings
 from ..models import ChartEntry, LEVELS, PhiSuggestEntry, SaveSnapshot, ScoreRecord
 from ..query import all_chart_entries, compute_b30, records_by_chart, suggest_entries
 from ..query.filters import parse_score_filter
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -27,7 +27,12 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         if _allow_api(ctx, user_id):
             avg_lookup, phi_entries = await _load_online_suggest_data(ctx, snapshot)
         entries = suggest_entries(snapshot, ctx.catalog, score_filter=score_filter, avg_lookup=avg_lookup)
-        path = await render_original_html(ctx, original.suggest_html(ctx.paths, entries, phi_entries=phi_entries), "suggest")
+        path = await render_jinja_template(
+            ctx,
+            "suggest/suggest",
+            jinja_adapter.suggest_data(ctx.paths, entries, phi_entries=phi_entries),
+            "suggest",
+        )
         return CommandResult.image(path)
     entries = suggest_entries(snapshot, ctx.catalog, score_filter=score_filter)
     return CommandResult.text(render.render_suggest(entries))

@@ -5,10 +5,11 @@ import re
 from typing import Any
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._history_common import load_merged_history
+from ._rendering import render_jinja_template
 from ..models import LEVELS, ScoreRecord
-from ..query import find_song_scores
-from ..render import original
+from ..query import compute_b30, find_song_scores, iter_history_score_events
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -61,13 +62,18 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         if not options.unrank:
             ranklist, ap_fc_count = await _load_online_score_data(ctx, user_id, song.id_with_suffix, selected_rank, options.order_by)
-        path = await render_original_html(
+        history = await _load_score_history(ctx, user_id, song.id)
+        template = "score/scoreOld" if ctx.config.score_image_version == "old" else "score/score"
+        path = await render_jinja_template(
             ctx,
-            original.score_html(
+            template,
+            jinja_adapter.score_data(
                 ctx.paths,
                 song,
                 records,
                 snapshot,
+                b30_result=compute_b30(snapshot, ctx.catalog),
+                history=history,
                 ranklist=ranklist,
                 selected_rank=selected_rank,
                 ap_fc_count=ap_fc_count,
@@ -103,6 +109,29 @@ async def _load_online_score_data(
     except (SaveNotAvailable, RuntimeError, AttributeError):
         ap_fc_count = None
     return ranklist, ap_fc_count
+
+
+async def _load_score_history(ctx: CommandContext, user_id: str, song_id: str) -> list[dict[str, Any]]:
+    try:
+        history = await load_merged_history(ctx, user_id, ["scoreHistory"])
+    except (SaveNotAvailable, RuntimeError, AttributeError):
+        return []
+    events = [
+        event for event in iter_history_score_events(history, ctx.catalog)
+        if event.record.song_id == song_id
+    ]
+    events.sort(key=lambda item: item.date, reverse=True)
+    return [
+        {
+            "rank": event.record.rank,
+            "date_new": event.date.strftime("%Y/%m/%d"),
+            "Rating": event.record.rating,
+            "score_new": event.record.score,
+            "acc_new": event.record.acc,
+            "rks_new": event.record.rks,
+        }
+        for event in events[:16]
+    ]
 
 
 def _default_rank(records: list[ScoreRecord], charts: dict[str, Any]) -> str:

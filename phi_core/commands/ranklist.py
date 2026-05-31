@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import re
 
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
-from ..render import original
+from ..render import jinja_adapter
 from ..save import SaveNotAvailable
 
 ALIASES = {"ranklist", "排行榜"}
@@ -18,10 +18,20 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text(f"获取排行榜失败：{exc}")
 
     if ctx.config.render_mode == "image":
-        path = await render_original_html(
+        legacy = ctx.config.ranklist_image_version == "old"
+        template = "rankingList-old/rankingList" if legacy else "rankingList/rankingList"
+        image_data = (
+            jinja_adapter.ranking_list_old_data(ctx.paths, data, ctx.catalog)
+            if legacy
+            else jinja_adapter.ranking_list_data(ctx.paths, data, ctx.catalog)
+        )
+        path = await render_jinja_template(
             ctx,
-            original.ranking_list_html(ctx.paths, data, ctx.catalog),
+            template,
+            image_data,
             "ranklist",
+            width=800 if legacy else 2048,
+            height=None if legacy else 1080,
         )
         return CommandResult.image(path)
     return CommandResult.text(_ranklist_text(data))

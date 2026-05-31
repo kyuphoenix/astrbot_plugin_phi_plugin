@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ._user_settings import (
     build_setting_panel_data,
     normalize_settings,
@@ -8,7 +8,7 @@ from ._user_settings import (
     setting_success_message,
 )
 from .common import CommandContext, CommandResult
-from ..render import original
+from ..render import jinja_adapter
 
 ALIASES = {"myset", "mysetting", "用户设置", "个人设置"}
 
@@ -27,7 +27,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
 
     data = build_setting_panel_data(settings)
     if ctx.config.render_mode == "image":
-        return CommandResult.image(await render_original_html(ctx, original.user_setting_html(ctx.paths, data), "myset"))
+        path = await render_jinja_template(ctx, "setting/userSetting", jinja_adapter.user_setting_data(ctx.paths, data), "myset", width=1080)
+        return CommandResult.image(path)
     return CommandResult.text(_text_settings(data))
 
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..query import compute_average_rks, top_records
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"lmtacc"}
@@ -22,15 +22,15 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     records = top_records(snapshot, ctx.catalog, limit=ctx.config.max_b30, min_acc=acc)
     average_rks = compute_average_rks(records)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.record_list_html(
+            "b19/dss2",
+            jinja_adapter.dss2_record_list_data(
                 ctx.paths,
                 records,
                 snapshot,
-                title=f"ACC >= {acc:g}% Top {ctx.config.max_b30}",
-                sp_info=["Limit ACC Mode", f"Computed RKS: {average_rks:.4f}"],
-                limit_label="L",
+                sp_info=["Limit ACC Mode", f"ACC is limited to {acc:g}%", f"Computed RKS: {average_rks:.4f}"],
+                computed_rks=average_rks,
             ),
             "lmtacc",
         )

@@ -4,10 +4,10 @@ from pathlib import Path
 
 from ._history_common import load_merged_history
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..data.illustrations import find_background_illustration_file
 from ..query import summarize_user
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"info"}
@@ -24,18 +24,20 @@ async def render_info(ctx: CommandContext, user_id: str, args: str, *, variant: 
     history = await load_merged_history(ctx, user_id, ["data", "rks", "scoreHistory", "challengeModeRank"])
     background = _requested_background(ctx, args)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.info_html(
+            "userinfo/userinfo" if variant == 1 else "userinfo/userinfo-old",
+            jinja_adapter.userinfo_data(
                 ctx.paths,
                 summarize_user(snapshot, ctx.catalog),
                 snapshot=snapshot,
                 history=history,
                 catalog=ctx.catalog,
                 background=background,
-                variant=variant,
             ),
             "info" if variant == 1 else "info-old",
+            width=1920 if variant == 1 else 1800,
+            height=1500 if variant == 1 else None,
         )
         return CommandResult.image(path)
     return CommandResult.text(render.render_user_info(summarize_user(snapshot, ctx.catalog)))

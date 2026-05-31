@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..query import compute_average_rks, top_records
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"best"}
@@ -21,14 +21,15 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     records = top_records(snapshot, ctx.catalog, limit=limit)
     average_rks = compute_average_rks(records)
     if ctx.config.render_mode == "image":
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.record_list_html(
+            "b19/dss2",
+            jinja_adapter.dss2_record_list_data(
                 ctx.paths,
                 records,
                 snapshot,
-                title=f"Best {limit}",
                 sp_info=[f"Best {limit} Mode", f"Computed RKS: {average_rks:.4f}"],
+                computed_rks=average_rks,
             ),
             "best",
         )

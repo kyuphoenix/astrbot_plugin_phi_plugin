@@ -16,6 +16,18 @@
     "default": "html",
     "options": ["html"]
   },
+  "score_image_version": {
+    "description": "Single-score image template version; modern uses score/score, old uses score/scoreOld",
+    "type": "string",
+    "default": "modern",
+    "options": ["modern", "old"]
+  },
+  "ranklist_image_version": {
+    "description": "Ranklist image template version; modern uses rankingList/rankingList, old uses rankingList-old/rankingList",
+    "type": "string",
+    "default": "modern",
+    "options": ["modern", "old"]
+  },
   "max_b30": {
     "description": "B30 展示条数",
     "type": "int",

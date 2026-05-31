@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..query import filter_score_entries, parse_score_filter
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"list"}
@@ -22,9 +22,10 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         request_lines = score_filter.original_request_lines()
         title = "Score List | " + " / ".join(request_lines)
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.list_html(ctx.paths, entries, title=title, limit=ctx.config.list_score_max_num),
+            "list/list",
+            jinja_adapter.list_data(ctx.paths, entries, title=title, limit=ctx.config.list_score_max_num),
             "list",
         )
         return CommandResult.image(path)

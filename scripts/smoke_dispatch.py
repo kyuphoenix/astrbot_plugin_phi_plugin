@@ -11,6 +11,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_RESOURCES = ROOT.parent / "phi-plugin" / "resources"
+JINJA2_TEMPLATES = ROOT.parent / "jinja2"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -347,8 +348,11 @@ def sample_save(
 def install_resource_fixture(paths: PluginPaths) -> None:
     if not UPSTREAM_RESOURCES.exists():
         raise SystemExit(f"missing upstream resource fixture: {UPSTREAM_RESOURCES}")
-    for name in ("html", "info", "otherill"):
+    for name in ("info", "otherill"):
         shutil.copytree(UPSTREAM_RESOURCES / name, paths.downloads / name, dirs_exist_ok=True)
+    if not JINJA2_TEMPLATES.exists():
+        raise SystemExit(f"missing Jinja2 template fixture: {JINJA2_TEMPLATES}")
+    shutil.copytree(JINJA2_TEMPLATES, paths.downloads / "html", dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
 
 
 async def main() -> None:
@@ -895,6 +899,29 @@ async def main() -> None:
                 request = login_client.score_ranklist_requests[-1]
                 if request["rank"] != "EZ" or request["order_by"] != "score":
                     raise SystemExit(f"image score did not pass -dif/-or options to API: {request!r}")
+                old_score_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+                async def fake_old_score_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+                    old_score_calls.append((template, data, return_url, options))
+                    path = paths.render_cache / "fake-old-score-render.png"
+                    Image.new("RGB", (1200, 1600), (8, 24, 50)).save(path)
+                    return str(path)
+
+                old_score_ctx = CommandContext(
+                    config=PluginConfig(render_mode="image", render_backend="html", score_image_version="old"),
+                    paths=paths,
+                    catalog=catalog,
+                    searcher=SongSearcher(catalog),
+                    store=login_ctx.store,
+                    client=login_client,
+                    html_render=fake_old_score_render,
+                )
+                old_score = await dispatch(old_score_ctx, "login-user", "score", "Glaciaxion -dif EZ")
+                if old_score.kind != "image" or len(old_score_calls) != 1:
+                    raise SystemExit(f"old score template should render one image, got {old_score!r}")
+                old_html = old_score_calls[0][0]
+                if ".playerbox" not in old_html or 'class="playerbox"' not in old_html or 'class="rank-EZ"' not in old_html:
+                    raise SystemExit("old score image version should render through converted score/scoreOld")
             if command == "suggest":
                 if "group-phi" not in html or "AP Count" not in html:
                     raise SystemExit("image suggest should render upstream phi/AP Count recommendation group")
@@ -937,6 +964,36 @@ async def main() -> None:
                     raise SystemExit(f"image ranklist should use original 2048x1080 viewport, got {options!r}")
                 if ".b30list" not in html or "ChallengeMode History" not in html:
                     raise SystemExit("image ranklist should render the original right-side detail panel")
+                old_ranklist_calls: list[tuple[str, dict, bool, dict | None]] = []
+
+                async def fake_old_ranklist_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+                    old_ranklist_calls.append((template, data, return_url, options))
+                    path = paths.render_cache / "fake-old-ranklist-render.png"
+                    Image.new("RGB", (800, 1600), (8, 24, 50)).save(path)
+                    return str(path)
+
+                old_ranklist_ctx = CommandContext(
+                    config=PluginConfig(render_mode="image", render_backend="html", ranklist_image_version="old"),
+                    paths=paths,
+                    catalog=catalog,
+                    searcher=SongSearcher(catalog),
+                    store=login_ctx.store,
+                    client=login_client,
+                    html_render=fake_old_ranklist_render,
+                )
+                old_ranklist = await dispatch(old_ranklist_ctx, "login-user", "ranklist", "9")
+                if old_ranklist.kind != "image" or len(old_ranklist_calls) != 1:
+                    raise SystemExit(f"old ranklist template should render one image, got {old_ranklist!r}")
+                old_html = old_ranklist_calls[0][0]
+                old_options = old_ranklist_calls[0][3] or {}
+                if old_options.get("viewport_width") != 800:
+                    raise SystemExit(f"old ranklist should use its original 800px viewport, got {old_options!r}")
+                if 'class="lLine' not in old_html or 'class="b19Box"' not in old_html or "总统计量" not in old_html:
+                    raise SystemExit("old ranklist image version should render through converted rankingList-old template")
+                if "file:///" in old_html or "raw.githubusercontent.com" in old_html:
+                    raise SystemExit("old ranklist should pass self-contained HTML to remote t2i")
+                if '<img src="data:image/' not in old_html:
+                    raise SystemExit("old ranklist should inline image resources as data URIs")
             if command == "randclg" and ('class="notes-info tap"' not in html or ">Tap<" not in html):
                 raise SystemExit("image randclg should render original tap/drag/hold/flick note breakdown")
             if command == "song":

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
-from ..render import original
+from ._rendering import render_jinja_template
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"ill", "曲绘"}
@@ -17,8 +17,12 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     path = ctx.find_illustration(song)
     if path:
         if ctx.config.render_mode == "image" and ctx.html_render is not None:
-            illustration = original.image_data_uri(ctx.paths, path)
-            rendered = await render_original_html(ctx, original.ill_html(ctx.paths, illustration, song.illustrator), "ill")
+            rendered = await render_jinja_template(
+                ctx,
+                "ill/ill",
+                jinja_adapter.ill_data(ctx.paths, path, song.illustrator),
+                "ill",
+            )
             return CommandResult.image(rendered)
         return CommandResult.image(path)
     return CommandResult.text(render.render_missing_illustration(song))

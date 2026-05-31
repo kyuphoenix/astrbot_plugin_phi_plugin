@@ -14,9 +14,9 @@ from ._notes import (
     save_notes,
     today_key,
 )
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
-from ..render import original
+from ..render import jinja_adapter
 
 ALIASES = {"sign", "signin", "sign in", "签到", "打卡"}
 
@@ -51,7 +51,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     await maybe_refresh_daily_tasks(ctx, user_id, snapshot, notes)
     data = build_sign_panel_data(ctx, user_id, snapshot, notes)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        image = CommandResult.image(await render_original_html(ctx, original.sign_html(ctx.paths, data), "sign"))
+        image = CommandResult.image(await render_jinja_template(ctx, "sign/sign", jinja_adapter.sign_data(ctx.paths, data), "sign", width=2048))
         text = _signed_text(notes, reward) if signed_now else _already_signed_text(notes, last_sign or now)
         if ctx.sender is not None:
             await ctx.sender(image)

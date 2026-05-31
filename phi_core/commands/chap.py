@@ -5,9 +5,9 @@ from typing import Any
 import yaml
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..query import compute_chapter_summary, iter_score_records
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"chap"}
@@ -30,7 +30,14 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     if summary is None:
         return CommandResult.text(f"\u672a\u627e\u5230\u300c{query}\u300d\u7ae0\u8282\u3002\u53ef\u4ee5\u4f7f\u7528 phi chap help \u67e5\u770b\u652f\u6301\u7684\u540d\u79f0\u3002")
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(ctx, original.chap_html(ctx.paths, summary, snapshot=snapshot), "chap")
+        path = await render_jinja_template(
+            ctx,
+            "chap/chap",
+            jinja_adapter.chap_data(ctx.paths, summary, snapshot=snapshot, catalog=ctx.catalog),
+            "chap",
+            width=2048,
+            height=1080,
+        )
         return CommandResult.image(path)
     return CommandResult.text(render.render_chapter_summary(summary))
 

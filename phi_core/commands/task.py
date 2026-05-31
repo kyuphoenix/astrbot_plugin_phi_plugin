@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from ._notes import apply_task_rewards, build_sign_panel_data, build_tasks_panel_data, load_notes, maybe_refresh_daily_tasks
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"task", "tasks", "我的任务"}
@@ -20,7 +20,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         save_notes(ctx, user_id, notes)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         sign_data = build_sign_panel_data(ctx, user_id, snapshot, notes)
-        return CommandResult.image(await render_original_html(ctx, original.sign_html(ctx.paths, sign_data), "task"))
+        return CommandResult.image(await render_jinja_template(ctx, "sign/sign", jinja_adapter.sign_data(ctx.paths, sign_data), "task", width=2048))
     data = build_tasks_panel_data(
         ctx,
         user_id,

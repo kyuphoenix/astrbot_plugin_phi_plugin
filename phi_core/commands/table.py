@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..data import load_version_log, resolve_version_code
 from ..query import charts_for_table, iter_score_records
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 
 ALIASES = {"table", "\u5b9a\u6570\u8868"}
@@ -31,9 +31,10 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         snapshot = ctx.load_snapshot(user_id)
         record_map = {(record.song_id, record.rank): record for record in iter_score_records(snapshot, ctx.catalog)} if snapshot else {}
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.table_with_records_html(
+            "table/table",
+            jinja_adapter.table_data(
                 ctx.paths,
                 charts,
                 difficulty=difficulty,

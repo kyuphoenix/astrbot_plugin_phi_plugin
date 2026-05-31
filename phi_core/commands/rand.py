@@ -3,11 +3,11 @@ from __future__ import annotations
 import random
 
 from .common import CommandContext, CommandResult
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from ..models import ChartEntry, LEVELS, Song
 from ..query import all_chart_entries, parse_range
 from ..query.filters import parse_levels
-from ..render import original
+from ..render import jinja_adapter
 
 ALIASES = {"rand", "random", "\u968f\u673a"}
 
@@ -18,7 +18,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text(_not_found_text(ctx, args))
     song, chart = result
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(ctx, original.rand_html(ctx.paths, song, chart_rank=chart.rank), "rand")
+        path = await render_jinja_template(ctx, "rand/rand", jinja_adapter.rand_data(ctx.paths, song, chart), "rand")
         return CommandResult.image(path)
     return CommandResult.text(_render_random_chart(song, chart))
 

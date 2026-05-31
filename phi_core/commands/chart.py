@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import re
 
-from ._rendering import render_original_html
+from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
 from ..models import LEVELS, Song
-from ..render import original
+from ..render import jinja_adapter
 from ..render import text as render
 from ..save import SaveNotAvailable
 
@@ -25,9 +25,10 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     tags = await _fetch_tags(ctx, song, rank)
     user_tags = await _fetch_user_tags(ctx, user_id, song, rank)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_original_html(
+        path = await render_jinja_template(
             ctx,
-            original.chart_html(ctx.paths, song, rank, tags=tags, user_tags=user_tags),
+            "chartInfo/chartInfo",
+            jinja_adapter.chart_info_data(ctx.paths, song, rank, tags=tags, user_tags=user_tags),
             "chart",
         )
         return CommandResult.image(path)

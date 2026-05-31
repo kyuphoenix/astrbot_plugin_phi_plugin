@@ -47,9 +47,9 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 插件侧不依赖 Node.js、Yunzai、Redis 或自管 Puppeteer；HTML 图片模板交给 AstrBot 官方 `html_render` 渲染。小游戏、排行榜、签到任务、管理命令和插件自更新暂未迁移。
 
-运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录。插件不再随包携带 `resources/`；首次启动或执行 `phi down resources` 时，会把原版 `phi-plugin/resources` 拉取到 AstrBot 数据目录下的 `downloads/`，形成 `downloads/html`、`downloads/info`、`downloads/otherill`。渲染、曲库、帮助、头像、字体等资源都从这里读取。
+运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录。插件不再随包携带 `resources/`；首次启动或执行 `phi down resources` 时，会把 Jinja2 HTML 模板仓库 `kyuphoenix/astrbot_plugin_phi_plugin_jinja2_template` 拉取到 `downloads/html`，并继续从原版 `Catrong/phi-plugin` 拉取 `downloads/info` 与 `downloads/otherill`。渲染模板、曲库、帮助、头像、字体等资源都从这里读取。
 
-曲绘下载命令会把 `https://github.com/Catrong/phi-plugin-ill.git` 克隆或更新到 AstrBot 数据目录下的 `downloads/original_ill/`，渲染和 `phi ill` 会优先读取这里的曲绘资源。`phi down all` 会同时更新原版资源与曲绘。若配置了 `github_proxy`，下载命令会沿用该代理前缀。
+曲绘下载命令会把 `https://github.com/Catrong/phi-plugin-ill.git` 克隆或更新到 AstrBot 数据目录下的 `downloads/original_ill/`，渲染和 `phi ill` 会优先读取这里的曲绘资源。`phi down all` 会同时更新 Jinja2 HTML 模板、原版 info/otherill 与曲绘。若配置了 `github_proxy`，下载命令会沿用该代理前缀。
 
 如果 `phi bind` 或 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
 
