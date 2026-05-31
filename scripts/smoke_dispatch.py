@@ -86,6 +86,15 @@ class FakeLoginClient(PhiApiClient):
     async def live_info(self):  # type: ignore[override]
         return "Smoke Live"
 
+    async def fetch_taptap_notices(self, limit: int = 1):  # type: ignore[override]
+        return [{
+            "title": "Smoke TapTap Notice",
+            "content": "online notice body",
+            "date": 1779468654,
+            "url": "https://www.taptap.cn/app/165287/topic",
+            "image": "",
+        }]
+
     async def fetch_comments_by_song(self, song_id: str):  # type: ignore[override]
         return [{"id": "7", "songId": song_id, "rank": "EZ", "PlayerId": "SMOKE", "comment": "hello", "time": "2026-05-29"}]
 
@@ -354,7 +363,6 @@ async def main() -> None:
             ("alias", "Glaciaxion", "name: Glaciaxion"),
             ("com", "15.0 99.5", "等效 RKS"),
             ("table", "15", "定数表 15"),
-            ("newnotice", "", "更新公告"),
             ("newlog", "", "最新版本"),
             ("randclg", "30-45", "随机课题"),
             ("down", "bad", "格式：phi down resources"),
@@ -369,6 +377,18 @@ async def main() -> None:
             first_line = result.value.splitlines()[0]
             safe_line = first_line.encode("utf-8", errors="backslashreplace").decode("utf-8")
             print(f"{command}: {safe_line}")
+
+        online_notice_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=FakeLoginClient(config),
+        )
+        online_notice = await dispatch(online_notice_ctx, "notice-user", "newnotice", "")
+        if "Smoke TapTap Notice" not in online_notice.value or "online notice body" not in online_notice.value:
+            raise SystemExit(f"newnotice should prefer online TapTap notice data, got {online_notice.value!r}")
 
         guess_start = await dispatch(ctx, "game-guess-user", "guess", "")
         if "猜曲绘" not in guess_start.value:
@@ -684,6 +704,7 @@ async def main() -> None:
             ("myset", ".page-wrap", "Phi-Plugin 用户设置"),
             ("guess", ".img", 'id="phiLineArt"'),
             ("ranklist", ".list_bkg", 'class="list"'),
+            ("newnotice", ".notice-page", "Smoke TapTap Notice"),
         ):
             before = len(b30_render_calls)
             command_args = {

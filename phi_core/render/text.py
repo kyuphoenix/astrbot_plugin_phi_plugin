@@ -522,6 +522,23 @@ def render_tip(tip: str | None) -> str:
 def render_notice(notice: dict) -> str:
     if not notice:
         return "本地 notice.json 为空或不存在。"
+    online_items = _notice_items(notice)
+    if online_items:
+        lines: list[str] = []
+        for item in online_items:
+            lines.append(str(item.get("title") or "公告"))
+            if item.get("date") is not None:
+                lines.append(f"date: {item.get('date')}")
+            content = item.get("content")
+            if isinstance(content, list):
+                lines.extend(str(value) for value in content)
+            elif content:
+                lines.append(str(content))
+            if item.get("url"):
+                lines.append(str(item.get("url")))
+            if item.get("image"):
+                lines.append(str(item.get("image")))
+        return "\n".join(lines)
     lines = [str(notice.get("title") or "公告")]
     if notice.get("code") is not None:
         lines.append(f"code: {notice.get('code')}")
@@ -531,6 +548,16 @@ def render_notice(notice: dict) -> str:
     elif content:
         lines.append(str(content))
     return "\n".join(lines)
+
+
+def _notice_items(notice: dict) -> list[dict]:
+    for key in ("info", "notices", "list", "data"):
+        value = notice.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, dict):
+            return [value]
+    return []
 
 
 def render_newlog(log: VersionLog | None, *, limit: int = 30) -> str:

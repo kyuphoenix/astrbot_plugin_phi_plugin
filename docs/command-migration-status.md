@@ -52,7 +52,7 @@ Status legend:
 | `/com`, `/计算` | `phi com`, `phi 计算` | Aligned | Text in upstream | Implemented. |
 | `/tips` | `phi tips` | Aligned | Text in upstream | Implemented. |
 | `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art` | Current image path uses original resources but Python-built table. Need closer upstream new-song/update-log structure if desired. |
-| `/newnotice` | `phi newnotice` | Partial | `html/newnotice/newnotice.art` | Current image path uses original resources but Python-built notice layout. Need direct original-template parity if desired. |
+| `/newnotice` | `phi newnotice` | Partial | `html/newnotice/newnotice.art`, `newnotice.css` | Now prefers the upstream TapTap official notice API and renders through the original newnotice resource chain with remote images inlined as data URIs; falls back to local `notice.json` when TapTap is unavailable. Exact upstream runtime wording/error behavior still needs comparison. |
 | `/live` | `phi live` | Partial | Text/API in upstream | Implemented. Need verify upstream API output formatting. |
 
 ## Binding, Login, And API Commands

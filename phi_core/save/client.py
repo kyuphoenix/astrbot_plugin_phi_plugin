@@ -136,6 +136,47 @@ class PhiApiClient:
         data = await self._get("/live", {})
         return str(data or "")
 
+    async def fetch_taptap_notices(self, limit: int = 1) -> list[dict[str, Any]]:
+        xua = {
+            "V": "1",
+            "PN": "TapTap",
+            "VN_CODE": "284001001",
+            "LANG": "zh_CN",
+        }
+        data = await self._get_external(
+            "https://api.taptapdada.com/feed/v7/by-group",
+            {
+                "X-UA": self._urlencoded(xua),
+                "type": "official",
+                "group_id": "197452",
+            },
+        )
+        if not isinstance(data, dict) or not data.get("success"):
+            return []
+        raw_data = data.get("data")
+        raw_list = raw_data.get("list") if isinstance(raw_data, dict) else []
+        if not isinstance(raw_list, list):
+            return []
+        notices: list[dict[str, Any]] = []
+        for item in raw_list[:max(1, int(limit))]:
+            if not isinstance(item, dict):
+                continue
+            moment = item.get("moment") if isinstance(item.get("moment"), dict) else {}
+            topic = moment.get("topic") if isinstance(moment.get("topic"), dict) else {}
+            sharing = moment.get("sharing") if isinstance(moment.get("sharing"), dict) else {}
+            images = topic.get("images") if isinstance(topic.get("images"), list) else []
+            image = ""
+            if images and isinstance(images[0], dict):
+                image = str(images[0].get("original_url") or "")
+            notices.append({
+                "title": str(topic.get("title") or ""),
+                "content": str(topic.get("summary") or ""),
+                "date": moment.get("publish_time"),
+                "url": str(sharing.get("url") or ""),
+                "image": image,
+            })
+        return notices
+
     async def fetch_comments_by_song(self, song_id: str) -> list[dict[str, Any]]:
         data = await self._post("/comment/get/bySongId", {"song_id": song_id})
         return data if isinstance(data, list) else []
@@ -297,3 +338,20 @@ class PhiApiClient:
         if isinstance(body, dict) and "data" in body:
             return body["data"]
         return body
+
+    async def _get_external(self, url: str, params: dict[str, Any]) -> Any:
+        try:
+            async with httpx.AsyncClient(timeout=self.config.request_timeout, verify=False) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as exc:
+            raise SaveNotAvailable(f"API 请求失败：{exc}") from exc
+        except ValueError as exc:
+            raise SaveNotAvailable("API 响应不是有效 JSON。") from exc
+
+    @staticmethod
+    def _urlencoded(data: dict[str, str]) -> str:
+        from urllib.parse import urlencode
+
+        return urlencode(data)
