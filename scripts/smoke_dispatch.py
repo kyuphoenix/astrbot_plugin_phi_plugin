@@ -391,6 +391,11 @@ async def main() -> None:
             safe_line = first_line.encode("utf-8", errors="backslashreplace").decode("utf-8")
             print(f"{command}: {safe_line}")
 
+        jrrp_first = await dispatch(ctx, "jrrp-cache-user", "jrrp", "")
+        jrrp_second = await dispatch(ctx, "jrrp-cache-user", "jrrp", "")
+        if jrrp_first.value != jrrp_second.value:
+            raise SystemExit("jrrp should reuse the same cached fortune within one UTC+8 day")
+
         online_notice_ctx = CommandContext(
             config=config,
             paths=paths,

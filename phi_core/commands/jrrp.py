@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import random
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +15,13 @@ ALIASES = {"jrrp", "今日人品"}
 
 
 async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
-    today = datetime.now().strftime("%Y-%m-%d")
+    now = _now_utc8()
+    today = now.strftime("%Y-%m-%d")
     cached = ctx.store.get_jrrp_cache(user_id, today)
     if cached is None:
         cached = _make_jrrp(ctx.paths.info, rng=random.Random())
         ctx.store.save_jrrp_cache(user_id, today, cached)
-    data = _panel_data(ctx, cached)
+    data = _panel_data(ctx, cached, now=now)
     if ctx.config.render_mode == "image":
         return CommandResult.image(await render_original_html(ctx, original.jrrp_html(ctx.paths, data), "jrrp"))
     return CommandResult.text(_text_result(data))
@@ -39,8 +40,8 @@ def _make_jrrp(info_dir: Path, *, rng: random.Random) -> list[Any]:
     return value
 
 
-def _panel_data(ctx: CommandContext, value: list[Any]) -> dict[str, Any]:
-    now = datetime.now()
+def _panel_data(ctx: CommandContext, value: list[Any], *, now: datetime | None = None) -> dict[str, Any]:
+    now = now or _now_utc8()
     lucky = _as_int(value[0] if value else 0)
     sentences = _load_sentences(ctx.paths.info)
     sentence_index = _as_int(value[1] if len(value) > 1 else 0)
@@ -121,3 +122,7 @@ def _as_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _now_utc8() -> datetime:
+    return datetime.now(timezone(timedelta(hours=8)))

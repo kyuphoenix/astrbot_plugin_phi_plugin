@@ -87,7 +87,7 @@ Status legend:
 
 | Upstream command | Current AstrBot command | Status | Upstream template/resource | Notes / next action |
 |---|---|---:|---|---|
-| `/jrrp`, `/今日人品` | `phi jrrp`, `phi 今日人品` | Partial | `html/jrrp/jrrp.art`, `jrrp.css` | Daily luck is persisted and image mode uses original jrrp resources/base64 assets. Need exact upstream wording/date-special behavior comparison. |
+| `/jrrp`, `/今日人品` | `phi jrrp`, `phi 今日人品` | Partial | `html/jrrp/jrrp.art`, `jrrp.css` | Daily luck uses the original easing/word-pool structure, is cached per UTC+8 day like upstream Redis TTL, and image mode uses original jrrp resources/base64 assets. Still needs exact event/date-special wording comparison. |
 | `/guess` | `phi guess`, `phi 猜曲绘` | Partial | `html/guess/guess.art`, `guess.css` | Added session-scoped command-style guess-illustration game, weighted song selection, original guess CSS/SVG filter render, base64 illustrations, answer reveal, and `phi guess <answer>`. Upstream no-prefix answer listener, timed auto hints/timeout, recall behavior, and ban-group integration are still not ported. |
 | `/tipgame` | `phi tipgame`, `phi 提示猜曲` | Partial | Guess-game text/image | Added session-scoped text-hint game with `phi tip` progression and final original guess-image hint. Still needs upstream cooldown/timeout automation and richer direct-message answer handling. |
 | `/ltr` | `phi ltr`, `phi letter`, `phi 开字母` | Partial | Guess-letter text/markdown output | Added session-scoped letter game, weighted multi-song selection, `phi ltr n1 <answer>`, `phi open <letter>`, random `phi tip`, answer reveal, and optional `pypinyin` initials matching. Still text-only and does not yet reproduce upstream QQ markdown buttons/cooldowns/timeout. |
