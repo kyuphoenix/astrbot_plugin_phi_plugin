@@ -471,7 +471,7 @@ def render_history_summary(summary: HistorySummary) -> str:
 
 
 def render_live_info(info: str) -> str:
-    return "直播速递：\n" + (info.strip() if info and info.strip() else "暂无直播信息。")
+    return "直播速递：\n" + (info.strip() if info and info.strip() else "发生错误，请稍后再试。")
 
 
 def render_comments(song: Song, comments: list[dict], *, limit: int = 10) -> str:

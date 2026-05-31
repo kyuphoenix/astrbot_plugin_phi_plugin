@@ -226,6 +226,11 @@ class FakeProgressClient(PhiApiClient):
         return None
 
 
+class EmptyLiveClient(PhiApiClient):
+    async def live_info(self):  # type: ignore[override]
+        return ""
+
+
 def sample_save(
     *,
     rks: float,
@@ -766,6 +771,17 @@ async def main() -> None:
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
+        empty_live_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=EmptyLiveClient(config),
+        )
+        empty_live = await dispatch(empty_live_ctx, "login-user", "live", "")
+        if "发生错误，请稍后再试。" not in empty_live.value:
+            raise SystemExit(f"live should use upstream empty-result wording, got {empty_live.value!r}")
         rankfind = await dispatch(login_ctx, "login-user", "rankfind", "12.34")
         if "12/345" not in rankfind.value or login_client.ranklist_rks_requests[-1] != 12.34:
             raise SystemExit(f"rankfind should query online rks rank, got {rankfind.value!r}")

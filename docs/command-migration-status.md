@@ -53,7 +53,7 @@ Status legend:
 | `/tips` | `phi tips` | Aligned | Text in upstream | Implemented. |
 | `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art`, `newSong.css` | Now fetches TapTap official update text like upstream `PgrUpdateInfo`, sends image + update text in AstrBot runtime, and renders the original-style `newSong` table with new-song matching from update notes plus local difficulty diff. Still needs full upstream `updatedChart` note-type diff (`tap/drag/hold/flick`) parity. |
 | `/newnotice` | `phi newnotice` | Partial | `html/newnotice/newnotice.art`, `newnotice.css` | Now prefers the upstream TapTap official notice API and renders through the original newnotice resource chain with remote images inlined as data URIs; falls back to local `notice.json` when TapTap is unavailable. Exact upstream runtime wording/error behavior still needs comparison. |
-| `/live` | `phi live` | Partial | Text/API in upstream | Implemented. Need verify upstream API output formatting. |
+| `/live` | `phi live` | Aligned | Text/API in upstream | Calls the same `/live` API path, prefixes `直播速递：`, and uses the upstream empty/error wording. |
 
 ## Binding, Login, And API Commands
 
