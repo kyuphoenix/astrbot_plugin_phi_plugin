@@ -421,6 +421,12 @@ async def main() -> None:
             raise SystemExit("html background should inline online illustration bytes before rendering")
         if "raw.githubusercontent.com" in online_help_html or "file:///" in online_help_html:
             raise SystemExit("html background should not pass remote or local file URLs to t2i")
+        online_paths.illustration_source = "remote"
+        remote_help_html = original.help_html(online_paths)
+        if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in remote_help_html:
+            raise SystemExit("remote illustration mode should pass GitHub raw blurred background URLs to templates")
+        if "data:image/png;base64,cmVtb3Rl" in remote_help_html:
+            raise SystemExit("remote illustration mode should not fetch and base64-encode phi-plugin-ill URLs")
         trim_source = paths.render_cache / "trim-source.png"
         Image.new("RGB", (1280, 32), (0, 0, 0)).save(trim_source)
         with Image.open(trim_source) as image:

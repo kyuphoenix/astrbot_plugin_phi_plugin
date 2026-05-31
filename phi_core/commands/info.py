@@ -5,7 +5,7 @@ from pathlib import Path
 from ._history_common import load_merged_history
 from .common import CommandContext, CommandResult
 from ._rendering import render_jinja_template
-from ..data.illustrations import find_background_illustration_file
+from ..data.illustrations import background_illustration_url, find_background_illustration_file, use_remote_illustrations
 from ..query import summarize_user
 from ..render import jinja_adapter
 from ..render import text as render
@@ -50,4 +50,9 @@ def _requested_background(ctx: CommandContext, args: str) -> str | Path | None:
     song = ctx.searcher.best(query)
     if song is None:
         return None
-    return find_background_illustration_file(ctx.paths, song.id) or find_background_illustration_file(ctx.paths, song.id_with_suffix)
+    path = find_background_illustration_file(ctx.paths, song.id) or find_background_illustration_file(ctx.paths, song.id_with_suffix)
+    if path is not None:
+        return path
+    if use_remote_illustrations(ctx.paths):
+        return background_illustration_url(song.id)
+    return None

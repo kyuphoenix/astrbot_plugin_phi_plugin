@@ -67,5 +67,11 @@
     "description": "GitHub 代理地址，当前仅预留",
     "type": "string",
     "default": ""
+  },
+  "illustration_source": {
+    "description": "Illustration source: local encodes local files as base64 for T2I; remote passes GitHub raw URLs from Catrong/phi-plugin-ill into Jinja2 templates",
+    "type": "string",
+    "default": "local",
+    "options": ["local", "remote"]
   }
 }

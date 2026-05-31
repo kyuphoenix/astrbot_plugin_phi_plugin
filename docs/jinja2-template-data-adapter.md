@@ -89,6 +89,7 @@ Jinja2 和远端 AstrBot t2i 不具备这些前提，所以迁移后要把这些
 
 - 模板中的 `<img src="...">` 必须被转换成 base64 data URI。
 - CSS 中的 `url(...)` 必须被转换成 base64 data URI。
+- Exception: when `illustration_source=remote`, image references that point to `Catrong/phi-plugin-ill` may stay as GitHub raw URLs. This exception is only for song illustrations and blurred illustration backgrounds; local paths, fonts, CSS, JS, avatar images, rating icons, and other template assets must still be inlined as data URIs.
 - 字体文件必须通过 CSS `@font-face` 或被 CSS 引用后内联。
 - 不能依赖 `file://`、绝对路径、Docker 内部路径或 Windows 路径。
 - 若背景回退到模板内置图，优先检查传入数据字段是否为空，其次检查 CSS 背景是否覆盖了数据背景。

@@ -19,6 +19,7 @@ class PluginConfig:
     qrcode_timeout: int = 270
     render_max_retries: int = 2
     github_proxy: str = ""
+    illustration_source: str = "local"
 
     @classmethod
     def from_astrbot(cls, config: Any | None) -> "PluginConfig":
@@ -51,6 +52,11 @@ class PluginConfig:
         ranklist_image_version = str(get("ranklist_image_version", "modern") or "modern").strip().casefold()
         if ranklist_image_version not in {"modern", "old"}:
             ranklist_image_version = "modern"
+        illustration_source = str(get("illustration_source", "local") or "local").strip().casefold()
+        if illustration_source in {"cloud", "online", "github", "url", "urls"}:
+            illustration_source = "remote"
+        if illustration_source not in {"local", "remote"}:
+            illustration_source = "local"
 
         return cls(
             default_global=bool(get("default_global", False)),
@@ -65,4 +71,5 @@ class PluginConfig:
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),
             render_max_retries=max(0, min(5, int(get("render_max_retries", 2)))),
             github_proxy=str(get("github_proxy", "") or ""),
+            illustration_source=illustration_source,
         )

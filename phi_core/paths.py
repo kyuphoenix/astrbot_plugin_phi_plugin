@@ -17,6 +17,7 @@ class PluginPaths:
     cache: Path
     render_cache: Path
     downloaded_original_ill: Path
+    illustration_source: str = "local"
 
     @classmethod
     def from_root(cls, root: Path, data_dir: Path | None = None) -> "PluginPaths":

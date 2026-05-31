@@ -43,6 +43,10 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 图片渲染使用 AstrBot 官方 `Star.html_render`，并优先复用原版 `resources/html/` 下的 CSS、字体与图片资源。`phi help`、`phi b30/rks/pgr` 已接入原版 `help`/`b19` 资源结构；其它纯文本结果暂时仍使用通用 HTML 面板。Pillow 面板回退已移除，方便暴露真实 HTML 渲染问题。生成文件写入 AstrBot 插件数据目录下的 `cache/render/`；如需纯文本输出，可在配置中将 `render_mode` 改为 `text`。
 
+### Illustration Source
+
+The `illustration_source` config controls how song illustrations are passed into Jinja2/AstrBot t2i renders. The default `local` mode keeps the current behavior and converts downloaded local files under `downloads/original_ill` into base64 data URIs. The `remote` mode passes GitHub raw URLs from `Catrong/phi-plugin-ill` into the templates for song illustrations and blurred illustration backgrounds, while non-illustration assets such as fonts, CSS images, avatars, and rating icons are still inlined locally.
+
 ## 迁移说明
 
 插件侧不依赖 Node.js、Yunzai、Redis 或自管 Puppeteer；HTML 图片模板交给 AstrBot 官方 `html_render` 渲染。小游戏、排行榜、签到任务、管理命令和插件自更新暂未迁移。

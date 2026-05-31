@@ -18,6 +18,8 @@ from phi_core.config import PluginConfig
 from phi_core.data import SongCatalog, SongSearcher
 from phi_core.paths import PluginPaths
 from phi_core.save import PhiApiClient, SaveStore
+from phi_core.render import jinja_adapter, jinja_renderer
+from phi_core.models import Song, SongChart
 
 
 def _write_image(path: Path, color: tuple[int, int, int]) -> None:
@@ -103,6 +105,34 @@ async def main() -> None:
         debug = paths.render_cache / "smoke-jinja-debug.html"
         debug.write_text(html, encoding="utf-8")
         raise SystemExit(f"template data was not rendered; wrote {debug}")
+
+    remote_paths = PluginPaths.from_root(ROOT, tmp / "remote")
+    remote_paths.ensure_data_dir()
+    remote_paths.illustration_source = "remote"
+    if JINJA2_TEMPLATES.exists():
+        shutil.copytree(JINJA2_TEMPLATES, remote_paths.resources / "html", dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
+    else:
+        _write_image(remote_paths.resources / "html" / "otherimg" / "phigros.png", (1, 2, 3))
+        _write_image(remote_paths.resources / "html" / "otherimg" / "icon.png", (4, 5, 6))
+    (remote_paths.downloaded_original_ill / "illLow").mkdir(parents=True, exist_ok=True)
+    _write_image(remote_paths.downloaded_original_ill / "illLow" / "RemoteSong.Smoke.png", (30, 31, 32))
+    song = Song(
+        id="RemoteSong.Smoke",
+        title="Remote Song",
+        composer="Codex",
+        illustrator="Codex",
+        charts={"EZ": SongChart(rank="EZ", difficulty=1.0, combo=1)},
+    )
+    remote_data = jinja_adapter.atlas_data(remote_paths, song)
+    if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png" not in remote_data["illustration"]:
+        raise SystemExit(f"remote atlas illustration should be GitHub raw URL, got {remote_data['illustration']!r}")
+    remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
+    if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png" not in remote_html:
+        raise SystemExit("remote illustration URL should survive Jinja2 self-contained rendering")
+    if "data:font/" not in remote_html and "data:application/" not in remote_html:
+        raise SystemExit("remote mode should still inline non-illustration font assets")
+    if "file:///" in remote_html or "D:\\" in remote_html:
+        raise SystemExit("remote mode html must not contain local paths")
     print("smoke_jinja_render_chain passed")
 
 

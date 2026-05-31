@@ -19,7 +19,16 @@ from urllib.parse import unquote, urlparse
 
 from ..data.loader import SongCatalog
 from ..data.loader import normalize_key as normalize_song_key
-from ..data.illustrations import background_source_candidates, find_background_illustration_file, find_illustration_file
+from ..data.illustrations import (
+    background_illustration_url,
+    background_source_candidates,
+    find_background_illustration_file,
+    find_illustration_file,
+    illustration_url,
+    is_online_illustration_url,
+    online_url_for_local_path,
+    use_remote_illustrations,
+)
 from ..data.resources import VersionLog, latest_version_log, load_version_log
 from ..models import (
     Best30Result,
@@ -1766,7 +1775,9 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
     if song:
         path = find_background_illustration_file(paths, song)
         if path is not None:
-            return _file_data_uri(path)
+            return _illustration_source(paths, path, song_id=song, background=True)
+        if use_remote_illustrations(paths):
+            return background_illustration_url(song)
     return _random_background(paths)
 
 
@@ -1967,7 +1978,9 @@ def _rank_background(paths: PluginPaths, raw: dict[str, Any], catalog: SongCatal
         for song_id in _background_song_id_candidates(raw_background, catalog):
             path = find_background_illustration_file(paths, song_id)
             if path is not None:
-                return _file_data_uri(path)
+                return _illustration_source(paths, path, song_id=song_id, background=True)
+            if use_remote_illustrations(paths):
+                return background_illustration_url(song_id)
             song = catalog.get(song_id) if catalog is not None else None
             if song is not None:
                 return _song_illustration(paths, song)
@@ -2287,7 +2300,9 @@ def _update_change_song(paths: PluginPaths, change: ProgressScoreChange) -> dict
             score_delta = f"{delta:+,}"
     rks = f"{change.rks_new:.4f}" if change.rks_new else ""
     ill_path = find_illustration_file(paths, change.song_id, prefer_low=True)
-    illustration = _file_data_uri(ill_path) if ill_path is not None else asset_uri(paths, "html/otherimg/phigros.png")
+    illustration = _illustration_source(paths, ill_path, song_id=change.song_id, prefer_low=True) if ill_path is not None else (
+        illustration_url(change.song_id, prefer_low=True) if use_remote_illustrations(paths) else asset_uri(paths, "html/otherimg/phigros.png")
+    )
     rating_img = ""
     if change.rating_new:
         rating = asset_uri(paths, f"html/otherimg/{change.rating_new}.png")
@@ -3007,14 +3022,16 @@ def _as_number(value: Any) -> float:
 def _song_illustration(paths: PluginPaths, song: Song) -> str:
     path = find_illustration_file(paths, song.id, prefer_low=True)
     if path is not None:
-        return _file_data_uri(path)
+        return _illustration_source(paths, path, song_id=song.id, prefer_low=True)
+    if use_remote_illustrations(paths):
+        return illustration_url(song.id, prefer_low=True)
     for raw in (song.illustration, song.illustration_big):
         if raw:
             uri = _source_data_uri(paths, raw)
             if uri:
                 return uri
             path = paths.other_ill / raw
-            uri = _file_data_uri(path)
+            uri = _source_data_uri(paths, path)
             if uri:
                 return uri
     return asset_uri(paths, "html/otherimg/phigros.png")
@@ -3023,7 +3040,9 @@ def _song_illustration(paths: PluginPaths, song: Song) -> str:
 def _chart_illustration(paths: PluginPaths, chart: ChartEntry) -> str:
     path = find_illustration_file(paths, chart.song_id, prefer_low=True)
     if path is not None:
-        return _file_data_uri(path)
+        return _illustration_source(paths, path, song_id=chart.song_id, prefer_low=True)
+    if use_remote_illustrations(paths):
+        return illustration_url(chart.song_id, prefer_low=True)
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
@@ -3043,14 +3062,18 @@ def _random_background_for_charts(paths: PluginPaths, charts: list[ChartEntry]) 
     seen: set[Path] = set()
     for chart in charts:
         path = find_background_illustration_file(paths, chart.song_id)
-        if path is None:
+        if path is None and not use_remote_illustrations(paths):
             continue
-        resolved = path.resolve()
-        if resolved not in seen:
-            seen.add(resolved)
-            candidates.append(path)
+        if path is not None:
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                candidates.append(path)
+        elif use_remote_illustrations(paths):
+            return background_illustration_url(chart.song_id)
     if candidates:
-        return _file_data_uri(random.choice(candidates))
+        selected = random.choice(candidates)
+        return _illustration_source(paths, selected, song_id=selected.stem, background=True)
     return _random_background(paths)
 
 
@@ -3360,22 +3383,28 @@ def _random_background_for_records(paths: PluginPaths, records: list[ScoreRecord
     seen: set[Path] = set()
     for record in records:
         path = find_background_illustration_file(paths, record.song_id)
-        if path is None:
+        if path is None and not use_remote_illustrations(paths):
             continue
-        resolved = path.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        candidates.append(path)
+        if path is not None:
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            candidates.append(path)
+        elif use_remote_illustrations(paths):
+            return background_illustration_url(record.song_id)
     if candidates:
-        return _file_data_uri(random.choice(candidates))
+        selected = random.choice(candidates)
+        return _illustration_source(paths, selected, song_id=selected.stem, background=True)
     return _random_background(paths)
 
 
 def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:
     path = find_illustration_file(paths, record.song_id, prefer_low=True)
     if path is not None:
-        return _file_data_uri(path)
+        return _illustration_source(paths, path, song_id=record.song_id, prefer_low=True)
+    if use_remote_illustrations(paths):
+        return illustration_url(record.song_id, prefer_low=True)
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
@@ -3437,6 +3466,9 @@ def _file_data_uri(path: Path) -> str:
 
 def _source_data_uri(paths: PluginPaths, source: str | Path) -> str:
     if isinstance(source, Path):
+        remote_url = online_url_for_local_path(paths, source) if use_remote_illustrations(paths) else None
+        if remote_url:
+            return remote_url
         return _file_data_uri(source)
     text = str(source or "").strip()
     if not text:
@@ -3447,6 +3479,8 @@ def _source_data_uri(paths: PluginPaths, source: str | Path) -> str:
     if lowered.startswith("base64://"):
         return f"data:image/png;base64,{text[len('base64://'):]}"
     if lowered.startswith(("http://", "https://")):
+        if use_remote_illustrations(paths) and is_online_illustration_url(text):
+            return text
         return _remote_image_data_uri(paths, text)
     if lowered.startswith("file://"):
         parsed = urlparse(text)
@@ -3455,6 +3489,26 @@ def _source_data_uri(paths: PluginPaths, source: str | Path) -> str:
             file_path = file_path[1:]
         return _file_data_uri(Path(file_path))
     return _file_data_uri(Path(text))
+
+
+def _illustration_source(
+    paths: PluginPaths,
+    path: Path | None,
+    *,
+    song_id: str = "",
+    prefer_low: bool = False,
+    background: bool = False,
+) -> str:
+    if use_remote_illustrations(paths):
+        if background and song_id:
+            return background_illustration_url(song_id)
+        if path is not None:
+            url = online_url_for_local_path(paths, path)
+            if url:
+                return url
+        if song_id:
+            return background_illustration_url(song_id) if background else illustration_url(song_id, prefer_low=prefer_low)
+    return _file_data_uri(path) if path is not None else ""
 
 
 def _remote_image_data_uri(paths: PluginPaths, url: str) -> str:

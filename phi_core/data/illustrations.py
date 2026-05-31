@@ -4,12 +4,15 @@ import csv
 import json
 import random
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 from ..paths import PluginPaths
 
 ILLUSTRATION_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 ONLINE_ILL_BASE = "https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main"
+_ONLINE_ILL_PREFIX = f"{ONLINE_ILL_BASE}/"
+_ONLINE_ILL_HOST = "raw.githubusercontent.com"
+_ONLINE_ILL_PATH_PREFIX = "/Catrong/phi-plugin-ill/"
 
 
 def find_illustration_file(paths: PluginPaths, song_id: str, *, prefer_low: bool = False) -> Path | None:
@@ -82,6 +85,16 @@ def background_source_candidates(
     chooser = rng or random.Random()
     local = _available_background_illustrations(paths)
     chooser.shuffle(local)
+    if use_remote_illustrations(paths):
+        remote = [background_illustration_url(path.stem) for path in local if path.stem]
+        if remote:
+            return remote
+        ids = _available_online_illustration_ids(paths)
+        chooser.shuffle(ids)
+        return [
+            f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}"
+            for song_id in ids[:max(0, online_limit)]
+        ]
     if local:
         return local
 
@@ -95,6 +108,58 @@ def background_source_candidates(
     fallback = _available_other_illustrations(paths)
     chooser.shuffle(fallback)
     return [*online, *fallback]
+
+
+def use_remote_illustrations(paths: PluginPaths) -> bool:
+    source = str(getattr(paths, "illustration_source", "local") or "local").strip().casefold()
+    return source in {"remote", "cloud", "online", "github", "url", "urls"}
+
+
+def is_online_illustration_url(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    host = parsed.netloc.lower()
+    path = unquote(parsed.path)
+    return (
+        text.startswith(_ONLINE_ILL_PREFIX)
+        or (host == _ONLINE_ILL_HOST and path.startswith(_ONLINE_ILL_PATH_PREFIX))
+    )
+
+
+def illustration_url(song_id: str, *, prefer_low: bool = False) -> str:
+    folder = "illLow" if prefer_low else "ill"
+    return _online_url(folder, song_id)
+
+
+def background_illustration_url(song_id: str) -> str:
+    return _online_url("illBlur", song_id)
+
+
+def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    roots = [paths.downloaded_original_ill, paths.original_ill]
+    for root in roots:
+        try:
+            relative = resolved.relative_to(root.resolve())
+        except (ValueError, OSError):
+            continue
+        if not relative.parts:
+            return None
+        return f"{ONLINE_ILL_BASE}/{quote(relative.as_posix())}"
+    return None
+
+
+def _online_url(folder: str, song_id: str) -> str:
+    candidates = _candidate_names(song_id)
+    name = candidates[0] if candidates else str(song_id).strip()
+    return f"{ONLINE_ILL_BASE}/{folder}/{quote(f'{name}.png')}"
 
 
 def _available_illustrations(paths: PluginPaths) -> list[Path]:

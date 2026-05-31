@@ -9,6 +9,7 @@ from urllib.parse import unquote
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from ..data.illustrations import is_online_illustration_url, use_remote_illustrations
 from ..paths import PluginPaths
 from . import original
 
@@ -223,6 +224,8 @@ def _data_uri(paths: PluginPaths, root: Path, value: str) -> str | None:
     lowered = text.lower()
     if lowered.startswith("data:"):
         return text
+    if lowered.startswith(("http://", "https://")) and use_remote_illustrations(paths) and is_online_illustration_url(text):
+        return text
     if lowered.startswith(("base64://", "http://", "https://", "file://")):
         uri = original.image_data_uri(paths, text)
         return uri or None
@@ -253,6 +256,8 @@ def _css_text(paths: PluginPaths, root: Path, relative: str) -> str:
         url = unquote(match.group("url").strip())
         if url.startswith("#") or url.lower().startswith("data:"):
             return match.group(0)
+        if url.lower().startswith(("http://", "https://")) and use_remote_illustrations(paths) and is_online_illustration_url(url):
+            return f'url("{url}")'
         normalized_url = url.replace("\\", "/").lower()
         if normalized_url.endswith("/otherimg/phigros.png") or normalized_url == "../otherimg/phigros.png":
             return 'url("")'

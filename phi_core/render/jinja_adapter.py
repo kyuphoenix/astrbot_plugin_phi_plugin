@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from ..data.loader import SongCatalog
+from ..data.illustrations import background_illustration_url, find_background_illustration_file, use_remote_illustrations
 from ..data.resources import latest_version_log, load_version_log
 from ..models import (
     Best30Result,
@@ -1968,11 +1969,11 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
     raw_user = snapshot.raw.get("gameuser") if isinstance(snapshot.raw.get("gameuser"), dict) else {}
     song_id = str(raw_user.get("background") or "")
     if song_id:
-        from ..data.illustrations import find_background_illustration_file
-
         path = find_background_illustration_file(paths, song_id)
         if path is not None:
-            return original._file_data_uri(path)
+            return original._illustration_source(paths, path, song_id=song_id, background=True)
+        if use_remote_illustrations(paths):
+            return background_illustration_url(song_id)
     return original._random_background(paths)
 
 
