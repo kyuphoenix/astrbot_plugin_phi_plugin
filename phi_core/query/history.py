@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from ..data.loader import SongCatalog, normalize_song_id
-from ..models import LEVELS, ScoreRecord
+from ..models import ChartEntry, LEVELS, ScoreRecord
 from .b30 import rating_from_score, rks_from_acc
 from .progress import _open_score_item, _parse_datetime, format_datetime, money_to_kib, normalize_history
 
@@ -129,28 +129,48 @@ def resolve_chapter_name(catalog: SongCatalog, query: str) -> str | None:
 
 
 def compute_achievement_rows(snapshot_records: list[ScoreRecord], catalog: SongCatalog, difficulty_floor: int) -> list[AchievementRow]:
+    charts: list[ChartEntry] = []
+    for song in catalog.all_songs():
+        for chart in song.display_charts():
+            if chart.rank in LEVELS and chart.difficulty is not None:
+                charts.append(ChartEntry(
+                    song_id=song.id,
+                    song_title=song.title,
+                    rank=chart.rank,
+                    difficulty=float(chart.difficulty),
+                    difficulty_text=chart.difficulty_text or f"{chart.difficulty:.1f}",
+                    combo=chart.combo,
+                ))
+    return compute_achievement_rows_for_charts(snapshot_records, charts, difficulty_floor)
+
+
+def compute_achievement_rows_for_charts(
+    snapshot_records: list[ScoreRecord],
+    charts: list[ChartEntry],
+    difficulty_floor: int,
+) -> list[AchievementRow]:
     record_map = {(record.song_id, record.rank): record for record in snapshot_records}
     rows: list[AchievementRow] = []
     for offset in range(10):
         difficulty = round(difficulty_floor + offset / 10, 1)
-        charts = []
-        for song in catalog.all_songs():
-            for chart in song.display_charts():
-                if chart.rank in LEVELS and chart.difficulty is not None and round(chart.difficulty, 1) == difficulty:
-                    charts.append((song.id, chart.rank))
-        if not charts:
+        matched_charts = [
+            (chart.song_id, chart.rank)
+            for chart in charts
+            if chart.rank in LEVELS and round(chart.difficulty, 1) == difficulty
+        ]
+        if not matched_charts:
             continue
-        records = [record_map.get(key) for key in charts]
+        records = [record_map.get(key) for key in matched_charts]
         played_records = [record for record in records if record is not None]
         min_score = min((record.score if record else 0) for record in records)
         all_fc = all(bool(record and record.fc) for record in records)
         rows.append(AchievementRow(
             difficulty=difficulty,
-            total=len(charts),
+            total=len(matched_charts),
             played=len(played_records),
             min_rating=rating_from_score(min_score, all_fc),
             min_score=min_score,
-            avg_acc=sum(record.acc for record in played_records) / len(charts),
+            avg_acc=sum(record.acc for record in played_records) / len(matched_charts),
             phi_count=sum(1 for record in played_records if record.rating == "phi"),
             fc_count=sum(1 for record in played_records if record.fc),
         ))

@@ -8,7 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from phi_core.commands import ROUTE_MODULES, ROUTES
+from phi_core.commands import ROUTE_MODULES, ROUTES, dispatch
+from phi_core.commands.common import CommandContext
+from phi_core.config import PluginConfig
+from phi_core.paths import PluginPaths
 
 
 EXPECTED_ROUTES = {
@@ -29,6 +32,8 @@ EXPECTED_ROUTES = {
     "pgr": "pgr",
     "score": "score",
     "info": "info",
+    "info1": "info1",
+    "info2": "info2",
     "data": "data",
     "id": "id",
     "sessiontoken": "sessiontoken",
@@ -51,6 +56,10 @@ EXPECTED_ROUTES = {
     "list": "list",
     "hisb30": "hisb30",
     "renderdiag": "renderdiag",
+    "setapitoken": "setapitoken",
+    "tokenlist": "tokenlist",
+    "tkls": "tokenlist",
+    "lstk": "tokenlist",
 }
 
 
@@ -75,6 +84,35 @@ def main() -> None:
             raise SystemExit(f"{alias} -> {module_name} has no handle")
         if alias not in ROUTES:
             raise SystemExit(f"{alias} missing from ROUTES")
+
+    class DynamicCtx(CommandContext):
+        pass
+
+    called: list[tuple[str, str, str]] = []
+    original_p30 = ROUTES["p30"]
+
+    def fake_p30(ctx, user_id, args):
+        called.append((user_id, "p30", args))
+        from phi_core.commands.common import CommandResult
+        return CommandResult.text("ok")
+
+    ROUTES["p30"] = fake_p30
+    try:
+        import asyncio
+
+        ctx = DynamicCtx(
+            config=PluginConfig(render_mode="text"),
+            paths=PluginPaths.from_root(ROOT),
+            catalog=None,  # type: ignore[arg-type]
+            searcher=None,  # type: ignore[arg-type]
+            store=None,  # type: ignore[arg-type]
+            client=None,  # type: ignore[arg-type]
+        )
+        asyncio.run(dispatch(ctx, "dynamic-user", "p45", "extra"))
+    finally:
+        ROUTES["p30"] = original_p30
+    if called != [("dynamic-user", "p30", "45 extra")]:
+        raise SystemExit(f"dynamic pN dispatch did not forward limit to p30: {called!r}")
 
     print(f"command route smoke passed: {len(public_modules)} modules, {len(ROUTES)} aliases")
 

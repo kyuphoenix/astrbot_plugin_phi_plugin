@@ -11,6 +11,7 @@ class PluginConfig:
     render_mode: str = "image"
     render_backend: str = "html"
     max_b30: int = 33
+    list_score_max_num: int = 80
     api_base_url: str = "https://phib19.top:8080"
     request_timeout: int = 10
     qrcode_timeout: int = 270
@@ -48,6 +49,7 @@ class PluginConfig:
             render_mode=render_mode,
             render_backend="html",
             max_b30=max(33, min(50, int(get("max_b30", 33)))),
+            list_score_max_num=max(1, min(500, int(get("list_score_max_num", 80)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),
             request_timeout=max(3, int(get("request_timeout", 10))),
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),

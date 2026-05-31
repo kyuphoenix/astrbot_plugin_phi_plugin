@@ -41,6 +41,8 @@ class FakeLoginClient(PhiApiClient):
         self.score_ranklist_requests: list[dict[str, object]] = []
         self.song_apfc_requests: list[str] = []
         self.songs_apfc_requests: list[dict[str, object]] = []
+        self.set_api_token_calls: list[dict[str, str]] = []
+        self.token_list_calls: list[dict[str, str]] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -48,6 +50,31 @@ class FakeLoginClient(PhiApiClient):
 
     async def get_pgr_token(self, user_id: str, api_token: str):  # type: ignore[override]
         return PgrTokenResult(token="B" * 25, api_id="24680")
+
+    async def set_api_token(self, user_id: str, token: str, api_token: str):  # type: ignore[override]
+        self.set_api_token_calls.append({"user_id": user_id, "token": token, "api_token": api_token})
+        return {"message": "ok"}
+
+    async def token_list(self, user_id: str, token: str):  # type: ignore[override]
+        self.token_list_calls.append({"user_id": user_id, "token": token})
+        return {
+            "platform_data": [
+                {
+                    "platform_name": "AstrBot",
+                    "platform_id": user_id,
+                    "create_at": "2026-05-29",
+                    "update_at": "2026-05-30",
+                    "authentication": "self",
+                },
+                {
+                    "platform_name": "QQ",
+                    "platform_id": "12345",
+                    "create_at": "2026-05-01",
+                    "update_at": "2026-05-02",
+                    "authentication": "normal",
+                },
+            ]
+        }
 
     async def fetch_cloud_save(self, token=None, user_id=None, api_id=None):  # type: ignore[override]
         self.save_counter += 1
@@ -106,7 +133,7 @@ class FakeLoginClient(PhiApiClient):
             "version": "Smoke 9.9.9",
             "versionCode": 999,
             "date": 1779468654,
-            "rawHtml": "<div>Smoke TapTap Update<br/>新增两首单曲：<br/>•「Snow Dance」 by 悠叶いのり<br/>•「亂★舞」 by Nekock·LK</div>",
+            "rawHtml": "<div>Smoke TapTap Update<br/>鏂板涓ら鍗曟洸锛?br/>鈥€孲now Dance銆?by 鎮犲彾銇勩伄銈?br/>鈥€屼簜鈽呰垶銆?by Nekock路LK</div>",
         }]
 
     async def fetch_comments_by_song(self, song_id: str):  # type: ignore[override]
@@ -351,7 +378,7 @@ async def main() -> None:
                 difficulty=12.0 + index / 100,
                 rks=12.0 - index / 100,
             )
-            for index in range(33)
+            for index in range(45)
         ]
         b30_html = original.b30_html(
             paths,
@@ -450,6 +477,10 @@ async def main() -> None:
             ("myset", "", "Phi-Plugin 用户设置"),
             ("theme", "2", "设置成功"),
         ]
+        old_table = await dispatch(ctx, "smoke-user", "table", "1 -v 100")
+        if "3.5.2" not in old_table.value or "共 5 个谱面" not in old_table.value or "dB doll" not in old_table.value:
+            raise SystemExit(f"table -v should render charts from oldInfo/change.csv, got {old_table.value!r}")
+
         for command, args, expected in cases:
             result = await dispatch(ctx, "smoke-user", command, args)
             if expected and expected not in result.value:
@@ -716,6 +747,38 @@ async def main() -> None:
         auth_pgr = await dispatch(login_ctx, "login-user", "pgr", "")
         if "官方 RKS" not in auth_pgr.value:
             raise SystemExit(f"auth should auto-sync save for pgr, got {auth_pgr.value!r}")
+        dynamic_b45 = await dispatch(login_ctx, "login-user", "b45", "")
+        if "Best 45:" not in dynamic_b45.value:
+            raise SystemExit(f"dynamic bN command should render requested best count, got {dynamic_b45.value!r}")
+        dynamic_p12 = await dispatch(login_ctx, "login-user", "p12", "")
+        if "All Perfect Top 12" not in dynamic_p12.value:
+            raise SystemExit(f"dynamic pN command should route through p30 logic with requested count, got {dynamic_p12.value!r}")
+        dynamic_x12 = await dispatch(login_ctx, "login-user", "x12", "")
+        if "1 Good Top 12" not in dynamic_x12.value:
+            raise SystemExit(f"dynamic xN command should route through x30 logic with requested count, got {dynamic_x12.value!r}")
+        dynamic_fc12 = await dispatch(login_ctx, "login-user", "fc12", "")
+        if "Full Combo Top 12" not in dynamic_fc12.value:
+            raise SystemExit(f"dynamic fcN command should route through fc30 logic with requested count, got {dynamic_fc12.value!r}")
+        set_api_token = await dispatch(login_ctx, "login-user", "setapitoken", "new-api-token")
+        if "API Token 已设置为" not in set_api_token.value or login_client.set_api_token_calls[-1]["api_token"] != "new-api-token":
+            raise SystemExit(f"setApiToken should submit the current user's API token, got {set_api_token.value!r}")
+        token_list = await dispatch(login_ctx, "login-user", "tkls", "")
+        if "已绑定 2 个平台" not in token_list.value or "（当前）" not in token_list.value or "AstrBot" not in token_list.value:
+            raise SystemExit(f"tkls should list bound API platforms, got {token_list.value!r}")
+        limited_list_ctx = CommandContext(
+            config=PluginConfig(render_mode="text", list_score_max_num=1),
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=login_ctx.store,
+            client=login_client,
+        )
+        limited_list = await dispatch(limited_list_ctx, "login-user", "list", "")
+        if "谱面数量过多" not in limited_list.value or "1" not in limited_list.value:
+            raise SystemExit(f"list should reject result sets larger than list_score_max_num, got {limited_list.value!r}")
+        old_achievement = await dispatch(login_ctx, "login-user", "achievement", "1 -v 100")
+        if "1.0: 1/1" not in old_achievement.value or "1.5: 0/4" not in old_achievement.value:
+            raise SystemExit(f"achievement -v should use oldInfo/change.csv difficulty rows, got {old_achievement.value!r}")
         b30_render_calls: list[tuple[str, dict, bool, dict | None]] = []
 
         async def fake_b30_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
@@ -851,6 +914,23 @@ async def main() -> None:
                 info_fetches = [item for item in login_client.history_fetches if item["user_id"] == "login-user"]
                 if not info_fetches or "rks" not in (info_fetches[-1]["fields"] or []):
                     raise SystemExit(f"image info should fetch long remote history before rendering, got {info_fetches!r}")
+                before_info_variant = len(b30_render_calls)
+                info1 = await dispatch(image_login_ctx, "login-user", "info1", "Glaciaxion")
+                if info1.kind != "image" or len(b30_render_calls) != before_info_variant + 1:
+                    raise SystemExit(f"image info1 should render through the info variant route, got {info1!r}")
+                info1_html = b30_render_calls[-1][0]
+                if ".Player_Info" not in info1_html or '<img src="data:image/' not in info1_html:
+                    raise SystemExit("image info1 should use the current userinfo template and requested song background")
+                before_info_variant = len(b30_render_calls)
+                info2 = await dispatch(image_login_ctx, "login-user", "info2", "Glaciaxion")
+                if info2.kind != "image" or len(b30_render_calls) != before_info_variant + 1:
+                    raise SystemExit(f"image info2 should render through the old info variant route, got {info2!r}")
+                info2_html = b30_render_calls[-1][0]
+                info2_options = b30_render_calls[-1][3] or {}
+                if ".basis-box" not in info2_html or "Basis-Info" not in info2_html:
+                    raise SystemExit("image info2 should use the original old userinfo resource chain")
+                if info2_options.get("viewport_width") != 1800:
+                    raise SystemExit(f"image info2 should use the old 1800px viewport, got {info2_options!r}")
             if command == "ranklist":
                 options = b30_render_calls[-1][3] or {}
                 if options.get("viewport_width") != 2048 or options.get("viewport_height") != 1080:
@@ -859,6 +939,14 @@ async def main() -> None:
                     raise SystemExit("image ranklist should render the original right-side detail panel")
             if command == "randclg" and ('class="notes-info tap"' not in html or ">Tap<" not in html):
                 raise SystemExit("image randclg should render original tap/drag/hold/flick note breakdown")
+            if command == "song":
+                before_song_comment = len(b30_render_calls)
+                song_comment = await dispatch(image_login_ctx, "login-user", "song", "Glaciaxion -comment")
+                if song_comment.kind != "image" or len(b30_render_calls) != before_song_comment + 1:
+                    raise SystemExit(f"image song -comment should render through atlas with comments, got {song_comment!r}")
+                song_comment_html = b30_render_calls[-1][0]
+                if "comment-box" not in song_comment_html or "hello" not in song_comment_html:
+                    raise SystemExit("image song -comment should render upstream atlas comment panel")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
@@ -896,7 +984,7 @@ async def main() -> None:
         tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ")
         if "谱面标签" not in tags.value or "节奏" not in tags.value:
             raise SystemExit(f"addtag should list chart tags, got {tags.value!r}")
-        set_tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ 节奏 配置")
+        set_tags = await dispatch(login_ctx, "login-user", "addtag", "Glaciaxion EZ 鑺傚 閰嶇疆")
         if "谱面标签已提交" not in set_tags.value or not login_client.set_tags:
             raise SystemExit(f"addtag should set chart tags, got {set_tags.value!r}")
         tag = await dispatch(login_ctx, "login-user", "tag", "Glaciaxion EZ")

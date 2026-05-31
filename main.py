@@ -18,6 +18,11 @@ from .phi_core.render import panel as panel_render
 from .phi_core.data.ill_download import ensure_resources_blocking
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
+_B_ALIASES = {f"b{index}" for index in range(1, 101)} - {"b30"}
+_P_ALIASES = {f"p{index}" for index in range(1, 101)} - {"p30"}
+_X_ALIASES = {f"x{index}" for index in range(1, 101)} - {"x30"}
+_FC_ALIASES = {f"fc{index}" for index in range(1, 101)} - {"fc30"}
+
 
 class AstrBotPhiPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -94,9 +99,9 @@ class AstrBotPhiPlugin(Star):
     async def phi_auth(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'auth')
 
-    @phi.command('b30')
+    @phi.command('b30', alias=_B_ALIASES)
     async def phi_b30(self, event: AstrMessageEvent):
-        yield await self._dispatch_phi_command(event, 'b30')
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'b30')
 
     @phi.command('best')
     async def phi_best(self, event: AstrMessageEvent):
@@ -142,9 +147,9 @@ class AstrBotPhiPlugin(Star):
     async def phi_down(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'down')
 
-    @phi.command('fc30')
+    @phi.command('fc30', alias=_FC_ALIASES)
     async def phi_fc30(self, event: AstrMessageEvent):
-        yield await self._dispatch_phi_command(event, 'fc30')
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'fc30')
 
     @phi.command('gbbind', alias={'gb\u7ed1\u5b9a'})
     async def phi_gbbind(self, event: AstrMessageEvent):
@@ -177,6 +182,14 @@ class AstrBotPhiPlugin(Star):
     @phi.command('info')
     async def phi_info(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'info')
+
+    @phi.command('info1')
+    async def phi_info1(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'info1')
+
+    @phi.command('info2')
+    async def phi_info2(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'info2')
 
     @phi.command('jrrp', alias={'\u4eca\u65e5\u4eba\u54c1'})
     async def phi_jrrp(self, event: AstrMessageEvent):
@@ -222,9 +235,9 @@ class AstrBotPhiPlugin(Star):
     async def phi_open(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'open')
 
-    @phi.command('p30')
+    @phi.command('p30', alias=_P_ALIASES)
     async def phi_p30(self, event: AstrMessageEvent):
-        yield await self._dispatch_phi_command(event, 'p30')
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'p30')
 
     @phi.command('pgr', alias={'\u5c41\u80a1\u8089'})
     async def phi_pgr(self, event: AstrMessageEvent):
@@ -278,6 +291,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_send(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'send')
 
+    @phi.command('setapitoken')
+    async def phi_setapitoken(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, 'setapitoken')
+
     @phi.command('setnick', alias={'setnic', '\u8bbe\u7f6e\u522b\u540d'})
     async def phi_setnick(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'setnick')
@@ -314,6 +331,10 @@ class AstrBotPhiPlugin(Star):
     async def phi_tips(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'tips')
 
+    @phi.command('tokenlist', alias={'tkls', 'lstk'})
+    async def phi_tokenlist(self, event: AstrMessageEvent):
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'tokenlist')
+
     @phi.command('tip', alias={'\u63d0\u793a'})
     async def phi_tip(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'tip')
@@ -334,9 +355,9 @@ class AstrBotPhiPlugin(Star):
     async def phi_update(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'update')
 
-    @phi.command('x30')
+    @phi.command('x30', alias=_X_ALIASES)
     async def phi_x30(self, event: AstrMessageEvent):
-        yield await self._dispatch_phi_command(event, 'x30')
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'x30')
 
     async def _dispatch_phi_command(self, event: AstrMessageEvent, command: str, *, grouped: bool = True):
         event.stop_event()
@@ -388,6 +409,11 @@ class AstrBotPhiPlugin(Star):
         parts = text.split(maxsplit=2 if grouped else 1)
         if grouped:
             return parts[2].strip() if len(parts) > 2 else ""
+        return parts[1].strip() if len(parts) > 1 else ""
+
+    @staticmethod
+    def _extract_group_command(message: str) -> str:
+        parts = (message or "").strip().split(maxsplit=2)
         return parts[1].strip() if len(parts) > 1 else ""
 
     async def _to_astrbot_result(

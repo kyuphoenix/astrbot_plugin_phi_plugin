@@ -15,11 +15,22 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text(render.render_no_cached_save())
     score_filter = parse_score_filter(args, max_difficulty=_max_difficulty(ctx))
     entries = filter_score_entries(snapshot, ctx.catalog, score_filter)
+    if len(entries) > ctx.config.list_score_max_num:
+        return CommandResult.text(
+            f"谱面数量过多({len(entries)})大于设置的最大值({ctx.config.list_score_max_num})，请缩小搜索范围QAQ！"
+        )
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        title = "Score List | " + " / ".join(score_filter.request_lines())
-        path = await render_original_html(ctx, original.list_html(ctx.paths, entries, title=title), "list")
+        request_lines = score_filter.original_request_lines()
+        title = "Score List | " + " / ".join(request_lines)
+        path = await render_original_html(
+            ctx,
+            original.list_html(ctx.paths, entries, title=title, limit=ctx.config.list_score_max_num),
+            "list",
+        )
         return CommandResult.image(path)
-    return CommandResult.text(render.render_score_list(entries, score_filter.request_lines()))
+    return CommandResult.text(
+        render.render_score_list(entries, score_filter.original_request_lines(), limit=ctx.config.list_score_max_num)
+    )
 
 
 def _max_difficulty(ctx: CommandContext) -> float:

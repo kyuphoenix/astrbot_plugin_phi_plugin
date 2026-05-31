@@ -14,6 +14,7 @@ from .filters import (
 )
 from .history import (
     analyze_history,
+    compute_achievement_rows_for_charts,
     compute_achievement_rows,
     compute_chapter_summary,
     compute_history_b30_changes,
@@ -28,6 +29,7 @@ __all__ = [
     "analyze_history",
     "charts_for_table",
     "compute_achievement_rows",
+    "compute_achievement_rows_for_charts",
     "compute_b30",
     "compute_chapter_summary",
     "compute_average_rks",

@@ -132,6 +132,19 @@ class PhiApiClient:
             raw=data,
         )
 
+    async def set_api_token(self, user_id: str, token: str, api_token: str) -> dict[str, Any]:
+        payload = self._platform_payload(user_id)
+        payload["token"] = token
+        payload["token_new"] = api_token
+        data = await self._post("/setApiToken", payload)
+        return data if isinstance(data, dict) else {}
+
+    async def token_list(self, user_id: str, token: str) -> dict[str, Any]:
+        payload = self._platform_payload(user_id)
+        payload["token"] = token
+        data = await self._post("/token/list", payload)
+        return data if isinstance(data, dict) else {}
+
     async def live_info(self) -> str:
         data = await self._get("/live", {})
         return str(data or "")

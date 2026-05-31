@@ -274,7 +274,7 @@ def render_b30(result: Best30Result, limit: int = 30) -> str:
         f"计算 B30: {result.computed_rks:.4f}",
         f"记录数: {result.total_records}",
         "",
-        "Best 30:",
+        f"Best {limit}:",
     ]
     for index, record in enumerate(result.records[:limit], 1):
         lines.append(_record_line(index, record))

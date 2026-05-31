@@ -645,10 +645,11 @@ def randclg_html(paths: PluginPaths, target: int, charts: list[ChartEntry]) -> s
     return original_page(paths, "clg/clg.css", body, theme="default", background=_random_background_for_charts(paths, charts))
 
 
-def song_html(paths: PluginPaths, song: Song) -> str:
+def song_html(paths: PluginPaths, song: Song, *, comments: dict[str, Any] | None = None) -> str:
     illustration = _song_illustration(paths, song)
     charts = "".join(_atlas_chart_row(chart) for chart in song.display_charts())
     note_totals = "".join(f"<p>{chart.combo or '-'}</p>" for chart in song.display_charts())
+    comment_html = _atlas_comment_box(paths, comments)
     body = f"""
 <div class="big-box">
   <div class="box">
@@ -661,6 +662,7 @@ def song_html(paths: PluginPaths, song: Song) -> str:
   </div>
   <div class="other-info">{_atlas_info("BPM", song.bpm)}{_atlas_info("Illustrator", song.illustrator)}{_atlas_info("Chapter", song.chapter)}</div>
 </div>
+{comment_html}
 <div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>
 """
     return original_page(paths, "atlas/atlas.css", body, theme="default", background=illustration)
@@ -1517,10 +1519,14 @@ def info_html(
     snapshot: SaveSnapshot,
     history: dict[str, Any] | None = None,
     catalog: SongCatalog | None = None,
+    background: str | Path | None = None,
+    variant: int = 1,
 ) -> str:
     gameuser = _gameuser(snapshot)
     stats = _info_stats(snapshot, summary, catalog)
-    bksong = _random_background(paths)
+    bksong = _source_data_uri(paths, background) if background is not None else ""
+    if not bksong:
+        bksong = _random_background(paths)
     userbackground = _info_background(paths, snapshot)
     rks_history, rks_range, rks_date = _info_series(paths, history or {}, "rks")
     data_history, data_range, data_date = _info_series(paths, history or {}, "data")
@@ -1543,6 +1549,8 @@ def info_html(
         "acc_rks_AccRange": acc_rks_AccRange,
         "background": bksong,
     }
+    if variant == 2:
+        return _userinfo_old_html(paths, data)
     return _userinfo_html(paths, data)
 
 
@@ -1583,6 +1591,47 @@ def _userinfo_html(paths: PluginPaths, data: dict[str, Any]) -> str:
     return original_page(paths, "userinfo/userinfo.css", "".join(body), theme="default", background=data["background"], width=1920)
 
 
+def _userinfo_old_html(paths: PluginPaths, data: dict[str, Any]) -> str:
+    gameuser = data["gameuser"]
+    stats = data["userstats"]
+    challenge_img = asset_uri(paths, f"html/otherimg/{gameuser['ChallengeMode']}.png")
+    avatar_img = asset_uri(paths, "html/avatar/Introduction.png")
+    profile = _safe(str(gameuser.get("selfIntro") or "")).replace("\n", "<br>")
+    body = [
+        _userinfo_old_layout_guard(),
+        '<div class="basis-box" style="background-image:url(\'{}\')">'.format(_esc(gameuser.get("backgroundurl", ""))),
+        '<div class="basis-box-out"><div class="box-in" id="basis">',
+        '<div class="box-tatle"><p>Basis-Info</p></div>',
+        '<div class="basis-info">',
+        f'<div class="avatar"><img src="{avatar_img}" alt="{_esc(gameuser["avatar"])}"></div>',
+        '<div class="name">',
+        '<div class="user-info-line">',
+        f'<div class="user-info-box"><div class="name-tatle"><p>Player ID</p></div><div class="name-value"><p name="pvis">{_esc(gameuser["PlayerId"])}</p></div></div>',
+        f'<div class="Challenge"><img src="{challenge_img}" alt="Challenge"><p>{gameuser["ChallengeModeRank"]}</p></div>',
+        '</div><div class="user-info-line">',
+        f'<div class="user-info-box"><div class="name-tatle"><p>RankingScore</p></div><div class="name-value"><p>{gameuser["rks"]:.4f}</p></div></div>',
+        f'<div class="user-info-box"><div class="name-tatle"><p>Data</p></div><div class="name-value"><p>{_format_money_from_text(gameuser.get("data", ""))}</p></div></div>',
+        '</div></div></div>',
+    ]
+    if profile:
+        body.extend([
+            '<div class="box-tatle"><p>Profile</p></div>',
+            f'<div class="profile"><font color="white">{profile}</font></div>',
+        ])
+    body.extend([
+        '</div></div></div>',
+        '<div class="box-out"><div class="box-in"><div class="box-tatle"><p>Stats</p></div>',
+        _info_stats_block(paths, stats),
+        '</div></div>',
+        '<div class="box-out"><div class="box-in">',
+        _info_old_graph_block("RKS History", data.get("rks_history", []), data.get("rks_range", [0, 1]), data.get("rks_date", ["", ""])),
+        _info_old_graph_block("DATA History", data.get("data_history", []), data.get("data_range", [0, 1]), data.get("data_date", ["", ""])),
+        '</div></div>',
+        '<div class="createdbox"><div class="phi-plugin"><p>AstrBot Phi Plugin</p></div><div class="ver"><p>HTML</p></div></div>',
+    ])
+    return original_page(paths, "userinfo/userinfo-old.css", "".join(body), theme="default", background=data["background"], width=1800)
+
+
 def _userinfo_layout_guard() -> str:
     return """
 <style>
@@ -1619,10 +1668,36 @@ body {
 """
 
 
+def _userinfo_old_layout_guard() -> str:
+    return """
+<style>
+:root {
+  --phi-viewport-width: 1800px;
+}
+html, body {
+  width: 1800px !important;
+  min-width: 1800px !important;
+  max-width: 1800px !important;
+}
+body {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+}
+.basis-box {
+  background-size: cover !important;
+  background-position: top !important;
+}
+.stats-box {
+  width: 100% !important;
+}
+</style>
+"""
+
+
 def _info_graph_block(title: str, lines: list[dict[str, Any]], value_range: list[float], date_text: list[str]) -> str:
     if not lines:
         return f'<div class="data_title"><div class="data_title-left"><p>{_esc(title)}</p></div></div><div class="svg-box"><p>NO_INFO</p></div>'
-    height = 100
     svg_lines = "".join(
         f'<line x1="{line["x1"]}%" y1="{line["y1"]}%" x2="{line["x2"]}%" y2="{line["y2"]}%"></line>'
         for line in lines
@@ -1637,6 +1712,11 @@ def _info_graph_block(title: str, lines: list[dict[str, Any]], value_range: list
         f'{svg_lines}</svg></div><div class="date_box">{dates}</div></div>'
         '</div>'
     )
+
+
+def _info_old_graph_block(title: str, lines: list[dict[str, Any]], value_range: list[float], date_text: list[str]) -> str:
+    body = _info_graph_block(title, lines, value_range, date_text)
+    return f'<div class="box-tatle"><p>{_esc(title)}</p></div>{body}'
 
 
 def _info_limit_block(data_rows: list[dict[str, Any]], value_range: list[float], positions: list[dict[str, Any]]) -> str:
@@ -2760,6 +2840,56 @@ def _atlas_info(title: str, value: str) -> str:
     if not value:
         return ""
     return f'<div class="other-box"><div class="title"><p>{_esc(title)}</p></div><div class="dcr"><p>{_esc(value)}</p></div></div>'
+
+
+def _atlas_comment_box(paths: PluginPaths, comments: dict[str, Any] | None) -> str:
+    if not comments:
+        return ""
+    rows = []
+    for item in comments.get("list") or []:
+        if isinstance(item, dict):
+            rows.append(_atlas_comment_row(paths, item))
+    if not rows:
+        rows.append('<div class="a_comment"><div class="comment"><p name="pvis">暂无评论</p></div></div>')
+    command = comments.get("command") or ""
+    return f"""
+<div class="comment-box">
+  <div class="comment_title"><p>Comments</p><p>{_esc(command)}</p></div>
+  {''.join(rows)}
+</div>"""
+
+
+def _atlas_comment_row(paths: PluginPaths, item: dict[str, Any]) -> str:
+    avatar = str(item.get("avatar") or "Introduction")
+    avatar_uri = asset_uri(paths, f"html/avatar/{avatar}.png") or asset_uri(paths, "html/avatar/Introduction.png")
+    player = str(item.get("PlayerId") or item.get("playerId") or item.get("apiUserId") or "UNKNOWN")
+    if len(player) > 15:
+        player = player[:12] + "..."
+    rank = str(item.get("rank") or "IN").upper()
+    if rank not in LEVELS:
+        rank = "IN"
+    challenge = _as_int(item.get("challenge") or item.get("challengeModeRank"))
+    challenge_mode = max(0, min(5, challenge // 100))
+    challenge_rank = challenge % 100
+    score = _as_int(item.get("score"))
+    acc = _as_number(item.get("acc"))
+    rks = _as_number(item.get("rks") or item.get("rankingScore"))
+    comment_id = item.get("thisId") or item.get("id") or "?"
+    time = _date_label(item.get("time") or item.get("createdAt") or item.get("updatedAt"))
+    content = _safe(str(item.get("comment") or "")).replace("\n", "<br>")
+    return f"""
+<div class="a_comment">
+  <div class="avatar"><img src="{avatar_uri}" alt="{_esc(avatar)}"></div>
+  <div class="userInfo">
+    <div class="playerId"><p name="pvis">{_esc(player)}</p></div>
+    <div class="rks"><p>{rks:.4f}</p></div>
+    <div class="score {rank}-BKG"><p>{score}</p></div>
+    <div class="acc {rank}-BKG"><p>{acc:.2f}%</p></div>
+    <div class="clg_box"><div class="Challenge"><img src="{asset_uri(paths, f"html/otherimg/{challenge_mode}.png")}" alt="{challenge}"><p>{challenge_rank}</p></div></div>
+    <div class="time"><p>{_esc(time)}&ensp;ID:{_esc(comment_id)}</p></div>
+  </div>
+  <div class="comment"><p name="pvis">{content}</p></div>
+</div>"""
 
 
 def _chart_note_info(paths: PluginPaths, song_id: str, rank: str, fallback_combo: int | None) -> dict[str, Any]:

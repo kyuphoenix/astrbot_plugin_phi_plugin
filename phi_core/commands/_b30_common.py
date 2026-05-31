@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 from .common import CommandContext, CommandResult
 from ._rendering import render_original_html
@@ -89,14 +90,22 @@ async def _attach_acc_averages(ctx: CommandContext, result) -> None:
             record.acc_kind = "Finished"
 
 
-async def render_best30(ctx: CommandContext, user_id: str) -> CommandResult:
+async def render_best30(ctx: CommandContext, user_id: str, args: str = "") -> CommandResult:
     snapshot = ctx.load_snapshot(user_id)
     if not snapshot:
         return CommandResult.text(render.render_no_cached_save())
-    limit = max(33, ctx.config.max_b30)
+    requested_limit = _limit_from_args(args)
+    limit = max(33, requested_limit or ctx.config.max_b30)
     result = compute_b30(snapshot, ctx.catalog, limit=limit)
     await _attach_acc_averages(ctx, result)
     if ctx.config.render_mode == "image":
         path = await render_original_html(ctx, original.b30_html(ctx.paths, result, snapshot), "b30")
         return CommandResult.image(path)
     return CommandResult.text(render.render_b30(result, limit=limit))
+
+
+def _limit_from_args(args: str) -> int | None:
+    match = re.search(r"\d+", args or "")
+    if not match:
+        return None
+    return max(1, min(100, int(match.group(0))))

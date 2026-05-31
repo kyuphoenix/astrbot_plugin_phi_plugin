@@ -18,6 +18,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text("\u8bf7\u8f93\u5165\u5b9a\u6570\u3002\n\u683c\u5f0f\uff1aphi table <\u5b9a\u6570>")
     difficulty = float(match.group(0))
     version_label = "current"
+    version_changes = None
     version_match = re.search(r"-v\s*(\S+)", args, flags=re.IGNORECASE)
     if version_match:
         version_code = resolve_version_code(ctx.paths.info, version_match.group(1))
@@ -25,7 +26,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         if version_log is None:
             return CommandResult.text(f"\u672a\u627e\u5230\u7248\u672c {version_match.group(1)} \u7684\u672c\u5730\u4fe1\u606f\u3002")
         version_label = version_log.version_label
-    charts = charts_for_table(ctx.catalog, difficulty)
+        version_changes = version_log.changes
+    charts = charts_for_table(ctx.catalog, difficulty, version_changes)
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         snapshot = ctx.load_snapshot(user_id)
         record_map = {(record.song_id, record.rank): record for record in iter_score_records(snapshot, ctx.catalog)} if snapshot else {}

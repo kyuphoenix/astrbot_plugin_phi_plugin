@@ -45,6 +45,12 @@ class ScoreFilter:
             "评级 " + "/".join(rating for rating in RATING_ORDER if rating in self.ratings),
         ]
 
+    def original_request_lines(self) -> list[str]:
+        return [
+            f"定数 {self.difficulty.label()}",
+            f"ACC {self.acc.label()}",
+        ]
+
 
 def all_chart_entries(catalog: SongCatalog) -> list[ChartEntry]:
     entries: list[ChartEntry] = []
@@ -260,11 +266,43 @@ def suggest_entries(
     return result
 
 
-def charts_for_table(catalog: SongCatalog, difficulty: int | float) -> list[ChartEntry]:
+def charts_for_table(catalog: SongCatalog, difficulty: int | float, changes: list[dict[str, str]] | None = None) -> list[ChartEntry]:
     low = float(difficulty)
     high = low + 0.9 if float(difficulty).is_integer() else low
     rng = RangeFilter(low, high)
+    if changes is not None:
+        return _charts_for_table_changes(catalog, changes, rng)
     return [entry for entry in all_chart_entries(catalog) if rng.contains(entry.difficulty)]
+
+
+def _charts_for_table_changes(catalog: SongCatalog, changes: list[dict[str, str]], rng: RangeFilter) -> list[ChartEntry]:
+    entries: list[ChartEntry] = []
+    for row in changes:
+        song_id = normalize_song_id(str(row.get("id") or ""))
+        if not song_id:
+            continue
+        song = catalog.get(song_id)
+        title = song.title if song is not None else song_id
+        for rank in LEVELS:
+            raw_difficulty = row.get(rank)
+            if raw_difficulty is None or str(raw_difficulty).strip() == "":
+                continue
+            try:
+                difficulty = float(raw_difficulty)
+            except (TypeError, ValueError):
+                continue
+            if not rng.contains(difficulty):
+                continue
+            chart = song.charts.get(rank) if song is not None else None
+            entries.append(ChartEntry(
+                song_id=song_id,
+                song_title=title,
+                rank=rank,
+                difficulty=difficulty,
+                difficulty_text=f"{difficulty:.1f}",
+                combo=chart.combo if chart is not None else None,
+            ))
+    return sorted(entries, key=lambda item: (item.difficulty, item.rank, item.song_title))
 
 
 def random_challenge(catalog: SongCatalog, args: str, *, rng: random.Random | None = None) -> tuple[int, list[ChartEntry]] | None:
