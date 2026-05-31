@@ -40,6 +40,7 @@ class FakeLoginClient(PhiApiClient):
         self.ranklist_rks_requests: list[float] = []
         self.score_ranklist_requests: list[dict[str, object]] = []
         self.song_apfc_requests: list[str] = []
+        self.songs_apfc_requests: list[dict[str, object]] = []
 
     async def bind_user(self, user_id: str, *, token=None, api_id=None, is_global=None):  # type: ignore[override]
         self.bind_calls.append({"user_id": user_id, "token": token, "api_id": api_id, "is_global": is_global})
@@ -170,6 +171,23 @@ class FakeLoginClient(PhiApiClient):
             "EZ": {"apCount": 1, "fcCount": 2, "total": 4},
             "HD": {"apCount": 2, "fcCount": 3, "total": 5},
             "IN": {"apCount": 3, "fcCount": 4, "total": 6},
+        }
+
+    async def fetch_songs_ap_fc_count(self, song_ids, *, ranks, min_rks, max_rks):  # type: ignore[override]
+        self.songs_apfc_requests.append({
+            "song_ids": list(song_ids),
+            "ranks": list(ranks),
+            "min_rks": min_rks,
+            "max_rks": max_rks,
+        })
+        return {
+            str(song_id): {
+                "EZ": {"apCount": 1, "fcCount": 2, "total": 4},
+                "HD": {"apCount": 2, "fcCount": 3, "total": 5},
+                "IN": {"apCount": 3, "fcCount": 4, "total": 6},
+                "AT": {"apCount": 4, "fcCount": 5, "total": 7},
+            }
+            for song_id in song_ids
         }
 
     def _ranklist_payload(self, *, me_index: int) -> dict:
@@ -783,6 +801,7 @@ async def main() -> None:
                 "list": "12",
                 "lvscore": "12",
                 "table": "12",
+                "suggest": "HD FC 1+",
                 "score": "Glaciaxion -dif EZ -or score",
                 "chap": "C0",
                 "achievement": "12",
@@ -813,6 +832,14 @@ async def main() -> None:
                 request = login_client.score_ranklist_requests[-1]
                 if request["rank"] != "EZ" or request["order_by"] != "score":
                     raise SystemExit(f"image score did not pass -dif/-or options to API: {request!r}")
+            if command == "suggest":
+                if "group-phi" not in html or "AP Count" not in html:
+                    raise SystemExit("image suggest should render upstream phi/AP Count recommendation group")
+                if not login_client.songs_apfc_requests:
+                    raise SystemExit("image suggest should request batch AP/FC statistics")
+                request = login_client.songs_apfc_requests[-1]
+                if request["ranks"] != ["EZ", "HD", "IN", "AT"]:
+                    raise SystemExit(f"image suggest should request all standard ranks, got {request!r}")
             if command == "info":
                 options = b30_render_calls[-1][3] or {}
                 if options.get("viewport_width") != 1920 or options.get("viewport_height") != 1500:

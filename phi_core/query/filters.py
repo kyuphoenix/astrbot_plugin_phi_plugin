@@ -6,7 +6,7 @@ import random
 import re
 from typing import Iterable
 
-from ..data.loader import SongCatalog
+from ..data.loader import SongCatalog, normalize_song_id
 from ..models import ChartEntry, LEVELS, LevelScoreSummary, SaveSnapshot, ScoreListEntry, ScoreRecord, SuggestEntry
 from .b30 import iter_score_records, rks_from_acc
 
@@ -199,34 +199,65 @@ def compute_average_rks(records: Iterable[ScoreRecord], denominator: int = 30) -
 
 
 def target_acc_for_rks(target_rks: float, difficulty: float) -> float | None:
-    if difficulty <= 0 or target_rks <= 0:
-        return 70.0
-    answer = 45.0 * math.sqrt(target_rks / difficulty) + 55.0
+    if difficulty <= 0:
+        return None
+    answer = 45.0 * math.sqrt(max(target_rks, 0.0) / difficulty) + 55.0
     if answer >= 100:
         return None
-    return max(70.0, answer)
+    return answer
 
 
-def suggest_entries(snapshot: SaveSnapshot, catalog: SongCatalog, *, limit: int = 12) -> list[SuggestEntry]:
+def suggest_entries(
+    snapshot: SaveSnapshot,
+    catalog: SongCatalog,
+    *,
+    score_filter: ScoreFilter | None = None,
+    avg_lookup: dict[tuple[str, str], float] | None = None,
+    per_group_limit: int = 3,
+) -> list[SuggestEntry]:
     records = iter_score_records(snapshot, catalog)
     sorted_records = sorted(records, key=lambda item: item.rks, reverse=True)
-    floor_rks = sorted_records[29].rks if len(sorted_records) >= 30 else 0.0
-    target_floor = floor_rks + 0.001
+    floor_rks = sorted_records[26].rks if len(sorted_records) > 26 else 0.0
+    min_up = _min_up_rks(snapshot.ranking_score) * 30
+    phi_floor = max((record.rks for record in sorted_records if record.acc >= 100), default=None)
     record_map = {(record.song_id, record.rank): record for record in records}
-    suggestions: list[SuggestEntry] = []
+    avg_lookup = avg_lookup or {}
+    eligible_song_ids = _record_song_ids(snapshot)
+    suggestions: dict[int, list[SuggestEntry]] = {index: [] for index in range(6)}
     for chart in all_chart_entries(catalog):
+        if eligible_song_ids and chart.song_id not in eligible_song_ids:
+            continue
+        if score_filter is not None:
+            if chart.rank not in score_filter.levels:
+                continue
+            if not score_filter.difficulty.contains(chart.difficulty):
+                continue
         current = record_map.get((chart.song_id, chart.rank))
-        current_rks = current.rks if current else 0.0
-        target_rks = max(target_floor, current_rks + 0.001)
+        rating = "NEW" if current is None else ("PHI" if current.rating == "phi" else current.rating.upper())
+        if score_filter is not None and rating not in score_filter.ratings:
+            continue
+        target_rks = max(floor_rks, current.rks if current else 0.0) + min_up
         target_acc = target_acc_for_rks(target_rks, chart.difficulty)
-        if target_acc is None or target_acc > 100:
+        if target_acc is None:
+            if phi_floor is not None and chart.difficulty > phi_floor + min_up:
+                target_acc = 100.0
+            else:
+                continue
+        if target_acc > 100:
             continue
-        if current and target_acc <= current.acc:
-            continue
-        if current and current.acc >= 100:
-            continue
-        suggestions.append(SuggestEntry(chart=chart, current=current, target_acc=target_acc, target_rks=target_rks))
-    return sorted(suggestions, key=lambda item: (item.target_acc, -item.chart.difficulty, item.chart.song_title))[:limit]
+        entry = SuggestEntry(
+            chart=chart,
+            current=current,
+            target_acc=target_acc,
+            target_rks=target_rks,
+            avg_acc=avg_lookup.get((chart.song_id, chart.rank), 0.0),
+        )
+        suggestions[_suggest_bucket(target_acc)].append(entry)
+
+    result: list[SuggestEntry] = []
+    for index in range(6):
+        result.extend(sorted(suggestions[index], key=_suggest_sort_key)[:per_group_limit])
+    return result
 
 
 def charts_for_table(catalog: SongCatalog, difficulty: int | float) -> list[ChartEntry]:
@@ -316,3 +347,35 @@ def _fmt_number(value: float) -> str:
     if value.is_integer():
         return str(int(value))
     return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+def _min_up_rks(rks: float) -> float:
+    value = math.floor(rks * 100) / 100 + 0.005 - rks
+    return value + 0.01 if value < 0 else value
+
+
+def _suggest_bucket(acc: float) -> int:
+    if acc < 98.5:
+        return 0
+    if acc < 99:
+        return 1
+    if acc < 99.5:
+        return 2
+    if acc < 99.7:
+        return 3
+    if acc < 99.85:
+        return 4
+    return 5
+
+
+def _suggest_sort_key(entry: SuggestEntry) -> tuple[float, float, str, int]:
+    rank_order = {rank: index for index, rank in enumerate(LEVELS)}
+    delta = entry.chart.difficulty * 100 * (entry.target_acc - entry.avg_acc)
+    return (delta, -entry.chart.difficulty, entry.chart.song_title, rank_order.get(entry.chart.rank, 99))
+
+
+def _record_song_ids(snapshot: SaveSnapshot) -> set[str]:
+    raw_records = snapshot.raw.get("gameRecord")
+    if not isinstance(raw_records, dict):
+        return set()
+    return {normalize_song_id(str(song_id)) for song_id in raw_records}

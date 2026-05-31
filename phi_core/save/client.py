@@ -328,6 +328,24 @@ class PhiApiClient:
         data = await self._post("/get/scoreList/songApFcCount", {"songId": song_id})
         return data if isinstance(data, dict) else {}
 
+    async def fetch_songs_ap_fc_count(
+        self,
+        song_ids: list[str],
+        *,
+        ranks: list[str],
+        min_rks: float,
+        max_rks: float,
+    ) -> dict[str, Any]:
+        data = await self._post("/get/scoreList/songsApFcCount", {
+            "songId": song_ids,
+            "rank": ranks,
+            "rksRange": {
+                "min": min_rks,
+                "max": max_rks,
+            },
+        })
+        return data if isinstance(data, dict) else {}
+
     async def set_chart_tags(
         self,
         user_id: str,

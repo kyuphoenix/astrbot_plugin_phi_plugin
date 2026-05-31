@@ -26,6 +26,7 @@ from ..models import (
     ChartEntry,
     LEVELS,
     LevelScoreSummary,
+    PhiSuggestEntry,
     SaveSnapshot,
     ScoreListEntry,
     ScoreRecord,
@@ -147,7 +148,13 @@ def list_html(paths: PluginPaths, entries: list[ScoreListEntry], *, title: str =
     return original_page(paths, "list/list.css", body, theme="default", background=_random_background_for_entries(paths, entries))
 
 
-def suggest_html(paths: PluginPaths, entries: list[SuggestEntry], *, title: str = "推分建议") -> str:
+def suggest_html(
+    paths: PluginPaths,
+    entries: list[SuggestEntry],
+    *,
+    phi_entries: list[PhiSuggestEntry] | None = None,
+    title: str = "推分建议",
+) -> str:
     grouped: dict[str, list[SuggestEntry]] = {str(index): [] for index in range(6)}
     for entry in entries:
         grouped[_suggest_type(entry.target_acc)].append(entry)
@@ -160,6 +167,10 @@ def suggest_html(paths: PluginPaths, entries: list[SuggestEntry], *, title: str 
         ("0", "00.00% ~ 98.50%"),
     ]
     body_parts = [f'<div class="head_title"><p>{_esc(title)}</p></div>', '<div class="group_list">']
+    body_parts.append('<div class="group group-phi"><div class="group_title"><p>phi</p></div><div class="row_box">')
+    for index, entry in enumerate(phi_entries or [], 1):
+        body_parts.append(_phi_suggest_line(paths, entry, index))
+    body_parts.append("</div></div>")
     for key, label in groups:
         body_parts.append(f'<div class="group group-kind-{key}"><div class="group_title"><p>{_esc(label)}</p></div><div class="row_box">')
         if grouped[key]:
@@ -2509,6 +2520,21 @@ def _suggest_line(paths: PluginPaths, entry: SuggestEntry, index: int, kind: str
   <div class="info_box"><div class="down">
     <div class="acc"><div class="box-content">{'---' if acc is None else f'{acc:.4f}'}%</div><div class="suggest suggest-kind-{kind}">&gt; {entry.target_acc:.4f}</div></div>
     <div class="score_rating"><div class="score">{_esc(score)}</div><div class="rating"><img src="{asset_uri(paths, f"html/otherimg/{rating}.png")}" alt="{_esc(rating)}"></div></div>
+  </div></div>
+</div>"""
+
+
+def _phi_suggest_line(paths: PluginPaths, entry: PhiSuggestEntry, index: int) -> str:
+    chart = entry.chart
+    title = _esc(_song_display_name(paths, chart.song_id, chart.song_title))
+    total = max(0, int(entry.total or 0))
+    return f"""
+<div class="line">
+  <div class="song_name"><div class="num"><span name="pvis">{index}</span></div><div class="song"><span name="pvis">{title}</span></div><div class="dif {_esc(chart.rank)}"><span name="pvis">{chart.difficulty:.1f}</span></div></div>
+  <div class="ill_box"><img src="{_chart_illustration(paths, chart)}" alt="{title}"></div>
+  <div class="info_box"><div class="down">
+    <div class="acc"><div class="box-content">AP Count</div><div class="suggest suggest-kind-5">{int(entry.ap_count)} / {total}</div></div>
+    <div class="score_rating"><div class="score">{_esc(chart.rank)}</div><div class="rating"><img src="{asset_uri(paths, "html/otherimg/phi.png")}" alt="phi"></div></div>
   </div></div>
 </div>"""
 

@@ -106,6 +106,15 @@ class SuggestEntry:
     current: ScoreRecord | None
     target_acc: float
     target_rks: float
+    avg_acc: float = 0.0
+
+
+@dataclass(slots=True)
+class PhiSuggestEntry:
+    chart: ChartEntry
+    ap_count: int
+    fc_count: int = 0
+    total: int = 0
 
 
 @dataclass(slots=True)
