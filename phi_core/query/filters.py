@@ -238,14 +238,24 @@ def charts_for_table(catalog: SongCatalog, difficulty: int | float) -> list[Char
 
 def random_challenge(catalog: SongCatalog, args: str, *, rng: random.Random | None = None) -> tuple[int, list[ChartEntry]] | None:
     rng = rng or random.Random()
-    max_diff = max((entry.difficulty for entry in all_chart_entries(catalog)), default=18.0)
-    parsed_range = parse_range(args, default=(20.0, 45.0), max_value=51.0)
-    levels = parse_levels(args)
-    charts = [entry for entry in all_chart_entries(catalog) if entry.rank in levels and entry.difficulty <= max_diff]
+    entries = all_chart_entries(catalog)
+    max_diff = max((entry.difficulty for entry in entries), default=18.0)
+    target_args, chart_args = _split_challenge_args(args)
+    parsed_range = parse_range(target_args, default=(20.0, 45.0), max_value=51.0, int_bucket=True)
+    target_levels = parse_levels(target_args)
+    chart_range = parse_range(chart_args, default=(0.0, max_diff), max_value=max_diff, int_bucket=True)
+    chart_levels = parse_levels(chart_args)
+    charts = [
+        entry
+        for entry in entries
+        if entry.rank in target_levels
+        and entry.rank in chart_levels
+        and chart_range.contains(entry.difficulty)
+    ]
     by_floor: dict[int, list[ChartEntry]] = {}
     for chart in charts:
         by_floor.setdefault(int(math.floor(chart.difficulty)), []).append(chart)
-    targets = list(range(int(parsed_range.low), int(parsed_range.high) + 1))
+    targets = list(range(max(1, int(parsed_range.low)), int(parsed_range.high) + 1))
     rng.shuffle(targets)
     for target in targets:
         for _ in range(1500):
@@ -270,6 +280,14 @@ def random_challenge(catalog: SongCatalog, args: str, *, rng: random.Random | No
             if ok and len(selected) == 3:
                 return target, selected
     return None
+
+
+def _split_challenge_args(args: str) -> tuple[str, str]:
+    match = re.search(r"[\(（]([^()（）]*)[\)）]", args)
+    if match is None:
+        return args, ""
+    outer = f"{args[:match.start()]} {args[match.end():]}".strip()
+    return outer, match.group(1).strip()
 
 
 def _random_three_parts(target: int, available: Iterable[int], rng: random.Random) -> list[int] | None:

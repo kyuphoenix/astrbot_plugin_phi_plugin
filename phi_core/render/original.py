@@ -2601,11 +2601,18 @@ def _history_rank_card(title: str, items: list[tuple[str, Any]]) -> str:
 
 
 def _randclg_song_card(paths: PluginPaths, chart: ChartEntry, index: int) -> str:
+    note_info = _chart_note_info(paths, chart.song_id, chart.rank, chart.combo)
     return f"""
 <div class="song-box box-{index}">
   <div class="ill-box"><div class="ill"><img src="{_chart_illustration(paths, chart)}" alt="{_esc(chart.song_title)}"></div><div class="info-box"><div class="song_name"><p name="pvis">{_esc(chart.song_title)}</p></div></div></div>
   <div class="dif"><p>{_esc(chart.rank)}</p><p>{chart.difficulty:.1f}</p></div>
-  <div class="notes-box"><div class="notes-info"><div class="notes_num"><p>{chart.combo or "-"}</p></div><div class="notes_title"><p>Combo</p></div></div></div>
+  <div class="notes-box">
+    <div class="notes-info tap"><div class="notes_num"><p>{note_info["tap"]}</p></div><div class="notes_title"><p>Tap</p></div></div>
+    <div class="notes-info drag"><div class="notes_num"><p>{note_info["drag"]}</p></div><div class="notes_title"><p>Drag</p></div></div>
+    <div class="notes-info hold"><div class="notes_num"><p>{note_info["hold"]}</p></div><div class="notes_title"><p>Hold</p></div></div>
+    <div class="notes-info flick"><div class="notes_num"><p>{note_info["flick"]}</p></div><div class="notes_title"><p>Flick</p></div></div>
+    <div class="notes-info"><div class="notes_num"><p>{note_info["combo"]}</p></div><div class="notes_title"><p>Combo</p></div></div>
+  </div>
 </div>"""
 
 

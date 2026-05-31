@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import shutil
 import sys
 from pathlib import Path
@@ -19,6 +20,7 @@ from phi_core.data.illustrations import find_background_illustration_file, rando
 from phi_core.data import SongSearcher, load_catalog
 from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord
 from phi_core.paths import PluginPaths
+from phi_core.query import random_challenge
 from phi_core.render import html_renderer, original, panel
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
 from phi_core.save.taptap import _is_oauth_waiting_response
@@ -358,6 +360,12 @@ async def main() -> None:
         newlog_diff_rows = original._newlog_changed_rows(paths, catalog)
         if not any(len(row) == 4 and row[2].get("cnt") == "tap" for row in newlog_diff_rows):
             raise SystemExit("newlog should include tap/drag/hold/flick note-count diffs from oldNotesInfo")
+        filtered_challenge = random_challenge(catalog, "30-45 IN (12-15)", rng=random.Random(0))
+        if filtered_challenge is None:
+            raise SystemExit("randclg should find charts with outer rank and inner chart filters")
+        _, challenge_charts = filtered_challenge
+        if any(chart.rank != "IN" or chart.difficulty < 12 or chart.difficulty > 15.9 for chart in challenge_charts):
+            raise SystemExit(f"randclg did not honor outer/inner filters: {challenge_charts!r}")
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(
             config=config,
@@ -783,6 +791,8 @@ async def main() -> None:
                     raise SystemExit(f"image ranklist should use original 2048x1080 viewport, got {options!r}")
                 if ".b30list" not in html or "ChallengeMode History" not in html:
                     raise SystemExit("image ranklist should render the original right-side detail panel")
+            if command == "randclg" and ('class="notes-info tap"' not in html or ">Tap<" not in html):
+                raise SystemExit("image randclg should render original tap/drag/hold/flick note breakdown")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")
