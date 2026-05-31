@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -350,6 +351,13 @@ async def main() -> None:
             if image.width != 1200:
                 raise SystemExit(f"right-border trim should crop blank edge to 1200px, got {image.size}")
         catalog = load_catalog(paths.info)
+        old_notes_path = paths.info / "oldNotesInfo.json"
+        old_notes = json.loads(old_notes_path.read_text(encoding="utf-8-sig"))
+        old_notes["Glaciaxion.SunsetRay"]["EZ"]["t"][0] -= 1
+        old_notes_path.write_text(json.dumps(old_notes, ensure_ascii=False), encoding="utf-8")
+        newlog_diff_rows = original._newlog_changed_rows(paths, catalog)
+        if not any(len(row) == 4 and row[2].get("cnt") == "tap" for row in newlog_diff_rows):
+            raise SystemExit("newlog should include tap/drag/hold/flick note-count diffs from oldNotesInfo")
         config = PluginConfig(render_mode="text")
         ctx = CommandContext(
             config=config,
@@ -364,6 +372,7 @@ async def main() -> None:
         cases = [
             ("help", "", "Phi Plugin Query Core"),
             ("song", "Glaciaxion", "Glaciaxion"),
+            ("search", "dif 12 combo 300-600", "当前筛选："),
             ("pgr", "", "还没有可用"),
             ("data", "", "还没有可用"),
             ("id", "", "查询 ID: 12345"),

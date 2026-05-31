@@ -884,6 +884,8 @@ def _newlog_changed_rows(paths: PluginPaths, catalog: SongCatalog | None) -> lis
     previous = _newlog_previous_difficulty(paths)
     if not previous:
         return []
+    current_notes = _newlog_load_notes(paths.info / "notesInfo.json")
+    old_notes = _newlog_load_notes(paths.info / "oldNotesInfo.json")
     rows: list[list[dict[str, Any]]] = []
     for song in catalog.all_songs():
         old_row = previous.get(song.id)
@@ -895,6 +897,17 @@ def _newlog_changed_rows(paths: PluginPaths, catalog: SongCatalog | None) -> lis
             old_difficulty = _newlog_number(old_row.get(chart.rank))
             new_difficulty = chart.difficulty
             bkg = _newlog_level_color(chart.rank)
+            current_counts = _newlog_note_counts(current_notes, song.id, chart.rank)
+            old_counts = _newlog_note_counts(old_notes, song.id, chart.rank)
+            if old_difficulty is None:
+                for label, value in _newlog_new_chart_items(new_difficulty, current_counts, chart.combo):
+                    rows.append([
+                        {"cnt": song.title},
+                        {"cnt": chart.rank, "bkg": bkg},
+                        {"cnt": label, "bkg": bkg},
+                        {"cnt": value, "bkg": bkg},
+                    ])
+                continue
             if old_difficulty is not None and new_difficulty is not None and abs(old_difficulty - new_difficulty) > 0.0001:
                 incr = old_difficulty < new_difficulty
                 rows.append([
@@ -907,7 +920,74 @@ def _newlog_changed_rows(paths: PluginPaths, catalog: SongCatalog | None) -> lis
                         "bkg": bkg,
                     },
                 ])
+            if old_counts is not None and current_counts is not None:
+                for index, label in enumerate(("tap", "drag", "hold", "flick")):
+                    if old_counts[index] != current_counts[index]:
+                        rows.append(_newlog_delta_row(song.title, chart.rank, bkg, label, old_counts[index], current_counts[index]))
+                old_combo = sum(old_counts)
+                current_combo = sum(current_counts)
+                if old_combo != current_combo:
+                    rows.append(_newlog_delta_row(song.title, chart.rank, bkg, "combo", old_combo, current_combo))
     return rows
+
+
+def _newlog_delta_row(song_title: str, rank: str, bkg: str, label: str, old_value: int, new_value: int) -> list[dict[str, Any]]:
+    incr = old_value < new_value
+    return [
+        {"cnt": song_title},
+        {"cnt": rank, "bkg": bkg},
+        {"cnt": label, "bkg": bkg},
+        {
+            "cnt": f"{old_value} ({'+' if incr else '-'}) {new_value}",
+            "color": "red" if incr else "green",
+            "bkg": bkg,
+        },
+    ]
+
+
+def _newlog_new_chart_items(
+    difficulty: float | None,
+    counts: tuple[int, int, int, int] | None,
+    combo: int | None,
+) -> list[tuple[str, Any]]:
+    items: list[tuple[str, Any]] = []
+    if counts is not None:
+        items.extend(zip(("tap", "drag", "hold", "flick"), counts, strict=True))
+    if difficulty is not None:
+        items.append(("\u5b9a\u6570", f"{difficulty:g}"))
+    total = sum(counts) if counts is not None else combo
+    if total:
+        items.append(("combo", total))
+    return items
+
+
+def _newlog_load_notes(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _newlog_note_counts(notes: dict[str, Any], song_id: str, rank: str) -> tuple[int, int, int, int] | None:
+    song_notes = notes.get(song_id.removesuffix(".0")) or notes.get(song_id)
+    if not isinstance(song_notes, dict):
+        return None
+    chart_notes = song_notes.get(rank)
+    if not isinstance(chart_notes, dict):
+        return None
+    totals = chart_notes.get("t")
+    if not isinstance(totals, list) or len(totals) < 4:
+        return None
+    result: list[int] = []
+    for value in totals[:4]:
+        parsed = _newlog_number(value)
+        if parsed is None:
+            return None
+        result.append(int(parsed))
+    return (result[0], result[1], result[2], result[3])
 
 
 def _newlog_previous_difficulty(paths: PluginPaths) -> dict[str, dict[str, str]]:

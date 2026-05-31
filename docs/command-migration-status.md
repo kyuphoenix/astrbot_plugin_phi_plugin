@@ -45,13 +45,13 @@ Status legend:
 | `/ill` | `phi ill` | Aligned | `html/ill/ill.art`, `ill.css` | Uses original-style HTML chain with base64 image transfer. |
 | `/rand` | `phi rand` | Partial | `html/rand/rand.art`, `rand.css` | Image mode now uses original random-song resources. Still needs upstream random filter parsing and exact chart selection behavior. |
 | `/randclg` | `phi randclg` | Partial | `html/clg/clg.art`, `clg.css` | Image mode now uses original challenge resources with local random challenge selection. Still needs note breakdown and upstream range/rank parsing parity. |
-| `/search` | `phi search` | Partial | Text in upstream | Implemented as text. Need verify BPM/difficulty/combo filter parity against upstream. |
+| `/search` | `phi search` | Partial | Text/forward message in upstream | Added upstream-style `bpm` / `difficulty|dif|定数|难度|定级` / `combo|cmb|物量|连击` filters with integer difficulty bucket behavior. Plain keyword fuzzy search remains as an AstrBot extension; upstream forward-message batching is not ported. |
 | `/alias` | `phi alias` | Aligned | Text in upstream | Implemented as text. |
 | `/setnick` | `phi setnick` | Partial | Admin text in upstream | Implemented. Need `delnick` command for full alias management parity. |
 | `/delnick` | `phi delnick` | Partial | Admin text in upstream | Added deletion for AstrBot local custom aliases. Upstream route is commented out, so this intentionally only removes user-managed aliases, not bundled aliases. |
 | `/com`, `/计算` | `phi com`, `phi 计算` | Aligned | Text in upstream | Implemented. |
 | `/tips` | `phi tips` | Aligned | Text in upstream | Implemented. |
-| `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art`, `newSong.css` | Now fetches TapTap official update text like upstream `PgrUpdateInfo`, sends image + update text in AstrBot runtime, and renders the original-style `newSong` table with new-song matching from update notes plus local difficulty diff. Still needs full upstream `updatedChart` note-type diff (`tap/drag/hold/flick`) parity. |
+| `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art`, `newSong.css` | Now fetches TapTap official update text like upstream `PgrUpdateInfo`, sends image + update text in AstrBot runtime, and renders the original-style `newSong` table with new-song matching plus local difficulty and `tap/drag/hold/flick/combo` note-count diffs from `oldNotesInfo.json`. Still needs exact upstream runtime wording/error comparison. |
 | `/newnotice` | `phi newnotice` | Partial | `html/newnotice/newnotice.art`, `newnotice.css` | Now prefers the upstream TapTap official notice API and renders through the original newnotice resource chain with remote images inlined as data URIs; falls back to local `notice.json` when TapTap is unavailable. Exact upstream runtime wording/error behavior still needs comparison. |
 | `/live` | `phi live` | Aligned | Text/API in upstream | Calls the same `/live` API path, prefixes `直播速递：`, and uses the upstream empty/error wording. |
 
@@ -87,7 +87,7 @@ Status legend:
 
 | Upstream command | Current AstrBot command | Status | Upstream template/resource | Notes / next action |
 |---|---|---:|---|---|
-| `/jrrp`, `/今日人品` | `phi jrrp`, `phi 今日人品` | Partial | `html/jrrp/jrrp.art`, `jrrp.css` | Daily luck uses the original easing/word-pool structure, is cached per UTC+8 day like upstream Redis TTL, and image mode uses original jrrp resources/base64 assets. Still needs exact event/date-special wording comparison. |
+| `/jrrp`, `/今日人品` | `phi jrrp`, `phi 今日人品` | Aligned | `html/jrrp/jrrp.art`, `jrrp.css` | Audited against upstream `apps/jrrp.js`: daily luck uses the same easing/word-pool structure, UTC+8 day cache semantics, fixed `ShineAfter` background, and original jrrp resources/base64 assets. |
 | `/guess` | `phi guess`, `phi 猜曲绘` | Partial | `html/guess/guess.art`, `guess.css` | Added session-scoped command-style guess-illustration game, weighted song selection, original guess CSS/SVG filter render, base64 illustrations, answer reveal, and `phi guess <answer>`. Upstream no-prefix answer listener, timed auto hints/timeout, recall behavior, and ban-group integration are still not ported. |
 | `/tipgame` | `phi tipgame`, `phi 提示猜曲` | Partial | Guess-game text/image | Added session-scoped text-hint game with `phi tip` progression and final original guess-image hint. Still needs upstream cooldown/timeout automation and richer direct-message answer handling. |
 | `/ltr` | `phi ltr`, `phi letter`, `phi 开字母` | Partial | Guess-letter text/markdown output | Added session-scoped letter game, weighted multi-song selection, `phi ltr n1 <answer>`, `phi open <letter>`, random `phi tip`, answer reveal, and optional `pypinyin` initials matching. Still text-only and does not yet reproduce upstream QQ markdown buttons/cooldowns/timeout. |
