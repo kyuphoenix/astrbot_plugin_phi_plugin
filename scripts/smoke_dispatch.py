@@ -386,6 +386,7 @@ async def main() -> None:
             ("com", "15.0 99.5", "等效 RKS"),
             ("table", "15", "定数表 15"),
             ("newlog", "", "最新版本"),
+            ("rand", "12 IN", "随机谱面："),
             ("randclg", "30-45", "随机课题"),
             ("down", "bad", "格式：phi down resources"),
             ("jrrp", "", "今日人品"),

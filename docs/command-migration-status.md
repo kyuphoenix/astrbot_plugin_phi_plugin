@@ -43,7 +43,7 @@ Status legend:
 | `/recmt` | `phi recmt` | Partial | Text/API in upstream | Implemented, but upstream confirmation/permission flow may differ. |
 | `/table` | `phi table` | Partial | `html/table/table.art`, `table.css` | Image mode now uses original table resources and can overlay local player scores when a save is cached. Still needs full upstream version table parity. |
 | `/ill` | `phi ill` | Aligned | `html/ill/ill.art`, `ill.css` | Uses original-style HTML chain with base64 image transfer. |
-| `/rand` | `phi rand` | Partial | `html/rand/rand.art`, `rand.css` | Image mode now uses original random-song resources. Still needs upstream random filter parsing and exact chart selection behavior. |
+| `/rand` | `phi rand` | Partial | `html/rand/rand.art`, `rand.css` | Image mode uses original random-song resources and now selects a random chart with upstream-style difficulty range plus EZ/HD/IN/AT filters. Exact upstream error wording and no-argument bulk behavior still need comparison. |
 | `/randclg` | `phi randclg` | Partial | `html/clg/clg.art`, `clg.css` | Image mode now uses original challenge resources with local random challenge selection. Still needs note breakdown and upstream range/rank parsing parity. |
 | `/search` | `phi search` | Partial | Text/forward message in upstream | Added upstream-style `bpm` / `difficulty|dif|定数|难度|定级` / `combo|cmb|物量|连击` filters with integer difficulty bucket behavior. Plain keyword fuzzy search remains as an AstrBot extension; upstream forward-message batching is not ported. |
 | `/alias` | `phi alias` | Aligned | Text in upstream | Implemented as text. |
