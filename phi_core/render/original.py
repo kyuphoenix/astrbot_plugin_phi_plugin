@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import base64
+import csv
 import hashlib
 import mimetypes
 import math
@@ -775,39 +776,21 @@ def notice_html(paths: PluginPaths, notice: dict[str, Any]) -> str:
     return original_page(paths, "newnotice/newnotice.css", "\n".join(cards), theme="default", background=_random_background(paths))
 
 
-def newlog_html(paths: PluginPaths, log: VersionLog | None) -> str:
-    rows: list[list[dict[str, Any]]] = []
-    if log is None:
-        rows.append([{"cnt": "暂无本地版本更新日志", "col": 4, "bkg": "#222", "color": "#fff"}])
-    else:
-        rows.append([{"cnt": f"最新版本 {log.version_label} ({log.version_code})", "col": 4, "bkg": "#222", "color": "#fff"}])
-        if log.whatsnew:
-            for line in log.whatsnew.splitlines():
-                if line.strip():
-                    rows.append([{"cnt": line.strip(), "col": 4, "bkg": "#ffffffcc", "color": "#111"}])
-        rows.append([
-            {"cnt": "曲目/ID", "bkg": "#d8f0ff", "color": "#000"},
-            {"cnt": "EZ", "bkg": "#b8f0cf", "color": "#000"},
-            {"cnt": "HD", "bkg": "#85d3ff", "color": "#000"},
-            {"cnt": "IN / AT", "bkg": "#ffd6ec", "color": "#000"},
-        ])
-        for item in log.changes[:80]:
-            ez = item.get("EZ", "")
-            hd = item.get("HD", "")
-            in_at = " / ".join(value for value in (item.get("IN", ""), item.get("AT", "")) if value)
-            rows.append([
-                {"cnt": item.get("id", "unknown"), "color": "#111"},
-                {"cnt": ez, "color": "#111"},
-                {"cnt": hd, "color": "#111"},
-                {"cnt": in_at, "color": "#111"},
-            ])
-        if len(log.changes) > 80:
-            rows.append([{"cnt": f"... 还有 {len(log.changes) - 80} 条未显示", "col": 4, "bkg": "#222", "color": "#fff"}])
+def newlog_html(
+    paths: PluginPaths,
+    log: VersionLog | None,
+    *,
+    catalog: SongCatalog | None = None,
+    update_logs: list[dict[str, Any]] | None = None,
+) -> str:
+    rows = _newlog_rows(paths, log, catalog=catalog, update_logs=update_logs or [])
 
     body = ["<table border=\"1\"><tbody>"]
     for row in rows:
         body.append("<tr>")
         for cell in row:
+            if cell.get("col") == 0 or cell.get("row") == 0:
+                continue
             tag = "th" if int(cell.get("col") or 0) == 4 else "td"
             colspan = f' colspan="{int(cell["col"])}"' if cell.get("col") else ""
             rowspan = f' rowspan="{int(cell["row"])}"' if cell.get("row") else ""
@@ -822,6 +805,180 @@ def newlog_html(paths: PluginPaths, log: VersionLog | None) -> str:
     body.append("</tbody></table>")
     return original_page(paths, "newSong/newSong.css", "\n".join(body), theme="default", background=_random_background(paths))
 
+
+def _newlog_rows(
+    paths: PluginPaths,
+    log: VersionLog | None,
+    *,
+    catalog: SongCatalog | None,
+    update_logs: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
+    if log is None:
+        return [[{"cnt": "\u6682\u65e0\u672c\u5730\u7248\u672c\u66f4\u65b0\u65e5\u5fd7", "col": 4, "bkg": "#222", "color": "#fff"}]]
+
+    rows: list[list[dict[str, Any]]] = [
+        [{"cnt": "\u65b0\u66f2\u901f\u9012", "col": 4, "bkg": "#222", "color": "#fff"}],
+        [{"cnt": "\u66f2\u540d"}, {"cnt": "\u96be\u5ea6"}, {"cnt": "\u5b9a\u6570"}, {"cnt": "\u7269\u91cf"}],
+    ]
+    new_songs = _newlog_new_songs(log, catalog, update_logs)
+    if new_songs:
+        for song in new_songs:
+            for chart in song.display_charts():
+                if chart.rank not in LEVELS:
+                    continue
+                bkg = _newlog_level_color(chart.rank)
+                rows.append([
+                    {"cnt": song.title},
+                    {"cnt": chart.rank, "bkg": bkg},
+                    {"cnt": _newlog_chart_difficulty(chart), "bkg": bkg},
+                    {"cnt": chart.combo or "", "bkg": bkg},
+                ])
+    else:
+        rows.append([{"cnt": "\u6682\u672a\u4ece\u66f4\u65b0\u65e5\u5fd7\u4e2d\u5339\u914d\u5230\u65b0\u66f2", "col": 4, "bkg": "#ffffffcc", "color": "#111"}])
+
+    rows.extend([
+        [{"cnt": "\u5b9a\u6570&\u8c31\u9762\u4fee\u6539", "col": 4, "bkg": "#222", "color": "#fff"}],
+        [{"cnt": "\u66f2\u540d"}, {"cnt": "\u96be\u5ea6"}, {"cnt": "\u6761\u76ee"}, {"cnt": "\u60c5\u51b5"}],
+    ])
+    changed_rows = _newlog_changed_rows(paths, catalog)
+    if changed_rows:
+        rows.extend(changed_rows)
+    else:
+        rows.append([{"cnt": "\u6682\u672a\u68c0\u6d4b\u5230\u672c\u5730\u5b9a\u6570/\u7269\u91cf\u4fee\u6539", "col": 4, "bkg": "#ffffffcc", "color": "#111"}])
+    return _newlog_apply_rowspan(rows)
+
+
+def _newlog_new_songs(
+    log: VersionLog,
+    catalog: SongCatalog | None,
+    update_logs: list[dict[str, Any]],
+) -> list[Song]:
+    if catalog is None:
+        return []
+    update_text = "\n".join(_newlog_update_texts(log, update_logs))
+    update_key = _newlog_text_key(update_text)
+    result: list[Song] = []
+    for song in catalog.all_songs():
+        candidates = [song.title, song.id, *song.aliases]
+        for candidate in candidates:
+            key = _newlog_text_key(candidate)
+            if _newlog_matchable_key(key) and key in update_key:
+                result.append(song)
+                break
+    return result
+
+
+def _newlog_update_texts(log: VersionLog, update_logs: list[dict[str, Any]]) -> list[str]:
+    texts = [log.version_label, log.whatsnew]
+    for item in update_logs:
+        texts.extend([
+            str(item.get("version") or ""),
+            _strip_inline_html(str(item.get("rawHtml") or "")),
+        ])
+    return [text for text in texts if text]
+
+
+def _newlog_changed_rows(paths: PluginPaths, catalog: SongCatalog | None) -> list[list[dict[str, Any]]]:
+    if catalog is None:
+        return []
+    previous = _newlog_previous_difficulty(paths)
+    if not previous:
+        return []
+    rows: list[list[dict[str, Any]]] = []
+    for song in catalog.all_songs():
+        old_row = previous.get(song.id)
+        if old_row is None:
+            continue
+        for chart in song.display_charts():
+            if chart.rank not in LEVELS:
+                continue
+            old_difficulty = _newlog_number(old_row.get(chart.rank))
+            new_difficulty = chart.difficulty
+            bkg = _newlog_level_color(chart.rank)
+            if old_difficulty is not None and new_difficulty is not None and abs(old_difficulty - new_difficulty) > 0.0001:
+                incr = old_difficulty < new_difficulty
+                rows.append([
+                    {"cnt": song.title},
+                    {"cnt": chart.rank, "bkg": bkg},
+                    {"cnt": "\u5b9a\u6570", "bkg": bkg},
+                    {
+                        "cnt": f"{old_difficulty:g} ({'+' if incr else '-'}) {new_difficulty:g}",
+                        "color": "red" if incr else "green",
+                        "bkg": bkg,
+                    },
+                ])
+    return rows
+
+
+def _newlog_previous_difficulty(paths: PluginPaths) -> dict[str, dict[str, str]]:
+    old_info = paths.info / "oldInfo"
+    versions = sorted(int(path.name) for path in old_info.iterdir() if path.is_dir() and path.name.isdigit()) if old_info.exists() else []
+    if len(versions) < 2:
+        return {}
+    path = old_info / str(versions[-2]) / "change.csv"
+    if not path.exists():
+        return {}
+    rows: dict[str, dict[str, str]] = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            song_id = str(row.get("id") or "").strip()
+            if song_id:
+                rows[song_id] = {str(key): str(value or "") for key, value in row.items()}
+    return rows
+
+
+def _newlog_apply_rowspan(rows: list[list[dict[str, Any]]]) -> list[list[dict[str, Any]]]:
+    for i, row in enumerate(rows):
+        if not row or "col" in row[0] or len(row) != 4:
+            continue
+        if row[0].get("cnt") == "\u66f2\u540d" or row[0].get("row") == 0:
+            continue
+        k = i + 1
+        while k < len(rows) and len(rows[k]) == 4 and rows[k][0].get("cnt") == row[0].get("cnt") and "col" not in rows[k][0]:
+            rows[k][0]["row"] = 0
+            k += 1
+        if k > i + 1:
+            row[0]["row"] = k - i
+    return rows
+
+
+def _newlog_level_color(rank: str) -> str:
+    return {
+        "EZ": "#6fe4a7",
+        "HD": "#75c7ff",
+        "IN": "#ff8fb8",
+        "AT": "#f2a7ff",
+    }.get(rank, "#ffffffcc")
+
+
+def _newlog_chart_difficulty(chart: Any) -> str:
+    if getattr(chart, "difficulty", None) is not None:
+        return f"{float(chart.difficulty):g}"
+    return str(getattr(chart, "difficulty_text", "") or "")
+
+
+def _newlog_number(value: Any) -> float | None:
+    try:
+        text = str(value).strip()
+        return float(text) if text else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _newlog_text_key(value: Any) -> str:
+    return re.sub(r"[\W_]+", "", str(value).casefold())
+
+
+def _newlog_matchable_key(value: str) -> bool:
+    if len(value) >= 3:
+        return True
+    return len(value) >= 2 and any(ord(char) > 127 for char in value)
+
+
+def _strip_inline_html(value: str) -> str:
+    text = value.replace("<br/>", "\n").replace("<br>", "\n").replace("<br />", "\n")
+    text = re.sub(r"</?div[^>]*>", "\n", text)
+    return re.sub(r"<[^>]+>", "", text)
 
 def update_html(paths: PluginPaths, summary: UpdateProgressSummary, *, history: dict[str, Any] | None = None) -> str:
     gameuser = {

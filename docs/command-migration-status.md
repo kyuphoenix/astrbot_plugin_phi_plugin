@@ -51,7 +51,7 @@ Status legend:
 | `/delnick` | `phi delnick` | Partial | Admin text in upstream | Added deletion for AstrBot local custom aliases. Upstream route is commented out, so this intentionally only removes user-managed aliases, not bundled aliases. |
 | `/com`, `/计算` | `phi com`, `phi 计算` | Aligned | Text in upstream | Implemented. |
 | `/tips` | `phi tips` | Aligned | Text in upstream | Implemented. |
-| `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art` | Current image path uses original resources but Python-built table. Need closer upstream new-song/update-log structure if desired. |
+| `/newlog` | `phi newlog` | Partial | `html/newSong/newSong.art`, `newSong.css` | Now fetches TapTap official update text like upstream `PgrUpdateInfo`, sends image + update text in AstrBot runtime, and renders the original-style `newSong` table with new-song matching from update notes plus local difficulty diff. Still needs full upstream `updatedChart` note-type diff (`tap/drag/hold/flick`) parity. |
 | `/newnotice` | `phi newnotice` | Partial | `html/newnotice/newnotice.art`, `newnotice.css` | Now prefers the upstream TapTap official notice API and renders through the original newnotice resource chain with remote images inlined as data URIs; falls back to local `notice.json` when TapTap is unavailable. Exact upstream runtime wording/error behavior still needs comparison. |
 | `/live` | `phi live` | Partial | Text/API in upstream | Implemented. Need verify upstream API output formatting. |
 

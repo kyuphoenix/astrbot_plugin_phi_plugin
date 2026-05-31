@@ -177,6 +177,46 @@ class PhiApiClient:
             })
         return notices
 
+    async def fetch_taptap_update_logs(self, limit: int = 1) -> list[dict[str, Any]]:
+        xua = {
+            "V": "1",
+            "PN": "TapTap",
+            "VN_CODE": "283021001",
+            "LANG": "zh_CN",
+        }
+        data = await self._get_external(
+            "https://api.taptapdada.com/apk/v1/list-by-app",
+            {
+                "limit": str(max(1, int(limit))),
+                "X-UA": self._urlencoded(xua),
+                "from": "0",
+                "app_id": "165287",
+            },
+        )
+        if not isinstance(data, dict) or not data.get("success"):
+            return []
+        raw_data = data.get("data")
+        raw_list = raw_data.get("list") if isinstance(raw_data, dict) else []
+        if not isinstance(raw_list, list):
+            return []
+        logs: list[dict[str, Any]] = []
+        for item in raw_list[:max(1, int(limit))]:
+            if not isinstance(item, dict):
+                continue
+            whatsnew = item.get("whatsnew")
+            raw_html = ""
+            if isinstance(whatsnew, dict):
+                raw_html = str(whatsnew.get("text") or "")
+            elif whatsnew is not None:
+                raw_html = str(whatsnew)
+            logs.append({
+                "version": str(item.get("version_label") or ""),
+                "versionCode": item.get("version_code"),
+                "date": item.get("update_date"),
+                "rawHtml": raw_html,
+            })
+        return logs
+
     async def fetch_comments_by_song(self, song_id: str) -> list[dict[str, Any]]:
         data = await self._post("/comment/get/bySongId", {"song_id": song_id})
         return data if isinstance(data, list) else []

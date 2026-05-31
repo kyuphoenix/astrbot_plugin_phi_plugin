@@ -560,23 +560,48 @@ def _notice_items(notice: dict) -> list[dict]:
     return []
 
 
-def render_newlog(log: VersionLog | None, *, limit: int = 30) -> str:
+def render_newlog(
+    log: VersionLog | None,
+    *,
+    limit: int = 30,
+    update_logs: list[dict] | None = None,
+    include_changes: bool = True,
+) -> str:
     if log is None:
-        return "没有找到本地版本更新日志。"
-    lines = [
-        f"最新版本: {log.version_label} ({log.version_code})",
-        "更新信息:",
-        log.whatsnew or "无文字更新说明。",
-        "",
-        f"谱面变更: {len(log.changes)} 条",
-    ]
+        return "\u6ca1\u6709\u627e\u5230\u672c\u5730\u7248\u672c\u66f4\u65b0\u65e5\u5fd7\u3002"
+    lines: list[str] = []
+    online = update_logs or []
+    if online:
+        first = online[0]
+        lines.extend([
+            f"\u6700\u65b0\u7248\u672c\uff1a{first.get('version') or log.version_label}",
+            "\u66f4\u65b0\u4fe1\u606f\uff1a",
+            _strip_inline_html(str(first.get('rawHtml') or '')) or log.whatsnew or "\u65e0\u6587\u5b57\u66f4\u65b0\u8bf4\u660e\u3002",
+        ])
+    else:
+        lines.extend([
+            f"\u6700\u65b0\u7248\u672c\uff1a{log.version_label} ({log.version_code})",
+            "\u66f4\u65b0\u4fe1\u606f\uff1a",
+            log.whatsnew or "\u65e0\u6587\u5b57\u66f4\u65b0\u8bf4\u660e\u3002",
+        ])
+    lines.append(f"\u4fe1\u606f\u6587\u4ef6\u7248\u672c\uff1a{log.version_label} ({log.version_code})")
+    if not include_changes:
+        return "\n".join(lines)
+    lines.extend(["", f"\u8c31\u9762\u53d8\u66f4: {len(log.changes)} \u6761"])
     for item in log.changes[:limit]:
         diffs = " / ".join(f"{rank} {item.get(rank)}" for rank in ("EZ", "HD", "IN", "AT") if item.get(rank))
         lines.append(f"- {item.get('id', 'unknown')}: {diffs}")
     if len(log.changes) > limit:
-        lines.append(f"... 还有 {len(log.changes) - limit} 条未显示。")
+        lines.append(f"... \u8fd8\u6709 {len(log.changes) - limit} \u6761\u672a\u663e\u793a\u3002")
     return "\n".join(lines)
 
+
+def _strip_inline_html(value: str) -> str:
+    text = value.replace("<br/>", "\n").replace("<br>", "\n").replace("<br />", "\n")
+    import re
+
+    text = re.sub(r"</?div[^>]*>", "\n", text)
+    return re.sub(r"<[^>]+>", "", text).strip()
 
 def render_user_info(summary: UserSummary) -> str:
     return "\n".join([

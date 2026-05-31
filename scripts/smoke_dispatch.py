@@ -95,6 +95,14 @@ class FakeLoginClient(PhiApiClient):
             "image": "",
         }]
 
+    async def fetch_taptap_update_logs(self, limit: int = 1):  # type: ignore[override]
+        return [{
+            "version": "Smoke 9.9.9",
+            "versionCode": 999,
+            "date": 1779468654,
+            "rawHtml": "<div>Smoke TapTap Update<br/>新增两首单曲：<br/>•「Snow Dance」 by 悠叶いのり<br/>•「亂★舞」 by Nekock·LK</div>",
+        }]
+
     async def fetch_comments_by_song(self, song_id: str):  # type: ignore[override]
         return [{"id": "7", "songId": song_id, "rank": "EZ", "PlayerId": "SMOKE", "comment": "hello", "time": "2026-05-29"}]
 
@@ -389,6 +397,9 @@ async def main() -> None:
         online_notice = await dispatch(online_notice_ctx, "notice-user", "newnotice", "")
         if "Smoke TapTap Notice" not in online_notice.value or "online notice body" not in online_notice.value:
             raise SystemExit(f"newnotice should prefer online TapTap notice data, got {online_notice.value!r}")
+        online_newlog = await dispatch(online_notice_ctx, "notice-user", "newlog", "")
+        if "Smoke TapTap Update" not in online_newlog.value or "信息文件版本" not in online_newlog.value:
+            raise SystemExit(f"newlog should include online TapTap update text, got {online_newlog.value!r}")
 
         guess_start = await dispatch(ctx, "game-guess-user", "guess", "")
         if "猜曲绘" not in guess_start.value:
@@ -705,6 +716,7 @@ async def main() -> None:
             ("guess", ".img", 'id="phiLineArt"'),
             ("ranklist", ".list_bkg", 'class="list"'),
             ("newnotice", ".notice-page", "Smoke TapTap Notice"),
+            ("newlog", "table", "新曲速递"),
         ):
             before = len(b30_render_calls)
             command_args = {
