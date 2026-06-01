@@ -210,6 +210,67 @@ async def main() -> None:
         raise SystemExit(f"unknown info background should fall back to default image, got {invalid_background!r}")
     if not str(invalid_background).startswith("data:image/"):
         raise SystemExit(f"unknown info background fallback should be an inline default image, got {invalid_background!r}")
+    stats_catalog = SongCatalog(
+        songs={
+            "StatsA": Song(
+                id="StatsA",
+                title="Stats A",
+                composer="Codex",
+                illustrator="Codex",
+                charts={
+                    "EZ": SongChart(rank="EZ", difficulty=5.0),
+                    "HD": SongChart(rank="HD", difficulty=8.0),
+                    "IN": SongChart(rank="IN", difficulty=12.0),
+                },
+            ),
+            "StatsB": Song(
+                id="StatsB",
+                title="Stats B",
+                composer="Codex",
+                illustrator="Codex",
+                charts={
+                    "EZ": SongChart(rank="EZ", difficulty=6.0),
+                    "AT": SongChart(rank="AT", difficulty=14.0),
+                },
+            ),
+        },
+        alias_to_id={},
+    )
+    stats_snapshot = SaveSnapshot(
+        user_id="stats",
+        ranking_score=0,
+        raw={
+            "gameRecord": {
+                "StatsA.0": [
+                    {"score": 1_000_000, "acc": 100.0, "fc": True, "rks": 5.0},
+                    None,
+                    {"score": 690_000, "acc": 69.0, "fc": False, "rks": 1.2},
+                ],
+                "StatsB.0": [
+                    {"score": 600_000, "acc": 60.0, "fc": False, "rks": 2.0},
+                    None,
+                    None,
+                    {"score": 980_000, "acc": 98.0, "fc": False, "rks": 13.0},
+                ],
+            }
+        },
+    )
+    stats_list = jinja_adapter._info_userstats_list(jinja_adapter._info_stats(stats_snapshot, stats_catalog))
+    if [item["title"] for item in stats_list] != ["EZ", "HD", "IN", "AT"]:
+        raise SystemExit(f"info stats should keep phi-plugin order EZ/HD/IN/AT, got {stats_list!r}")
+    ez_stats, hd_stats, in_stats, at_stats = stats_list
+    if ez_stats["unlock"] != 2 or ez_stats["cleared"] != 1 or ez_stats["fc"] != 1 or ez_stats["phi"] != 1:
+        raise SystemExit(f"info EZ stats counters should match Save.getStats, got {ez_stats!r}")
+    if ez_stats["real_score"] != 1_600_000 or ez_stats["tot_score"] != 2_000_000 or ez_stats["Rating"] != "C":
+        raise SystemExit(f"info EZ aggregate score/rating should match Save.getStats, got {ez_stats!r}")
+    if ez_stats["highest"] != 5.0 or ez_stats["lowest"] != 2.0:
+        raise SystemExit(f"info stats highest/lowest should use record rks, got {ez_stats!r}")
+    if hd_stats["unlock"] != 2 or hd_stats["tot_score"] != 0 or hd_stats["Rating"] != "phi":
+        raise SystemExit(f"info HD null-record stats should match Save.getStats, got {hd_stats!r}")
+    if in_stats["cleared"] != 0 or in_stats["lowest"] != 1.2:
+        raise SystemExit(f"info IN low-score stats should not count as cleared and should keep rks, got {in_stats!r}")
+    if at_stats["Rating"] != "V" or at_stats["highest"] != 13.0:
+        raise SystemExit(f"info AT aggregate stats mismatch, got {at_stats!r}")
     remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
     if expected_remote_url not in remote_html:
         raise SystemExit("proxied remote illustration URL should survive Jinja2 self-contained rendering")

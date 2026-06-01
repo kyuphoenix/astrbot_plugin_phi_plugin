@@ -966,6 +966,8 @@ async def main() -> None:
                     raise SystemExit(f"image info should use original 1920x1500 viewport, got {options!r}")
                 if "--phi-viewport-width: 1920px" not in html or ".left" not in html or ".right" not in html:
                     raise SystemExit("image info should include a left/right original-layout guard")
+                if "Phi-Plugin" not in html or "v0.1.0" not in html or "data-watermark-fit" in html:
+                    raise SystemExit("image info should render the compact fixed watermark without adaptive scaling")
                 if html.count("<line x1=") < 20:
                     raise SystemExit("image info should render long API history, not only the last 12 points")
                 info_fetches = [item for item in login_client.history_fetches if item["user_id"] == "login-user"]

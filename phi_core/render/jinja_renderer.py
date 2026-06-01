@@ -171,8 +171,8 @@ def _normalize_template_path(template_path: str) -> str:
 def _base_context(paths: PluginPaths) -> dict[str, Any]:
     return {
         "_res_path": "",
-        "_plugin": "AstrBot Phi Plugin",
-        "Version": {"ver": "HTML"},
+        "_plugin": "Phi-Plugin",
+        "Version": {"ver": "v0.1.0"},
         "theme": "default",
         "element": "hydro",
         "elem": "hydro",
@@ -192,7 +192,6 @@ def _rewrite_template_asset_fields(normalized: str, html: str) -> str:
     The returned string is still a Jinja2 template. Only resource expressions are
     rewritten so AstrBot receives JSON data instead of local/dynamic filenames.
     """
-    del normalized
     replacements = {
         "{{ _res_path }}html/avatar/{{ gameuser.avatar }}.png": "{{ gameuser.avatarImg }}",
         "{{ _res_path }}html/avatar/{{ avatar }}.png": "{{ avatarImg }}",
@@ -233,7 +232,28 @@ def _rewrite_template_asset_fields(normalized: str, html: str) -> str:
         "{{ _res_path ~ 'html/otherimg/' ~ (line.Rating or 'NEW') ~ '.png' }}{# html/otherimg/NEW.png #}",
         "{{ line.ratingImg }}",
     )
+    if normalized in {"userinfo/userinfo.html", "userinfo/userinfo-old.html"}:
+        html = _rewrite_userinfo_watermark(html)
     return html
+
+
+def _rewrite_userinfo_watermark(html: str) -> str:
+    replacement = """
+        <div class="createdbox">
+            <div class="phi-plugin">
+                <p>{{ _plugin }}<span class="watermark-version">({{ Version.ver }})</span></p>
+            </div>
+        </div>"""
+    return re.sub(
+        r"<div\s+class=[\"']createdbox[\"']>\s*"
+        r"<div\s+class=[\"']phi-plugin[\"']>\s*<p>\s*\{\{\s*_plugin\s*\}\}\s*</p>\s*</div>\s*"
+        r"<div\s+class=[\"']ver[\"']>\s*<p>\s*\{\{\s*Version\.ver\s*\}\}\s*</p>\s*</div>\s*"
+        r"</div>",
+        replacement,
+        html,
+        count=1,
+        flags=re.IGNORECASE,
+    )
 
 
 def _inline_stylesheets(paths: PluginPaths, root: Path, html: str, *, font_corpus: str = "") -> str:
@@ -331,6 +351,10 @@ body {{
   max-width: {int(width)}px !important;
   background: transparent !important;
   overflow-x: hidden !important;
+}}
+.createdbox .watermark-version {{
+  font-size: 0.58em;
+  text-shadow: 0 0 20px #fff700;
 }}
 </style>"""
     if "</head>" in html:

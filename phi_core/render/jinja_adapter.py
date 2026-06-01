@@ -16,6 +16,7 @@ from ..data.illustrations import (
 )
 from ..data.resources import latest_version_log, load_version_log
 from ..models import (
+    ALL_LEVELS,
     Best30Result,
     ChartEntry,
     LEVELS,
@@ -30,7 +31,7 @@ from ..models import (
     UserSummary,
 )
 from ..paths import PluginPaths
-from ..query import iter_history_score_events, iter_score_records
+from ..query import iter_history_score_events, iter_score_records, rks_from_acc
 from ..query.progress import money_to_kib
 from ..query.progress import extract_modified_datetime, format_datetime
 from . import original
@@ -2189,83 +2190,121 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
 def _info_stats(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> dict[str, dict[str, Any]]:
     by_rank: dict[str, dict[str, Any]] = {
         rank: {
-            "played": 0,
+            "unlock": 0,
             "total": 0,
             "cleared": 0,
             "fc": 0,
             "phi": 0,
             "score": 0,
+            "tot_score": 0,
             "highest": 0.0,
-            "lowest": 0.0,
-            "rating": "V",
+            "lowest": 18.0,
+            "rating": "",
         }
         for rank in LEVELS
     }
-    records = iter_score_records(snapshot, catalog) if catalog is not None else []
-    record_map = {(record.song_id, record.rank): record for record in records}
     if catalog is not None:
         for song in catalog.all_songs():
             for chart in song.display_charts():
                 if chart.rank not in by_rank:
                     continue
+                if _as_float(getattr(chart, "difficulty", 0.0)) <= 0:
+                    continue
                 item = by_rank[chart.rank]
                 item["total"] += 1
-                record = record_map.get((song.id, chart.rank))
-                if record is not None:
-                    _apply_info_record_stat(item, record)
-    else:
-        for record in records:
-            if record.rank in by_rank:
-                item = by_rank[record.rank]
-                item["total"] += 1
-                _apply_info_record_stat(item, record)
+        raw_records = snapshot.raw.get("gameRecord")
+        if isinstance(raw_records, dict):
+            for raw_song_id, level_records in raw_records.items():
+                song = catalog.get(str(raw_song_id))
+                if song is None:
+                    continue
+                for index, record_data in _iter_info_level_records(level_records):
+                    if index >= len(ALL_LEVELS):
+                        continue
+                    rank = ALL_LEVELS[index]
+                    if rank not in by_rank:
+                        continue
+                    by_rank[rank]["unlock"] += 1
+                    if not isinstance(record_data, dict):
+                        continue
+                    chart = song.charts.get(rank)
+                    difficulty = _as_float(getattr(chart, "difficulty", 0.0)) if chart is not None else 0.0
+                    _apply_info_record_stat(by_rank[rank], record_data, difficulty)
     for rank, item in by_rank.items():
-        if item["played"] and not item["lowest"]:
-            item["lowest"] = item["highest"]
-        item["rating"] = _dominant_record_rating(records, rank)
+        if item["lowest"] == 18.0:
+            item["lowest"] = 0.0
+        item["rating"] = _aggregate_rating(item["score"], item["fc"] == item["unlock"], item["tot_score"])
     return by_rank
 
 
 def _info_userstats_list(stats: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
-    for rank in ("AT", "IN", "HD", "EZ"):
+    for rank in LEVELS:
         item = stats.get(rank, {})
         result.append({
             "title": rank,
             "tatle": rank,
             "Rating": item.get("rating", "V"),
-            "unlock": item.get("played", 0),
+            "unlock": item.get("unlock", 0),
             "tot": item.get("total", 0),
             "cleared": item.get("cleared", 0),
             "fc": item.get("fc", 0),
             "phi": item.get("phi", 0),
             "real_score": item.get("score", 0),
-            "tot_score": max(1, int(item.get("total", 0)) * 1_000_000),
+            "tot_score": item.get("tot_score", 0),
             "highest": float(item.get("highest", 0.0)),
             "lowest": float(item.get("lowest", 0.0)),
         })
     return result
 
 
-def _apply_info_record_stat(item: dict[str, Any], record: ScoreRecord) -> None:
-    item["played"] += 1
-    item["cleared"] += 1
-    item["fc"] += 1 if record.fc or record.rating == "phi" else 0
-    item["phi"] += 1 if record.rating == "phi" else 0
-    item["score"] += record.score
-    item["highest"] = max(float(item["highest"]), record.difficulty)
-    item["lowest"] = record.difficulty if not item["lowest"] else min(float(item["lowest"]), record.difficulty)
+def _apply_info_record_stat(item: dict[str, Any], record_data: dict[str, Any], difficulty: float) -> None:
+    score = _as_int(record_data.get("score"))
+    acc = _as_float(record_data.get("acc"))
+    fc = bool(record_data.get("fc"))
+    rks = _as_float(record_data.get("rks")) if record_data.get("rks") is not None else rks_from_acc(acc, difficulty)
+    if score >= 700_000:
+        item["cleared"] += 1
+    if fc or score >= 1_000_000:
+        item["fc"] += 1
+    if score >= 1_000_000:
+        item["phi"] += 1
+    item["score"] += score
+    item["tot_score"] += 1_000_000
+    item["highest"] = max(float(item["highest"]), rks)
+    item["lowest"] = min(float(item["lowest"]), rks)
 
 
-def _dominant_record_rating(records: list[ScoreRecord], rank: str) -> str:
-    counts: dict[str, int] = {}
-    for record in records:
-        if record.rank == rank:
-            counts[record.rating] = counts.get(record.rating, 0) + 1
-    if not counts:
+def _iter_info_level_records(value: Any):
+    if isinstance(value, list):
+        yield from enumerate(value)
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            try:
+                yield int(key), item
+            except (TypeError, ValueError):
+                continue
+
+
+def _aggregate_rating(real_score: int, fc: bool, tot_score: int) -> str:
+    if real_score == tot_score:
+        return "phi"
+    if fc:
+        return "FC"
+    if real_score >= tot_score * 0.96:
         return "V"
-    order = {"phi": 7, "FC": 6, "V": 5, "S": 4, "A": 3, "B": 2, "C": 1, "F": 0, "NEW": -1}
-    return max(counts, key=lambda key: (counts[key], order.get(key, -2)))
+    if real_score >= tot_score * 0.92:
+        return "S"
+    if real_score >= tot_score * 0.88:
+        return "A"
+    if real_score >= tot_score * 0.82:
+        return "B"
+    if real_score >= tot_score * 0.70:
+        return "C"
+    if real_score > 0:
+        return "F"
+    return "NEW"
 
 
 def _info_acc_rks(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> tuple[list[list[float]], list[float], list[list[float]]]:
