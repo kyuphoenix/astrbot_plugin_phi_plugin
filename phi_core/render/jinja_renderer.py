@@ -353,6 +353,14 @@ body {{
   max-width: {int(width)}px !important;
   background: transparent !important;
   overflow-x: hidden !important;
+  isolation: isolate;
+}}
+.background {{
+  z-index: -1 !important;
+  pointer-events: none;
+}}
+.background img {{
+  z-index: -1 !important;
 }}
 .createdbox .watermark-version {{
   font-size: 0.58em;
