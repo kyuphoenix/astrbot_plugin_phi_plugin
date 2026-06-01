@@ -59,6 +59,9 @@ async def dispatch(ctx: CommandContext, user_id: str, command: str, args: str) -
 
 
 def _dynamic_score_command(command: str) -> tuple[str, str] | None:
+    match = re.fullmatch(r"arcgrosb(\d+)", command)
+    if match:
+        return "arcgros", match.group(1)
     match = re.fullmatch(r"(fc|p|x)(\d+)", command)
     if match:
         prefix, limit_text = match.groups()

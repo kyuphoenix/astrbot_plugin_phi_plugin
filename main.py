@@ -14,6 +14,7 @@ from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
+from .phi_core.render.send_variants import build_image_send_variant
 from .phi_core.data.ill_download import ensure_resources_blocking
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
@@ -21,6 +22,7 @@ _B_ALIASES = {f"b{index}" for index in range(1, 101)} - {"b30"}
 _P_ALIASES = {f"p{index}" for index in range(1, 101)} - {"p30"}
 _X_ALIASES = {f"x{index}" for index in range(1, 101)} - {"x30"}
 _FC_ALIASES = {f"fc{index}" for index in range(1, 101)} - {"fc30"}
+_ARCGROS_ALIASES = {f"arcgrosb{index}" for index in range(1, 101)}
 
 
 class AstrBotPhiPlugin(Star):
@@ -94,9 +96,9 @@ class AstrBotPhiPlugin(Star):
     async def phi_ans(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, 'ans')
 
-    @phi.command('arcgros', alias={'arcgrosb19'})
+    @phi.command('arcgros', alias=_ARCGROS_ALIASES)
     async def phi_arcgros(self, event: AstrMessageEvent):
-        yield await self._dispatch_phi_command(event, 'arcgros')
+        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'arcgros')
 
     @phi.command('auth', alias={'login', '\u767b\u5f55'})
     async def phi_auth(self, event: AstrMessageEvent):
@@ -367,11 +369,14 @@ class AstrBotPhiPlugin(Star):
         args = self._extract_command_args(event.get_message_str(), grouped=grouped)
 
         async def send_intermediate(result: CommandResult) -> None:
-            await event.send(await self._to_astrbot_result(event, result))
+            if result.kind == "image":
+                await self._send_image_with_fallback(event, result.value)
+                return
+            await event.send(event.plain_result(result.value))
 
         command_context = self._command_context_for_event(event, sender=send_intermediate)
         result = await dispatch(command_context, event.get_sender_id(), command, args)
-        return await self._to_astrbot_result(event, result)
+        return await self._send_command_result(event, result)
 
     def _command_context_for_event(
         self,
@@ -419,19 +424,58 @@ class AstrBotPhiPlugin(Star):
         parts = (message or "").strip().split(maxsplit=2)
         return parts[1].strip() if len(parts) > 1 else ""
 
-    async def _to_astrbot_result(
+    async def _send_command_result(
         self,
         event: AstrMessageEvent,
         result: CommandResult,
     ):
         if result.kind == "image":
-            return event.chain_result([self._image_component(result.value)])
+            await self._send_image_with_fallback(event, result.value)
+            return None
         return event.plain_result(result.value)
 
     @staticmethod
     def _image_component(path: str | Path):
-        image_bytes = Path(path).read_bytes()
+        return AstrBotPhiPlugin._image_component_from_bytes(Path(path).read_bytes())
+
+    @staticmethod
+    def _image_component_from_bytes(image_bytes: bytes):
         if hasattr(Comp.Image, "fromBytes"):
             return Comp.Image.fromBytes(image_bytes)
         encoded = base64.b64encode(image_bytes).decode("ascii")
         return Comp.Image.fromBase64(encoded)
+
+    async def _send_image_with_fallback(self, event: AstrMessageEvent, path: str | Path) -> None:
+        last_error: Exception | None = None
+        for variant_name in ("original", "jpg", "webp"):
+            try:
+                variant = build_image_send_variant(path, variant_name)
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "phi image fallback conversion failed "
+                    f"format={variant_name}; path={path}; error={exc}",
+                    exc_info=True,
+                )
+                continue
+
+            try:
+                await event.send(event.chain_result([self._image_component_from_bytes(variant.data)]))
+                if variant.name != "original":
+                    logger.info(
+                        "phi image sent with fallback "
+                        f"format={variant.name}; bytes={len(variant.data)}; path={path}"
+                    )
+                return
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "phi image send failed "
+                    f"format={variant.name}; bytes={len(variant.data)}; path={path}; error={exc}",
+                    exc_info=True,
+                )
+
+        message = "图片发送失败：原图、JPG 压缩图、WebP 压缩图都发送失败，请稍后重试。"
+        if last_error is not None:
+            message += f"\n最后一次错误：{last_error}"
+        await event.send(event.plain_result(message))

@@ -21,6 +21,8 @@ EXPECTED_ROUTES = {
     "rand": "rand",
     "ill": "ill",
     "auth": "auth",
+    "arcgros": "arcgros",
+    "arcgrosb19": "arcgros",
     "bind": "bind",
     "cnbind": "cnbind",
     "gbbind": "gbbind",
@@ -90,13 +92,20 @@ def main() -> None:
 
     called: list[tuple[str, str, str]] = []
     original_p30 = ROUTES["p30"]
+    original_arcgros = ROUTES["arcgros"]
 
     def fake_p30(ctx, user_id, args):
         called.append((user_id, "p30", args))
         from phi_core.commands.common import CommandResult
         return CommandResult.text("ok")
 
+    def fake_arcgros(ctx, user_id, args):
+        called.append((user_id, "arcgros", args))
+        from phi_core.commands.common import CommandResult
+        return CommandResult.text("ok")
+
     ROUTES["p30"] = fake_p30
+    ROUTES["arcgros"] = fake_arcgros
     try:
         import asyncio
 
@@ -109,10 +118,13 @@ def main() -> None:
             client=None,  # type: ignore[arg-type]
         )
         asyncio.run(dispatch(ctx, "dynamic-user", "p45", "extra"))
+        asyncio.run(dispatch(ctx, "dynamic-user", "arcgrosb30", "extra"))
     finally:
         ROUTES["p30"] = original_p30
-    if called != [("dynamic-user", "p30", "45 extra")]:
-        raise SystemExit(f"dynamic pN dispatch did not forward limit to p30: {called!r}")
+        ROUTES["arcgros"] = original_arcgros
+    expected = [("dynamic-user", "p30", "45 extra"), ("dynamic-user", "arcgros", "30 extra")]
+    if called != expected:
+        raise SystemExit(f"dynamic dispatch did not forward limits correctly: {called!r}")
 
     print(f"command route smoke passed: {len(public_modules)} modules, {len(ROUTES)} aliases")
 

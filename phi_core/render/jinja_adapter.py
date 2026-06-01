@@ -86,12 +86,12 @@ def b30_data(
     }
 
 
-def arcgros_b19_data(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -> dict[str, Any]:
+def arcgros_b19_data(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot, *, limit: int = 19) -> dict[str, Any]:
     data = b30_data(paths, result, snapshot)
     gameuser = data.get("gameuser")
     if isinstance(gameuser, dict):
         gameuser["backgroundUrl"] = data.get("background") or original._random_background(paths)
-    data["b19_list"] = list(data.get("b19_list") or [])[:19]
+    data["b19_list"] = list(data.get("b19_list") or [])[:limit]
     return data
 
 
