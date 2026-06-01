@@ -8,7 +8,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 - `phi song <曲名或别名>`：查询曲目信息
 - `phi search <关键词>`：搜索曲目
 - `phi rand`：随机曲目
-- `phi ill <曲名或别名>`：发送本地曲绘（存在时）
+- `phi ill <曲名或别名>`：发送曲绘（远程模式使用 GitHub 在线资源，本地模式使用已下载曲绘）
 - `phi down ill` / `phi 下载曲绘`：下载或更新原版曲绘到 AstrBot 数据目录
 - `phi bind <sessionToken|查询ID|qrcode>`：绑定 token、查询 ID 或 TapTap 二维码登录，并在绑定后自动同步一次玩家数据
 - `phi cnbind <sessionToken>` / `phi gbbind <sessionToken>`：按国服/国际服入口绑定 token
@@ -45,7 +45,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 ### Illustration Source
 
-The `illustration_source` config controls how song illustrations are passed into Jinja2/AstrBot t2i renders. The default `local` mode keeps the current behavior and converts downloaded local files under `downloads/original_ill` into base64 data URIs. The `remote` mode passes GitHub raw URLs from `Catrong/phi-plugin-ill` into the templates for song illustrations and blurred illustration backgrounds, while non-illustration assets such as fonts, CSS images, avatars, and rating icons are still inlined locally. If `illustration_url_proxy` is configured, remote illustration URLs are prefixed before being passed to t2i, for example `<proxy>/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/...`.
+The `illustration_source` config controls how song illustrations are passed into Jinja2/AstrBot t2i renders. The default `remote` mode passes GitHub raw URLs from `Catrong/phi-plugin-ill` into the templates for song illustrations and blurred illustration backgrounds, while non-illustration assets such as fonts, CSS images, avatars, and rating icons are still inlined locally. The optional `local` mode converts downloaded local files under `downloads/original_ill` into base64 data URIs. If `illustration_url_proxy` is configured, remote illustration URLs are prefixed before being passed to t2i, for example `<proxy>/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/...`.
 
 ## 迁移说明
 
@@ -53,7 +53,7 @@ The `illustration_source` config controls how song illustrations are passed into
 
 运行期数据、绑定、缓存和后续下载数据均写入 `StarTools.get_data_dir("astrbot_plugin_phi_plugin")` 对应的 AstrBot 插件数据目录。插件不再随包携带 `resources/`；首次启动或执行 `phi down resources` 时，会把 Jinja2 HTML 模板仓库 `kyuphoenix/astrbot_plugin_phi_plugin_jinja2_template` 拉取到 `downloads/html`，并继续从原版 `Catrong/phi-plugin` 拉取 `downloads/info` 与 `downloads/otherill`。渲染模板、曲库、帮助、头像、字体等资源都从这里读取。
 
-曲绘下载命令会把 `https://github.com/Catrong/phi-plugin-ill.git` 克隆或更新到 AstrBot 数据目录下的 `downloads/original_ill/`，渲染和 `phi ill` 会优先读取这里的曲绘资源。`phi down all` 会同时更新 Jinja2 HTML 模板、原版 info/otherill 与曲绘。若配置了 `github_proxy`，下载命令会沿用该代理前缀。
+曲绘下载命令会把 `https://github.com/Catrong/phi-plugin-ill.git` 克隆或更新到 AstrBot 数据目录下的 `downloads/original_ill/`。远程曲绘模式会直接把 GitHub 在线曲绘 URL 传入渲染链路；本地曲绘模式才会读取这里的文件并转成 base64。`phi down all` 会同时更新 Jinja2 HTML 模板、原版 info/otherill 与曲绘。若配置了 `github_proxy`，下载命令会沿用该代理前缀。
 
 如果 `phi bind` 或 `phi update` 所连接的服务没有返回标准化存档 JSON，插件会给出安全提示；后续可以在 `phi_core/save/client.py` 与 `phi_core/save/codec.py` 中继续补齐云存档协议。
 

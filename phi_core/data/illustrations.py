@@ -136,6 +136,11 @@ def illustration_url(song_id: str, *, prefer_low: bool = False, paths: PluginPat
     return proxied_illustration_url(paths, url) if paths is not None else url
 
 
+def illustration_download_url(song_id: str, *, prefer_low: bool = False, github_proxy: str = "") -> str:
+    folder = "illLow" if prefer_low else "ill"
+    return proxied_download_url(_online_url(folder, song_id), github_proxy=github_proxy)
+
+
 def background_illustration_url(song_id: str, *, paths: PluginPaths | None = None) -> str:
     url = _online_url("illBlur", song_id)
     return proxied_illustration_url(paths, url) if paths is not None else url
@@ -166,6 +171,14 @@ def _online_url(folder: str, song_id: str) -> str:
 
 def proxied_illustration_url(paths: PluginPaths, url: str) -> str:
     proxy = str(getattr(paths, "illustration_url_proxy", "") or "").strip().rstrip("/")
+    text = str(url or "").strip()
+    if not proxy or not text or not is_online_illustration_url(text):
+        return text
+    return f"{proxy}/{text}"
+
+
+def proxied_download_url(url: str, *, github_proxy: str = "") -> str:
+    proxy = str(github_proxy or "").strip().rstrip("/")
     text = str(url or "").strip()
     if not proxy or not text or not is_online_illustration_url(text):
         return text

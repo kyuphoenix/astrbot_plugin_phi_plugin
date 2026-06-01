@@ -69,9 +69,9 @@
     "default": ""
   },
   "illustration_source": {
-    "description": "Illustration source: local encodes local files as base64 for T2I; remote passes GitHub raw URLs from Catrong/phi-plugin-ill into Jinja2 templates",
+    "description": "Illustration source: remote passes GitHub raw URLs from Catrong/phi-plugin-ill into Jinja2 templates; local encodes downloaded files as base64 for T2I",
     "type": "string",
-    "default": "local",
+    "default": "remote",
     "options": ["local", "remote"]
   },
   "illustration_url_proxy": {

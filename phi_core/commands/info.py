@@ -50,9 +50,9 @@ def _requested_background(ctx: CommandContext, args: str) -> str | Path | None:
     song = ctx.searcher.best(query)
     if song is None:
         return None
+    if use_remote_illustrations(ctx.paths):
+        return background_illustration_url(song.id, paths=ctx.paths)
     path = find_background_illustration_file(ctx.paths, song.id) or find_background_illustration_file(ctx.paths, song.id_with_suffix)
     if path is not None:
         return path
-    if use_remote_illustrations(ctx.paths):
-        return background_illustration_url(song.id, paths=ctx.paths)
     return None

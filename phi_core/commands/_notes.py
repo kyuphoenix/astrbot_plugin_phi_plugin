@@ -502,9 +502,9 @@ def _ease_in_sine(t: float, b: float, c: float, d: float) -> float:
 def _task_illustration(ctx: CommandContext, song_id: str) -> str:
     song = ctx.catalog.get(song_id)
     if song is not None:
-        path = ctx.find_illustration(song)
-        if path is not None:
-            return original.image_data_uri(ctx.paths, path)
+        source = ctx.illustration_source(song)
+        if source is not None:
+            return original.image_data_uri(ctx.paths, source)
     return original.asset_uri(ctx.paths, "html/otherimg/phigros.png")
 
 

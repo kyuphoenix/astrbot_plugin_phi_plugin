@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from phi_core.commands._rendering import render_jinja_template
 from phi_core.commands.common import CommandContext
+from phi_core.commands.jrrp import _panel_data as jrrp_panel_data
 from phi_core.config import PluginConfig
 from phi_core.data import SongCatalog, SongSearcher
 from phi_core.paths import PluginPaths
@@ -135,6 +136,25 @@ async def main() -> None:
     expected_remote_url = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png"
     if expected_remote_url not in remote_data["illustration"]:
         raise SystemExit(f"remote atlas illustration should use proxied GitHub raw URL, got {remote_data['illustration']!r}")
+    remote_ctx = CommandContext(
+        config=PluginConfig(render_mode="image", github_proxy="https://download-proxy.example"),
+        paths=remote_paths,
+        catalog=SongCatalog(songs={song.id: song}, alias_to_id={}),
+        searcher=SongSearcher(SongCatalog(songs={song.id: song}, alias_to_id={})),
+        store=SaveStore(remote_paths.data_dir),
+        client=PhiApiClient(PluginConfig()),
+    )
+    guess_source = remote_ctx.illustration_source(song, download_proxy=True)
+    expected_guess_url = "https://download-proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png"
+    if guess_source != expected_guess_url:
+        raise SystemExit(f"remote guess should use github_proxy, got {guess_source!r}")
+    template_source = remote_ctx.illustration_source(song)
+    if template_source != expected_remote_url:
+        raise SystemExit(f"remote template illustration should use illustration_url_proxy, got {template_source!r}")
+    jrrp_data = jinja_adapter.jrrp_data(remote_paths, jrrp_panel_data(remote_ctx, [88, 0]))
+    expected_jrrp_url = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/ShineAfter.ADeanJocularACE.0.png"
+    if jrrp_data.get("bkg") != expected_jrrp_url:
+        raise SystemExit(f"remote jrrp background should use proxied GitHub raw URL, got {jrrp_data.get('bkg')!r}")
     remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
     if expected_remote_url not in remote_html:
         raise SystemExit("proxied remote illustration URL should survive Jinja2 self-contained rendering")

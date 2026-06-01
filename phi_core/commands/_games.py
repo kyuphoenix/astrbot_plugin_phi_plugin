@@ -193,7 +193,7 @@ async def _start_guess_ill(ctx: CommandContext, user_id: str) -> CommandResult:
     key = _session_key(ctx, user_id)
     song = _weighted_song(ctx, key, _ILL_WEIGHTS, _songs_with_illustrations(ctx), decay=0.4)
     if song is None:
-        return CommandResult.text("当前曲库没有可用于猜曲绘的本地曲绘资源，请先执行 phi down ill 下载曲绘。")
+        return CommandResult.text("当前曲库没有可用于猜曲绘的曲绘资源，请先执行 phi down ill 下载曲绘，或切换到远程曲绘模式。")
     image = _new_guess_image(ctx, song, crop_min=100, crop_max=140)
     level = _weighted_choice([(1, 5), (2, 3), (3, 2)])
     _apply_initial_interference(image, level)
@@ -218,7 +218,7 @@ def _start_tip_game(ctx: CommandContext, user_id: str) -> CommandResult:
     key = _session_key(ctx, user_id)
     song = _weighted_song(ctx, key, _ILL_WEIGHTS, _songs_with_illustrations(ctx), decay=0.6)
     if song is None:
-        return CommandResult.text("当前曲库没有可用于提示猜歌的本地曲绘资源，请先执行 phi down ill 下载曲绘。")
+        return CommandResult.text("当前曲库没有可用于提示猜歌的曲绘资源，请先执行 phi down ill 下载曲绘，或切换到远程曲绘模式。")
     tips = _song_tips(song)
     random.shuffle(tips)
     tips = tips[:DEFAULT_TIP_NUM]
@@ -393,13 +393,13 @@ async def _render_guess_image(ctx: CommandContext, image: GuessImageData, name: 
 
 
 def _new_guess_image(ctx: CommandContext, song: Song, *, crop_min: int, crop_max: int) -> GuessImageData:
-    path = ctx.find_illustration(song)
-    if path is None:
+    source = ctx.illustration_source(song, download_proxy=True)
+    if source is None:
         raise RuntimeError(f"missing illustration for {song.id}")
     width = random.randint(crop_min, crop_max)
     height = random.randint(crop_min, crop_max)
     return GuessImageData(
-        illustration=original.image_data_uri(ctx.paths, path),
+        illustration=original.image_data_uri(ctx.paths, source),
         width=width,
         height=height,
         x=random.randint(0, IMAGE_WIDTH - width),
@@ -661,7 +661,7 @@ def _state_song(ctx: CommandContext, state: GuessIllGame | TipGame | LetterGame)
 
 
 def _songs_with_illustrations(ctx: CommandContext) -> list[Song]:
-    return [song for song in ctx.catalog.all_songs() if ctx.find_illustration(song) is not None]
+    return [song for song in ctx.catalog.all_songs() if ctx.illustration_source(song, download_proxy=True) is not None]
 
 
 def _weighted_song(

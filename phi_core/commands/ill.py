@@ -14,15 +14,15 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     song = ctx.searcher.best(args)
     if not song:
         return CommandResult.text(render.render_search(args, []))
-    path = ctx.find_illustration(song)
-    if path:
+    source = ctx.illustration_source(song)
+    if source:
         if ctx.config.render_mode == "image" and ctx.html_render is not None:
             rendered = await render_jinja_template(
                 ctx,
                 "ill/ill",
-                jinja_adapter.ill_data(ctx.paths, path, song.illustrator),
+                jinja_adapter.ill_data(ctx.paths, source, song.illustrator),
                 "ill",
             )
             return CommandResult.image(rendered)
-        return CommandResult.image(path)
+        return CommandResult.image(source)
     return CommandResult.text(render.render_missing_illustration(song))

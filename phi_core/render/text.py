@@ -26,7 +26,7 @@ phi help - 查看帮助
 phi song <曲名/别名> - 查询曲目信息
 phi search <关键词> - 搜索曲目
 phi rand - 随机曲目
-phi ill <曲名/别名> - 发送本地曲绘
+phi ill <曲名/别名> - 发送曲绘
 phi down ill - 下载或更新原版曲绘资源
 phi bind <sessionToken|查询ID|qrcode> - 绑定 Phigros token、查询平台 ID 或 TapTap 扫码登录
 phi auth <API Token> - 使用查询平台 API Token 登录并保存 sessionToken
@@ -110,7 +110,7 @@ def render_random(song: Song) -> str:
 
 
 def render_missing_illustration(song: Song) -> str:
-    return f"暂未找到「{song.title}」的本地曲绘。可以之后补充 original_ill 资源目录。"
+    return f"暂未找到「{song.title}」的曲绘。可以之后补充 original_ill 资源目录，或切换到远程曲绘模式。"
 
 
 def render_need_query(command: str) -> str:

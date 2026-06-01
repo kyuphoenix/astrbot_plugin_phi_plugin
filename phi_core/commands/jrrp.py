@@ -9,6 +9,7 @@ from typing import Any
 
 from ._rendering import render_jinja_template
 from .common import CommandContext, CommandResult
+from ..data.illustrations import illustration_url, use_remote_illustrations
 from ..render import jinja_adapter
 
 ALIASES = {"jrrp", "今日人品"}
@@ -48,7 +49,7 @@ def _panel_data(ctx: CommandContext, value: list[Any], *, now: datetime | None =
     sentence_index = _as_int(value[1] if len(value) > 1 else 0)
     sentence = sentences[sentence_index % len(sentences)] if sentences else {"hitokoto": "今天也要好好打歌。", "from": "Phi"}
     return {
-        "bkg": ctx.paths.other_ill / "ShineAfter.ADeanJocularACE.0.png",
+        "bkg": _jrrp_background(ctx),
         "lucky": lucky,
         "luckRank": 5 if lucky == 100 else 4 if lucky >= 80 else 3 if lucky >= 60 else 2 if lucky >= 40 else 1 if lucky >= 20 else 0,
         "year": now.year,
@@ -58,6 +59,13 @@ def _panel_data(ctx: CommandContext, value: list[Any], *, now: datetime | None =
         "good": [str(item) for item in value[2:6]],
         "bad": [str(item) for item in value[6:10]],
     }
+
+
+def _jrrp_background(ctx: CommandContext) -> str | Path:
+    song_id = "ShineAfter.ADeanJocularACE.0"
+    if use_remote_illustrations(ctx.paths):
+        return illustration_url(song_id, prefer_low=True, paths=ctx.paths)
+    return ctx.paths.other_ill / f"{song_id}.png"
 
 
 def _pick_words(rng: random.Random, primary: list[str], common: list[str], count: int) -> list[str]:

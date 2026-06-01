@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from ..config import PluginConfig
-from ..data.illustrations import find_illustration_file
+from ..data.illustrations import find_illustration_file, illustration_download_url, illustration_url, use_remote_illustrations
 from ..data import SongCatalog, SongSearcher
 from ..models import SaveSnapshot, Song
 from ..paths import PluginPaths
@@ -66,3 +66,14 @@ class CommandContext:
             if path.exists() and path.is_file():
                 return path
         return None
+
+    def illustration_source(self, song: Song, *, prefer_low: bool = True, download_proxy: bool = False) -> Path | str | None:
+        if use_remote_illustrations(self.paths):
+            if download_proxy:
+                return illustration_download_url(
+                    song.id,
+                    prefer_low=prefer_low,
+                    github_proxy=self.config.github_proxy,
+                )
+            return illustration_url(song.id, prefer_low=prefer_low, paths=self.paths)
+        return self.find_illustration(song)
