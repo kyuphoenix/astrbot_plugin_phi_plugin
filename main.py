@@ -14,7 +14,6 @@ from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
-from .phi_core.render import panel as panel_render
 from .phi_core.data.ill_download import ensure_resources_blocking
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
@@ -424,27 +423,9 @@ class AstrBotPhiPlugin(Star):
         self,
         event: AstrMessageEvent,
         result: CommandResult,
-        *,
-        render_text_as_image: bool = True,
     ):
         if result.kind == "image":
             return event.chain_result([self._image_component(result.value)])
-        if render_text_as_image and self.plugin_config.render_mode == "image":
-            try:
-                path = await panel_render.render_text_panel(
-                    self.plugin_config,
-                    self.paths,
-                    result.value,
-                    html_render=self.html_render,
-                )
-                return event.chain_result([self._image_component(path)])
-            except Exception as exc:
-                logger.warning(
-                    "phi image render failed, fallback to text: "
-                    f"{exc}; render_mode={self.plugin_config.render_mode}; "
-                    f"render_backend={self.plugin_config.render_backend}; "
-                    f"resources={self.paths.resources}; fonts={image_render.font_diagnostics(self.paths)}"
-                )
         return event.plain_result(result.value)
 
     @staticmethod
