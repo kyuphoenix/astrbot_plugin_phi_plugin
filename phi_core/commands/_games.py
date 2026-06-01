@@ -369,7 +369,13 @@ async def _finish_with_answer(ctx: CommandContext, message: str, song: Song, sta
             await ctx.sender(CommandResult.text(f"{message}\n正确答案是：{song.title}"))
             reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
             await ctx.sender(CommandResult.image(reveal_path))
-            song_path = await render_jinja_template(ctx, "atlas/atlas", jinja_adapter.atlas_data(ctx.paths, song), "guess-song")
+            song_path = await render_jinja_template(
+                ctx,
+                "atlas/atlas",
+                jinja_adapter.atlas_data(ctx.paths, song),
+                "guess-song",
+                width=2048,
+            )
             return CommandResult.image(song_path)
         reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
         return CommandResult.image(reveal_path)

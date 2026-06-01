@@ -726,6 +726,9 @@ async def main() -> None:
             raise SystemExit("phi ill should pass base64 data URIs to t2i, not local or remote URLs")
         if "data:image/" not in ill_html:
             raise SystemExit("phi ill should inline illustration images as data URIs")
+        ill_options = html_render_calls[-1][3] or {}
+        if ill_options.get("viewport_width") != 2048 or ill_options.get("viewport_height") != 1080:
+            raise SystemExit(f"phi ill should use original 2048x1080 viewport, got {ill_options!r}")
 
         byte_render_calls: list[tuple[str, dict, bool, dict | None]] = []
 
@@ -1062,10 +1065,16 @@ async def main() -> None:
                 if options.get("viewport_width") != 1920 or options.get("viewport_height") != 1200:
                     raise SystemExit(f"image randclg should use original 1920x1200 viewport, got {options!r}")
             if command == "song":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 2048:
+                    raise SystemExit(f"image song should use original 2048px atlas viewport, got {options!r}")
                 before_song_comment = len(b30_render_calls)
                 song_comment = await dispatch(image_login_ctx, "login-user", "song", "Glaciaxion -comment")
                 if song_comment.kind != "image" or len(b30_render_calls) != before_song_comment + 1:
                     raise SystemExit(f"image song -comment should render through atlas with comments, got {song_comment!r}")
+                song_comment_options = b30_render_calls[-1][3] or {}
+                if song_comment_options.get("viewport_width") != 2048:
+                    raise SystemExit(f"image song -comment should use original 2048px atlas viewport, got {song_comment_options!r}")
                 song_comment_html = _render_call_html(b30_render_calls[-1])
                 if "comment-box" not in song_comment_html or "hello" not in song_comment_html:
                     raise SystemExit("image song -comment should render upstream atlas comment panel")
