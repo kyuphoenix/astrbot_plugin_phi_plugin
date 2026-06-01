@@ -2,66 +2,70 @@
   "default_global": {
     "description": "默认使用国际服存档接口",
     "type": "bool",
-    "default": false
+    "default": false,
+    "hint": "开启后，绑定和同步时优先按国际服账号处理。"
   },
   "render_mode": {
-    "description": "渲染模式；image 使用 AstrBot HTML/Playwright 图片面板，text 返回纯文本",
+    "description": "渲染模式",
     "type": "string",
     "default": "image",
-    "options": ["text", "image"]
-  },
-  "render_backend": {
-    "description": "图片渲染后端；当前固定使用 AstrBot HTML/Playwright 渲染",
-    "type": "string",
-    "default": "html",
-    "options": ["html"]
+    "options": ["image", "text"],
+    "hint": "image 使用 AstrBot HTML/Playwright 渲染图片；text 直接返回纯文本，适合调试。"
   },
   "score_image_version": {
-    "description": "Single-score image template version; modern uses score/score, old uses score/scoreOld",
+    "description": "单曲成绩图片模板",
     "type": "string",
     "default": "modern",
-    "options": ["modern", "old"]
+    "options": ["modern", "old"],
+    "hint": "modern 使用新版单曲成绩模板；old 使用旧版 scoreOld 模板。"
   },
   "ranklist_image_version": {
-    "description": "Ranklist image template version; modern uses rankingList/rankingList, old uses rankingList-old/rankingList",
+    "description": "排行榜图片模板",
     "type": "string",
     "default": "modern",
-    "options": ["modern", "old"]
+    "options": ["modern", "old"],
+    "hint": "modern 使用新版排行榜模板；old 使用旧版 rankingList-old 模板。"
   },
   "max_b30": {
-    "description": "B30 展示条数",
+    "description": "B30 默认计算/展示条数",
     "type": "int",
     "default": 33,
-    "slider": {"min": 33, "max": 50, "step": 1}
+    "slider": {"min": 33, "max": 50, "step": 1},
+    "hint": "影响 b30/pgr 等命令默认取用的成绩数量。"
   },
   "list_score_max_num": {
-    "description": "list score filter max displayed rows; larger results ask users to narrow filters",
+    "description": "成绩列表最大展示条数",
     "type": "int",
     "default": 80,
-    "slider": {"min": 1, "max": 500, "step": 1}
+    "slider": {"min": 1, "max": 500, "step": 1},
+    "hint": "phi list 结果超过该数量时会提示用户缩小筛选范围。"
   },
   "history_day_num": {
-    "description": "phi update 每个日期最多展示的历史成绩数量，至少为 2，默认与原版一致为 10。",
+    "description": "单日历史成绩展示上限",
     "type": "int",
     "default": 10,
-    "slider": {"min": 2, "max": 50, "step": 1}
+    "slider": {"min": 2, "max": 50, "step": 1},
+    "hint": "phi update 每个日期最多展示多少条历史成绩变化。"
   },
   "history_score_date": {
-    "description": "phi update 最多展示的历史日期数量，默认与原版一致为 10。",
+    "description": "历史成绩展示日期数",
     "type": "int",
     "default": 10,
-    "slider": {"min": 1, "max": 60, "step": 1}
+    "slider": {"min": 1, "max": 60, "step": 1},
+    "hint": "phi update 最多展示最近多少个有变化的日期。"
   },
   "history_score_num": {
-    "description": "phi update 最多展示的历史成绩总数，默认与原版一致为 50。",
+    "description": "历史成绩展示总数",
     "type": "int",
     "default": 50,
-    "slider": {"min": 1, "max": 300, "step": 1}
+    "slider": {"min": 1, "max": 300, "step": 1},
+    "hint": "phi update 最多展示多少条成绩变化记录。"
   },
   "api_base_url": {
-    "description": "Phi Plugin 联合查分 API 地址",
+    "description": "联合查分 API 地址",
     "type": "string",
-    "default": "https://phib19.top:8080"
+    "default": "https://phib19.top:8080",
+    "hint": "用于绑定、同步存档、排行榜、评论等在线功能。"
   },
   "request_timeout": {
     "description": "网络请求超时时间（秒）",
@@ -76,30 +80,35 @@
     "slider": {"min": 30, "max": 600, "step": 10}
   },
   "render_max_retries": {
-    "description": "HTML/T2I 渲染失败后的最大重试次数",
+    "description": "HTML/T2I 渲染最大重试次数",
     "type": "int",
     "default": 2,
-    "slider": {"min": 0, "max": 5, "step": 1}
+    "slider": {"min": 0, "max": 5, "step": 1},
+    "hint": "远端 T2I 服务偶发断连时会自动重试。"
   },
   "github_proxy": {
-    "description": "GitHub 代理地址，当前仅预留",
+    "description": "GitHub 下载代理地址",
     "type": "string",
-    "default": ""
+    "default": "",
+    "hint": "用于下载资源仓库和远程曲绘资源；留空则直连 GitHub。"
   },
   "illustration_source": {
-    "description": "Illustration source: remote passes GitHub raw URLs from Catrong/phi-plugin-ill into Jinja2 templates; local encodes downloaded files as base64 for T2I",
+    "description": "曲绘资源模式",
     "type": "string",
     "default": "remote",
-    "options": ["local", "remote"]
+    "options": ["remote", "local"],
+    "hint": "remote 向 T2I 传入 GitHub 在线曲绘地址；local 读取本地曲绘并转成 base64。"
   },
   "illustration_url_proxy": {
-    "description": "Remote illustration URL proxy for T2I rendering. Example: https://ghproxy.net . Empty means direct GitHub raw URLs.",
+    "description": "T2I 曲绘 URL 代理地址",
     "type": "string",
-    "default": ""
+    "default": "",
+    "hint": "仅在曲绘资源模式为 remote 时使用，用于给传入 T2I 的 GitHub 曲绘 URL 加速。"
   },
   "game_reply_listener": {
-    "description": "开启后，phi guess / phi tipgame / phi ltr 小游戏进行中可直接回复答案、tip、ans、open A 等内容，无需再次唤醒机器人。关闭时保留原命令/唤醒方式。",
+    "description": "小游戏直接回复监听",
     "type": "bool",
-    "default": false
+    "default": false,
+    "hint": "开启后，phi guess / phi tipgame / phi ltr 进行中可直接回复曲名、tip、ans、open A；关闭时仍使用原命令唤醒方式。"
   }
 }
