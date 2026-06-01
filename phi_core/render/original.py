@@ -1777,7 +1777,7 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
         if path is not None:
             return _illustration_source(paths, path, song_id=song, background=True)
         if use_remote_illustrations(paths):
-            return background_illustration_url(song)
+            return background_illustration_url(song, paths=paths)
     return _random_background(paths)
 
 
@@ -1980,7 +1980,7 @@ def _rank_background(paths: PluginPaths, raw: dict[str, Any], catalog: SongCatal
             if path is not None:
                 return _illustration_source(paths, path, song_id=song_id, background=True)
             if use_remote_illustrations(paths):
-                return background_illustration_url(song_id)
+                return background_illustration_url(song_id, paths=paths)
             song = catalog.get(song_id) if catalog is not None else None
             if song is not None:
                 return _song_illustration(paths, song)
@@ -2301,7 +2301,7 @@ def _update_change_song(paths: PluginPaths, change: ProgressScoreChange) -> dict
     rks = f"{change.rks_new:.4f}" if change.rks_new else ""
     ill_path = find_illustration_file(paths, change.song_id, prefer_low=True)
     illustration = _illustration_source(paths, ill_path, song_id=change.song_id, prefer_low=True) if ill_path is not None else (
-        illustration_url(change.song_id, prefer_low=True) if use_remote_illustrations(paths) else asset_uri(paths, "html/otherimg/phigros.png")
+        illustration_url(change.song_id, prefer_low=True, paths=paths) if use_remote_illustrations(paths) else asset_uri(paths, "html/otherimg/phigros.png")
     )
     rating_img = ""
     if change.rating_new:
@@ -3024,7 +3024,7 @@ def _song_illustration(paths: PluginPaths, song: Song) -> str:
     if path is not None:
         return _illustration_source(paths, path, song_id=song.id, prefer_low=True)
     if use_remote_illustrations(paths):
-        return illustration_url(song.id, prefer_low=True)
+        return illustration_url(song.id, prefer_low=True, paths=paths)
     for raw in (song.illustration, song.illustration_big):
         if raw:
             uri = _source_data_uri(paths, raw)
@@ -3042,7 +3042,7 @@ def _chart_illustration(paths: PluginPaths, chart: ChartEntry) -> str:
     if path is not None:
         return _illustration_source(paths, path, song_id=chart.song_id, prefer_low=True)
     if use_remote_illustrations(paths):
-        return illustration_url(chart.song_id, prefer_low=True)
+        return illustration_url(chart.song_id, prefer_low=True, paths=paths)
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
@@ -3070,7 +3070,7 @@ def _random_background_for_charts(paths: PluginPaths, charts: list[ChartEntry]) 
                 seen.add(resolved)
                 candidates.append(path)
         elif use_remote_illustrations(paths):
-            return background_illustration_url(chart.song_id)
+            return background_illustration_url(chart.song_id, paths=paths)
     if candidates:
         selected = random.choice(candidates)
         return _illustration_source(paths, selected, song_id=selected.stem, background=True)
@@ -3392,7 +3392,7 @@ def _random_background_for_records(paths: PluginPaths, records: list[ScoreRecord
             seen.add(resolved)
             candidates.append(path)
         elif use_remote_illustrations(paths):
-            return background_illustration_url(record.song_id)
+            return background_illustration_url(record.song_id, paths=paths)
     if candidates:
         selected = random.choice(candidates)
         return _illustration_source(paths, selected, song_id=selected.stem, background=True)
@@ -3404,7 +3404,7 @@ def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:
     if path is not None:
         return _illustration_source(paths, path, song_id=record.song_id, prefer_low=True)
     if use_remote_illustrations(paths):
-        return illustration_url(record.song_id, prefer_low=True)
+        return illustration_url(record.song_id, prefer_low=True, paths=paths)
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 
@@ -3501,13 +3501,13 @@ def _illustration_source(
 ) -> str:
     if use_remote_illustrations(paths):
         if background and song_id:
-            return background_illustration_url(song_id)
+            return background_illustration_url(song_id, paths=paths)
         if path is not None:
             url = online_url_for_local_path(paths, path)
             if url:
                 return url
         if song_id:
-            return background_illustration_url(song_id) if background else illustration_url(song_id, prefer_low=prefer_low)
+            return background_illustration_url(song_id, paths=paths) if background else illustration_url(song_id, prefer_low=prefer_low, paths=paths)
     return _file_data_uri(path) if path is not None else ""
 
 

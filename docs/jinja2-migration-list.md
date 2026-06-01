@@ -31,13 +31,16 @@ Their active information has been folded into this file or `docs/command-migrati
 command handler
   -> jinja_adapter.<template>_data(...)
   -> render_jinja_template(ctx, "<folder>/<template>", data, name)
-  -> jinja_renderer.render_template(...)
-  -> inline CSS / JS / images / fonts as base64 data URIs
-  -> panel.render_html(...)
-  -> AstrBot html_render / t2i
+  -> jinja_adapter.adapt_template_data(...)
+  -> jinja_renderer.render_template_payload(...)
+  -> flatten template inheritance and inline CSS / JS / fixed local images / fonts as base64 data URIs
+  -> panel.render_html(template, data, ...)
+  -> AstrBot html_render runs Jinja2 with the JSON data, then t2i screenshots the result
 ```
 
 Template paths use upstream names without `.art`, for example `b19/b19`, `score/score`, or `userinfo/userinfo`.
+
+Dynamic asset filenames must be assembled in Python before calling AstrBot. Templates should receive fields such as `avatarImg`, `challengeImg`, `ratingImg`, `dataImg`, `ratingImgs`, or `help.imgSrc` instead of composing paths like `html/otherimg/{{ song.Rating }}.png` at render time. The renderer may rewrite converted upstream template expressions to these fields, but it must not locally render business data with Jinja2 before calling `html_render`.
 
 ## Runtime-Migrated Commands
 

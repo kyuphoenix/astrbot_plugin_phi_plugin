@@ -25,6 +25,8 @@ _RES_ATTR_RE = re.compile(r"(?P<prefix>\b(?:src|href)=[\"'])(?P<url>[^\"']+)(?P<
 _RES_URL_RE = re.compile(r"url\((?P<quote>[\"']?)(?P<url>[^)\"']+)(?P=quote)\)", re.IGNORECASE)
 _CSS_IMPORT_RE = re.compile(r"@import\s+(?:url\()?['\"](?P<url>[^'\")]+)['\"]\)?\s*;", re.IGNORECASE)
 _VIEWPORT_RE = re.compile(r"<meta\b(?=[^>]*\bname=[\"']viewport[\"'])(?=[^>]*\bcontent=[\"'](?P<content>[^\"']*)[\"'])[^>]*>", re.IGNORECASE)
+_BLOCK_RE = re.compile(r"{%\s*block\s+(?P<name>\w+)\s*%}(?P<body>.*?){%\s*endblock\s*%}", re.DOTALL)
+_EXTENDS_RE = re.compile(r"{%\s*extends\s+[\"'](?P<path>[^\"']+)[\"']\s*%}")
 
 _DEFAULT_WIDTH = 1200
 
@@ -55,6 +57,41 @@ def render_template(
         rendered,
         width=int(context.get("_viewport_width") or _DEFAULT_WIDTH),
         height=int(context["_viewport_height"]) if context.get("_viewport_height") is not None else None,
+    )
+
+
+def render_template_payload(
+    paths: PluginPaths,
+    template_path: str,
+    data: Mapping[str, Any] | None = None,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+) -> tuple[str, dict[str, Any], int, int | None]:
+    """Build a self-contained Jinja2 template and data for AstrBot html_render."""
+    root = template_root(paths)
+    normalized = _normalize_template_path(template_path)
+    context = _base_context(paths)
+    if data:
+        context.update(copy.deepcopy(dict(data)))
+    if width is not None:
+        context["_viewport_width"] = int(width)
+    if height is not None:
+        context["_viewport_height"] = int(height)
+    template = _template_source(root, normalized)
+    template = _rewrite_template_asset_fields(normalized, template)
+    template = make_self_contained(
+        paths,
+        root,
+        template,
+        width=int(context.get("_viewport_width") or _DEFAULT_WIDTH),
+        height=int(context["_viewport_height"]) if context.get("_viewport_height") is not None else None,
+    )
+    return (
+        template,
+        context,
+        int(context.get("_viewport_width") or _DEFAULT_WIDTH),
+        int(context["_viewport_height"]) if context.get("_viewport_height") is not None else None,
     )
 
 
@@ -94,6 +131,21 @@ def _environment(root: Path) -> Environment:
     return env
 
 
+def _template_source(root: Path, normalized: str) -> str:
+    source = (root / normalized).read_text(encoding="utf-8")
+    match = _EXTENDS_RE.search(source)
+    if not match:
+        return source
+    parent_path = match.group("path").replace("\\", "/").strip("/")
+    parent = (root / parent_path).read_text(encoding="utf-8")
+    child_blocks = {m.group("name"): m.group("body") for m in _BLOCK_RE.finditer(source)}
+
+    def replace(match: re.Match[str]) -> str:
+        return child_blocks.get(match.group("name"), match.group("body"))
+
+    return _BLOCK_RE.sub(replace, parent)
+
+
 def _normalize_template_path(template_path: str) -> str:
     normalized = str(template_path).replace("\\", "/").strip("/")
     if not normalized.endswith(".html"):
@@ -117,6 +169,56 @@ def _base_context(paths: PluginPaths) -> dict[str, Any]:
         "_viewport_width": _DEFAULT_WIDTH,
         "_viewport_height": None,
     }
+
+
+def _rewrite_template_asset_fields(normalized: str, html: str) -> str:
+    """Replace runtime-composed asset filenames with Python-prepared data fields.
+
+    The returned string is still a Jinja2 template. Only resource expressions are
+    rewritten so AstrBot receives JSON data instead of local/dynamic filenames.
+    """
+    del normalized
+    replacements = {
+        "{{ _res_path }}html/avatar/{{ gameuser.avatar }}.png": "{{ gameuser.avatarImg }}",
+        "{{ _res_path }}html/avatar/{{ avatar }}.png": "{{ avatarImg }}",
+        "{{ _res_path }}html/avatar/{{ user.avatar }}.png": "{{ user.avatarImg }}",
+        "{{ _res_path }}html/avatar/{{ user.gameuser.avatar }}.png": "{{ user.gameuser.avatarImg }}",
+        "{{ _res_path }}html/otherimg/{{ gameuser.ChallengeMode }}.png": "{{ gameuser.challengeImg }}",
+        "{{ _res_path }}html/otherimg/{{ ChallengeMode }}.png": "{{ challengeImg }}",
+        "{{ _res_path }}html/otherimg/{{ user.ChallengeMode }}.png": "{{ user.challengeImg }}",
+        "{{ _res_path }}html/otherimg/{{ user.gameuser.ChallengeMode }}.png": "{{ user.gameuser.challengeImg }}",
+        "{{ _res_path }}html/otherimg/{{ clg.ChallengeMode }}.png": "{{ clg.challengeImg }}",
+        "{{ _res_path }}html/otherimg/{{ (user.challenge // 100)|int }}.png": "{{ user.challengeImg }}",
+        "{{ _res_path }}html/otherimg/data.png": "{{ dataImg }}",
+        "{{ _res_path }}html/otherimg/{{ song.Rating }}.png": "{{ song.ratingImg }}",
+        "{{ _res_path }}html/otherimg/{{ rank.Rating }}.png": "{{ rank.ratingImg }}",
+        "{{ _res_path }}html/otherimg/{{ user.record.Rating }}.png": "{{ user.record.ratingImg }}",
+        "{{ _res_path }}html/otherimg/{{ e.Rating }}.png": "{{ e.ratingImg }}",
+        "{{ _res_path }}html/otherimg/{{ rating.tot }}.png": "{{ ratingTotImg }}",
+        "{{ _res_path }}html/otherimg/{{ key }}.png": "{{ ratingImgs.get(key, '') }}",
+        "{{ _res_path }}html/otherimg/{{ help.img }}": "{{ help.imgSrc }}",
+        "{{ _res_path }}html//avatar/{{ avatar }}.png": "{{ avatarImg }}",
+        "{{ _res_path }}html//otherimg/{{ ChallengeMode }}.png": "{{ challengeImg }}",
+        "{{ _res_path }}html/otherimg/phi.png": "{{ phiImg }}",
+        "{{ _res_path }}html/otherimg/NEW.png": "{{ newImg }}",
+        "{{ _res_path }}html//otherimg/5.png": "{{ challenge5Img }}",
+        "{{ _res_path }}html/otherimg/Phigros_Icon_3.0.0.png": "{{ phigrosIconImg }}",
+        "{{ _res_path }}html/otherimg/title.png": "{{ titleImg }}",
+        "{{ _res_path }}html/jrrp/ShineAfter.removebg.png": "{{ shineAfterImg }}",
+    }
+    for old, new in replacements.items():
+        html = html.replace(old, new)
+
+    html = html.replace("{{ _imgPath }}/{{ index }}.png", "{{ countImgs.get(index, '') }}")
+    html = html.replace("{{ _imgPath }}/{{ chart.Rating }}.png", "{{ chart.ratingImg }}")
+    html = html.replace("{{ _imgPath }}{{ dif.rating }}.png", "{{ dif.ratingImg }}")
+    html = html.replace("{{ _imgPath }}phi.png", "{{ phiImg }}")
+    html = html.replace("{{ _imgPath }}NEW.png", "{{ newImg }}")
+    html = html.replace(
+        "{{ _res_path ~ 'html/otherimg/' ~ (line.Rating or 'NEW') ~ '.png' }}{# html/otherimg/NEW.png #}",
+        "{{ line.ratingImg }}",
+    )
+    return html
 
 
 def _inline_stylesheets(paths: PluginPaths, root: Path, html: str) -> str:
@@ -200,6 +302,8 @@ def _resource_relative(value: str) -> str | None:
     text = str(value or "").strip()
     if not text:
         return None
+    text = re.sub(r"\{\{\s*_res_path\s*\}\}", "", text)
+    text = re.sub(r"\{\{\s*_imgPath\s*\}\}", str(value or ""), text)
     lowered = text.lower()
     if lowered.startswith(("data:", "#", "javascript:")):
         return None

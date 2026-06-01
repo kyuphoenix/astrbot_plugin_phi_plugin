@@ -20,6 +20,7 @@ class PluginConfig:
     render_max_retries: int = 2
     github_proxy: str = ""
     illustration_source: str = "local"
+    illustration_url_proxy: str = ""
 
     @classmethod
     def from_astrbot(cls, config: Any | None) -> "PluginConfig":
@@ -70,6 +71,7 @@ class PluginConfig:
             request_timeout=max(3, int(get("request_timeout", 10))),
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),
             render_max_retries=max(0, min(5, int(get("render_max_retries", 2)))),
-            github_proxy=str(get("github_proxy", "") or ""),
+            github_proxy=str(get("github_proxy", "") or "").strip().rstrip("/"),
             illustration_source=illustration_source,
+            illustration_url_proxy=str(get("illustration_url_proxy", "") or "").strip().rstrip("/"),
         )

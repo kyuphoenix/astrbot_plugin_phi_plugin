@@ -33,13 +33,21 @@ async def render_html(
     html: str,
     name: str,
     html_render: HtmlRenderFunc | None = None,
+    data: dict | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
 ) -> Path:
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await _render_with_retries(config, html_render, html, viewport_width=viewport_width, viewport_height=viewport_height)
+        rendered = await _render_with_retries(
+            config,
+            html_render,
+            html,
+            data=data,
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+        )
         result = _render_result_path(paths, rendered, name)
         if result is not None:
             return result
@@ -102,6 +110,7 @@ async def _render_with_retries(
     html_render: HtmlRenderFunc,
     html: str,
     *,
+    data: dict | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
 ) -> str | bytes:
@@ -109,7 +118,7 @@ async def _render_with_retries(
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            return await html_render(html, {}, False, _options(viewport_width=viewport_width, viewport_height=viewport_height))
+            return await html_render(html, data or {}, False, _options(viewport_width=viewport_width, viewport_height=viewport_height))
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:

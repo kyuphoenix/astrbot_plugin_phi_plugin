@@ -45,7 +45,7 @@ AstrBot 原生 Phigros 查询核心插件，基于 `phi-plugin` 的资源与算�
 
 ### Illustration Source
 
-The `illustration_source` config controls how song illustrations are passed into Jinja2/AstrBot t2i renders. The default `local` mode keeps the current behavior and converts downloaded local files under `downloads/original_ill` into base64 data URIs. The `remote` mode passes GitHub raw URLs from `Catrong/phi-plugin-ill` into the templates for song illustrations and blurred illustration backgrounds, while non-illustration assets such as fonts, CSS images, avatars, and rating icons are still inlined locally.
+The `illustration_source` config controls how song illustrations are passed into Jinja2/AstrBot t2i renders. The default `local` mode keeps the current behavior and converts downloaded local files under `downloads/original_ill` into base64 data URIs. The `remote` mode passes GitHub raw URLs from `Catrong/phi-plugin-ill` into the templates for song illustrations and blurred illustration backgrounds, while non-illustration assets such as fonts, CSS images, avatars, and rating icons are still inlined locally. If `illustration_url_proxy` is configured, remote illustration URLs are prefixed before being passed to t2i, for example `<proxy>/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/...`.
 
 ## 迁移说明
 

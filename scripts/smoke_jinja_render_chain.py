@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from PIL import Image
+from jinja2 import Environment
 
 ROOT = Path(__file__).resolve().parents[1]
 JINJA2_TEMPLATES = ROOT.parent / "jinja2"
@@ -90,25 +91,32 @@ async def main() -> None:
         raise SystemExit(f"expected one render call, got {len(render_calls)}")
 
     html = render_calls[0][0]
+    data = render_calls[0][1]
     options = render_calls[0][3] or {}
+    if not data or data.get("cmdHead") != "phi":
+        raise SystemExit("AstrBot html_render should receive Jinja2 data")
+    if "{{" not in html or "{%" not in html:
+        raise SystemExit("AstrBot html_render should receive a Jinja2 template, not fully rendered HTML")
     if '<link rel="stylesheet"' in html or "<script src=" in html or "@import" in html:
         raise SystemExit("external stylesheet/script references should be inlined")
-    if "file:///" in html or "D:\\" in html:
+    rendered_html = Environment().from_string(html).render(**data)
+    if "file:///" in rendered_html or "D:\\" in rendered_html:
         raise SystemExit("remote t2i html must not contain local paths")
-    if "data:image/" not in html:
+    if "data:image/" not in rendered_html:
         raise SystemExit("expected images to be converted to data URIs")
     if "width=900" not in html or options.get("viewport_width") != 900:
         raise SystemExit(f"viewport width was not propagated, options={options!r}")
     if "background: #000 !important" not in html or "contain: paint !important" not in html:
         raise SystemExit("reset CSS was not injected")
-    if "Smoke" not in html or "phi help" not in html:
+    if "Smoke" not in rendered_html or "phi help" not in rendered_html:
         debug = paths.render_cache / "smoke-jinja-debug.html"
-        debug.write_text(html, encoding="utf-8")
+        debug.write_text(rendered_html, encoding="utf-8")
         raise SystemExit(f"template data was not rendered; wrote {debug}")
 
     remote_paths = PluginPaths.from_root(ROOT, tmp / "remote")
     remote_paths.ensure_data_dir()
     remote_paths.illustration_source = "remote"
+    remote_paths.illustration_url_proxy = "https://proxy.example"
     if JINJA2_TEMPLATES.exists():
         shutil.copytree(JINJA2_TEMPLATES, remote_paths.resources / "html", dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
     else:
@@ -124,11 +132,12 @@ async def main() -> None:
         charts={"EZ": SongChart(rank="EZ", difficulty=1.0, combo=1)},
     )
     remote_data = jinja_adapter.atlas_data(remote_paths, song)
-    if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png" not in remote_data["illustration"]:
-        raise SystemExit(f"remote atlas illustration should be GitHub raw URL, got {remote_data['illustration']!r}")
+    expected_remote_url = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png"
+    if expected_remote_url not in remote_data["illustration"]:
+        raise SystemExit(f"remote atlas illustration should use proxied GitHub raw URL, got {remote_data['illustration']!r}")
     remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
-    if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/RemoteSong.Smoke.png" not in remote_html:
-        raise SystemExit("remote illustration URL should survive Jinja2 self-contained rendering")
+    if expected_remote_url not in remote_html:
+        raise SystemExit("proxied remote illustration URL should survive Jinja2 self-contained rendering")
     if "data:font/" not in remote_html and "data:application/" not in remote_html:
         raise SystemExit("remote mode should still inline non-illustration font assets")
     if "file:///" in remote_html or "D:\\" in remote_html:

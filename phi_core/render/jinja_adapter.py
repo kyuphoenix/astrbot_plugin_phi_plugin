@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from datetime import datetime
+from collections.abc import MutableMapping
 from typing import Any
 
 from ..data.loader import SongCatalog
@@ -34,6 +35,12 @@ def help_data(paths: PluginPaths, *, cmd_head: str = "phi", is_master: bool = Fa
     groups = json.loads(help_path.read_text(encoding="utf-8-sig")) if help_path.exists() else []
     if not isinstance(groups, list):
         groups = []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        for item in group.get("list") or []:
+            if isinstance(item, dict) and item.get("img"):
+                item["imgSrc"] = _asset_uri(paths, f"html/otherimg/{item['img']}")
     return {
         "helpGroup": groups,
         "cmdHead": cmd_head,
@@ -47,7 +54,7 @@ def b30_data(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
     phi_records = result.phi_records[:3] or [record for record in records if record.acc >= 100][:3]
     background = original._random_background_for_records(paths, [*phi_records, *records])
     return {
-        "gameuser": original._gameuser(snapshot),
+        "gameuser": _with_user_assets(paths, original._gameuser(snapshot)),
         "Date": format_datetime(extract_modified_datetime(snapshot.raw)),
         "stats": original._level_stats(records),
         "spInfo": _b30_sp_info(paths, result, snapshot),
@@ -79,7 +86,7 @@ def dss2_record_list_data(
     phi_records: list[ScoreRecord] | None = None,
     computed_rks: float | None = None,
 ) -> dict[str, Any]:
-    gameuser = original._gameuser(snapshot)
+    gameuser = _with_user_assets(paths, original._gameuser(snapshot))
     gameuser["rks"] = computed_rks if computed_rks is not None else original._record_list_rks(records)
     background = original._random_background_for_records(paths, records)
     header_ill = original._record_illustration(paths, records[0]) if records else background
@@ -135,7 +142,7 @@ def table_data(
     grouped: dict[str, list[ChartEntry]] = {}
     for chart in sorted(charts, key=lambda item: (item.difficulty, item.rank, item.song_title)):
         grouped.setdefault(f"{chart.difficulty:.1f}", []).append(chart)
-    gameuser = original._gameuser(snapshot) if snapshot is not None else None
+    gameuser = _with_user_assets(paths, original._gameuser(snapshot)) if snapshot is not None else None
     if gameuser is not None:
         gameuser["date"] = format_datetime(extract_modified_datetime(snapshot.raw))
     records = record_map or {}
@@ -152,6 +159,7 @@ def table_data(
             {
                 "difficulty": label,
                 "rating": original._table_bucket_rating(bucket, records),
+                "ratingImg": _rating_img(paths, original._table_bucket_rating(bucket, records)),
                 "songs": [_table_song_data(paths, chart, records.get((chart.song_id, chart.rank)), show_score=gameuser is not None) for chart in bucket],
             }
             for label, bucket in grouped.items()
@@ -181,7 +189,7 @@ def chap_data(paths: PluginPaths, summary: Any, *, snapshot: SaveSnapshot, catal
             if chart.rank not in LEVELS or chart.difficulty is None:
                 continue
             record = record_map.get((song.id, chart.rank))
-            chart_data[chart.rank] = _chap_chart_data(chart.difficulty, record)
+            chart_data[chart.rank] = _chap_chart_data(paths, chart.difficulty, record)
             rank_total[chart.rank] += 1
             if record is not None:
                 rank_acc[chart.rank] += record.acc
@@ -210,12 +218,14 @@ def chap_data(paths: PluginPaths, summary: Any, *, snapshot: SaveSnapshot, catal
 
 
 def history_b30_data(paths: PluginPaths, changes: list[Any], snapshot: SaveSnapshot | None = None) -> dict[str, Any]:
-    gameuser = original._gameuser(snapshot) if snapshot is not None else {
+    gameuser = _with_user_assets(paths, original._gameuser(snapshot)) if snapshot is not None else {
         "avatar": "Introduction",
+        "avatarImg": _avatar_img(paths, "Introduction"),
         "PlayerId": "UNKNOWN",
         "rks": 0.0,
         "ChallengeMode": 0,
         "ChallengeModeRank": 0,
+        "challengeImg": _challenge_img(paths, 0),
         "data": "0KiB",
     }
     records = _history_b30_records(changes)
@@ -372,6 +382,8 @@ def jrrp_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
 def sign_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     prepared["avatar"] = original._avatar_name(paths, str(prepared.get("avatar") or "Introduction"))
+    prepared["avatarImg"] = _avatar_img(paths, prepared["avatar"])
+    prepared["challengeImg"] = _challenge_img(paths, prepared.get("ChallengeMode"))
     prepared["background"] = original.image_data_uri(paths, prepared.get("background")) or original._random_background(paths)
     for task in prepared.get("dailyTasks") or []:
         if isinstance(task, dict):
@@ -406,9 +418,9 @@ def newlog_data(
 def ranking_list_data(paths: PluginPaths, data: dict[str, Any], catalog: SongCatalog | None = None) -> dict[str, Any]:
     users = data.get("users") if isinstance(data.get("users"), list) else []
     me = data.get("me") if isinstance(data.get("me"), dict) else {}
-    me_line = original._ranking_large_line(paths, me, catalog)
+    me_line = _with_user_assets(paths, original._ranking_large_line(paths, me, catalog))
     user_lines = [
-        original._ranking_small_line(paths, item if isinstance(item, dict) else {}, fallback_index=index + 1, catalog=catalog)
+        _with_user_assets(paths, original._ranking_small_line(paths, item if isinstance(item, dict) else {}, fallback_index=index + 1, catalog=catalog))
         for index, item in enumerate(users[:5])
     ]
     while len(user_lines) < 5:
@@ -484,13 +496,15 @@ def score_data(
         "songName": song.title,
         "PlayerId": gameuser["PlayerId"],
         "avatar": gameuser["avatar"],
+        "avatarImg": _avatar_img(paths, gameuser["avatar"]),
         "Rks": f"{float(gameuser['rks'] or 0):.4f}",
         "Date": format_datetime(extract_modified_datetime(snapshot.raw)),
         "ChallengeMode": gameuser["ChallengeMode"],
         "ChallengeModeRank": gameuser["ChallengeModeRank"],
+        "challengeImg": _challenge_img(paths, gameuser["ChallengeMode"]),
         "CLGMOD": "",
         "EX": False,
-        "scoreData": _ScoreData(score_rows),
+        "scoreData": _score_data_with_assets(paths, score_rows),
         "history": [_score_history_data(item) for item in (history or records)[:16]],
         "illustration": illustration,
         "background": illustration,
@@ -522,6 +536,7 @@ def update_data(
         "Rks": f"{summary.ranking_score:.4f}",
         "ChallengeMode": max(0, min(5, challenge // 100)),
         "ChallengeModeRank": challenge % 100,
+        "challengeImg": _challenge_img(paths, max(0, min(5, challenge // 100))),
         "Notes": data_money if notes is None else f"{notes} Notes",
         "Date": summary.modified_at,
         "added_rks_notes": [
@@ -557,13 +572,13 @@ def userinfo_data(
     data_history, data_range, data_date = _series_lines(history or {}, "data", money=True)
     acc_rks_data, acc_rks_range, acc_rks_range_labels = _info_acc_rks(snapshot, catalog)
     return {
-        "gameuser": {
+        "gameuser": _with_user_assets(paths, {
             **gameuser,
             "backgroundurl": _info_background(paths, snapshot),
             "selfIntro": _info_intro(snapshot, summary),
             "CLGMOD": "",
             "EX": False,
-        },
+        }),
         "userstats": _info_userstats_list(_info_stats(snapshot, catalog)),
         "rks_history": rks_history,
         "data_history": data_history,
@@ -586,10 +601,12 @@ def lvscore_data(paths: PluginPaths, summary: LevelScoreSummary, snapshot: SaveS
     return {
         "illustration": original._random_background(paths),
         "avatar": gameuser["avatar"],
+        "avatarImg": _avatar_img(paths, gameuser["avatar"]),
         "PlayerId": gameuser["PlayerId"],
         "rks": float(gameuser["rks"] or 0),
         "ChallengeMode": gameuser["ChallengeMode"],
         "ChallengeModeRank": gameuser["ChallengeModeRank"],
+        "challengeImg": _challenge_img(paths, gameuser["ChallengeMode"]),
         "range": {
             "bottom": range_bottom,
             "top": range_top,
@@ -615,6 +632,8 @@ def lvscore_data(paths: PluginPaths, summary: LevelScoreSummary, snapshot: SaveS
             "ez": summary.rank_counts.get("EZ", 0),
         },
         "rating": {**summary.rating_counts, "tot": rating},
+        "ratingTotImg": _rating_img(paths, rating),
+        "ratingImgs": _rating_img_map(paths),
         "progress_phi": _percentage(summary.phi_count, summary.total_charts),
         "progress_fc": _percentage(summary.fc_count, summary.total_charts),
         "date": format_datetime(extract_modified_datetime(snapshot.raw)),
@@ -635,14 +654,78 @@ def newnotice_data(paths: PluginPaths, notice: dict[str, Any]) -> dict[str, Any]
     return data
 
 
-def prepare_dss2_data(data: dict[str, Any]) -> dict[str, Any]:
+def _asset_uri(paths: PluginPaths, relative: str) -> str:
+    return original.asset_uri(paths, relative)
+
+
+def _rating_img(paths: PluginPaths, rating: Any) -> str:
+    return _asset_uri(paths, f"html/otherimg/{_rating_asset(str(rating or 'NEW'))}.png")
+
+
+def _avatar_img(paths: PluginPaths, avatar: Any) -> str:
+    name = original._avatar_name(paths, str(avatar or "Introduction"))
+    return _asset_uri(paths, f"html/avatar/{name}.png") or _asset_uri(paths, "html/avatar/Introduction.png")
+
+
+def _challenge_img(paths: PluginPaths, challenge_mode: Any) -> str:
+    return _asset_uri(paths, f"html/otherimg/{max(0, min(5, _as_int(challenge_mode)))}.png")
+
+
+def _rating_img_map(paths: PluginPaths) -> dict[str, str]:
+    names = ("phi", "FC", "V", "S", "A", "B", "C", "F", "NEW", "EZ", "HD", "IN", "AT", "0", "1", "2", "3", "4", "5")
+    return {name: _asset_uri(paths, f"html/otherimg/{name}.png") for name in names}
+
+
+def _with_user_assets(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
-    prepared["phi"] = prepared.get("phi") or []
-    prepared["b19_list"] = prepared.get("b19_list") or []
+    prepared["avatarImg"] = _avatar_img(paths, prepared.get("avatar"))
+    prepared["challengeImg"] = _challenge_img(paths, prepared.get("ChallengeMode"))
     return prepared
 
 
-def prepare_suggest_data(data: dict[str, Any]) -> dict[str, Any]:
+def _apply_template_assets(paths: PluginPaths, value: Any) -> None:
+    if isinstance(value, MutableMapping):
+        if "avatar" in value:
+            value.setdefault("avatarImg", _avatar_img(paths, value.get("avatar")))
+        if "ChallengeMode" in value:
+            value.setdefault("challengeImg", _challenge_img(paths, value.get("ChallengeMode")))
+        if "challenge" in value:
+            value.setdefault("challengeImg", _challenge_img(paths, _as_int(value.get("challenge")) // 100))
+        if "Rating" in value:
+            value.setdefault("ratingImg", _rating_img(paths, value.get("Rating")))
+        rating = value.get("rating")
+        if rating is not None and not isinstance(rating, (dict, list, tuple)):
+            value.setdefault("ratingImg", _rating_img(paths, rating))
+        if "img" in value and "imgSrc" not in value and value.get("img"):
+            value["imgSrc"] = _asset_uri(paths, f"html/otherimg/{value['img']}")
+        for key, item in list(value.items()):
+            if key in {"ratingImgs", "countImgs"}:
+                continue
+            _apply_template_assets(paths, item)
+        if "theme" in value or "background" in value or "helpGroup" in value:
+            value.setdefault("dataImg", _asset_uri(paths, "html/otherimg/data.png"))
+            value.setdefault("phiImg", _rating_img(paths, "phi"))
+            value.setdefault("newImg", _rating_img(paths, "NEW"))
+            value.setdefault("challenge5Img", _challenge_img(paths, 5))
+            value.setdefault("titleImg", _asset_uri(paths, "html/otherimg/title.png"))
+            value.setdefault("shineAfterImg", _asset_uri(paths, "html/jrrp/ShineAfter.removebg.png"))
+            value.setdefault("phigrosIconImg", _asset_uri(paths, "html/otherimg/Phigros_Icon_3.0.0.png"))
+            value.setdefault("ratingImgs", _rating_img_map(paths))
+            value.setdefault("countImgs", value.get("ratingImgs"))
+    elif isinstance(value, list):
+        for item in value:
+            _apply_template_assets(paths, item)
+
+
+def prepare_dss2_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
+    prepared = copy.deepcopy(data)
+    prepared["phi"] = prepared.get("phi") or []
+    prepared["b19_list"] = prepared.get("b19_list") or []
+    _apply_template_assets(paths, prepared)
+    return prepared
+
+
+def prepare_suggest_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     groups = prepared.get("song")
     if not isinstance(groups, list):
@@ -651,19 +734,21 @@ def prepare_suggest_data(data: dict[str, Any]) -> dict[str, Any]:
         groups.append([])
     prepared["song"] = groups[:6]
     prepared["phisong"] = prepared.get("phisong") or []
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_arcgros_b19_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_arcgros_b19_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     for group_name in ("phi", "b19_list"):
         for song in prepared.get(group_name) or []:
             if isinstance(song, dict):
                 song.setdefault("std_score", _std_score(song.get("score")))
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_lvsco_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_lvsco_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     rating = prepared.get("rating")
     if isinstance(rating, dict):
@@ -671,6 +756,7 @@ def prepare_lvsco_data(data: dict[str, Any]) -> dict[str, Any]:
         prepared["rating_max"] = max(values) if values else 1
     else:
         prepared["rating_max"] = 1
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
@@ -688,7 +774,7 @@ def prepare_newnotice_data(data: dict[str, Any]) -> dict[str, Any]:
     return prepared
 
 
-def prepare_score_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_score_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     score_data = prepared.get("scoreData")
     if isinstance(score_data, _ScoreData):
@@ -707,10 +793,11 @@ def prepare_score_data(data: dict[str, Any]) -> dict[str, Any]:
     prepared["history"] = prepared.get("history") or []
     if not prepared.get("background"):
         prepared["background"] = prepared.get("illustration")
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_update_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_update_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     prepared["added_rks_notes"] = _ensure_length(prepared.get("added_rks_notes"), 2, "")
     prepared["rks_history"] = prepared.get("rks_history") or []
@@ -718,10 +805,11 @@ def prepare_update_data(data: dict[str, Any]) -> dict[str, Any]:
     prepared["rks_date"] = _ensure_length(prepared.get("rks_date"), 2, "")
     prepared["box_line"] = prepared.get("box_line") or []
     prepared["task_data"] = prepared.get("task_data") or []
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_userinfo_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_userinfo_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     prepared["gameuser"] = prepared.get("gameuser") or {}
     prepared["userstats"] = prepared.get("userstats") or []
@@ -734,10 +822,11 @@ def prepare_userinfo_data(data: dict[str, Any]) -> dict[str, Any]:
     prepared["acc_rks_data"] = prepared.get("acc_rks_data") or []
     prepared["acc_rks_range"] = _ensure_length(prepared.get("acc_rks_range"), 2, 0.0)
     prepared["acc_rks_AccRange"] = prepared.get("acc_rks_AccRange") or []
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_chap_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_chap_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     prepared["count"] = prepared.get("count") or {"tot": 0}
     prepared["song_box"] = prepared.get("song_box") or []
@@ -745,15 +834,18 @@ def prepare_chap_data(data: dict[str, Any]) -> dict[str, Any]:
     prepared["num"] = _as_int(prepared.get("num")) or len(prepared["song_box"])
     if not prepared.get("chapIll"):
         prepared["chapIll"] = prepared.get("background") or ""
+    prepared["countImgs"] = _rating_img_map(paths)
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_history_b30_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_history_b30_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     gameuser = prepared.get("gameuser")
     prepared["gameuser"] = gameuser if isinstance(gameuser, dict) else {}
     prepared["rows"] = prepared.get("rows") or []
     prepared["spInfo"] = prepared.get("spInfo") or ""
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
@@ -916,7 +1008,7 @@ def prepare_guess_data(data: dict[str, Any]) -> dict[str, Any]:
     return prepared
 
 
-def prepare_ranking_list_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_ranking_list_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     users = prepared.get("users")
     prepared["users"] = users if isinstance(users, list) else []
@@ -931,10 +1023,11 @@ def prepare_ranking_list_data(data: dict[str, Any]) -> dict[str, Any]:
         prepared["me"]["backgroundurl"] = prepared.get("background") or ""
     if not prepared.get("background"):
         prepared["background"] = prepared["me"].get("backgroundurl") or ""
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def prepare_ranking_list_old_data(data: dict[str, Any]) -> dict[str, Any]:
+def prepare_ranking_list_old_data(paths: PluginPaths, data: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(data)
     users = prepared.get("users")
     prepared["users"] = users if isinstance(users, list) else []
@@ -956,58 +1049,63 @@ def prepare_ranking_list_old_data(data: dict[str, Any]) -> dict[str, Any]:
         user["selfIntro"] = str(user.get("selfIntro") or "")
         b19 = user.get("b19")
         user["b19"] = b19 if isinstance(b19, list) else []
+    _apply_template_assets(paths, prepared)
     return prepared
 
 
-def adapt_template_data(template_path: str, data: dict[str, Any]) -> dict[str, Any]:
+def adapt_template_data(paths: PluginPaths, template_path: str, data: dict[str, Any]) -> dict[str, Any]:
     normalized = template_path.replace("\\", "/").removesuffix(".html")
+    prepared: dict[str, Any]
     if normalized == "rand/rand":
-        return prepare_rand_data(data)
-    if normalized == "clg/clg":
-        return prepare_clg_data(data)
-    if normalized == "setting/userSetting":
-        return prepare_user_setting_data(data)
-    if normalized == "ill/ill":
-        return prepare_ill_data(data)
-    if normalized == "jrrp/jrrp":
-        return prepare_jrrp_data(data)
-    if normalized == "sign/sign":
-        return prepare_sign_data(data)
-    if normalized == "guess/guess":
-        return prepare_guess_data(data)
-    if normalized == "newSong/newSong":
-        return prepare_newlog_data(data)
-    if normalized == "rankingList-old/rankingList":
-        return prepare_ranking_list_old_data(data)
-    if normalized == "rankingList/rankingList":
-        return prepare_ranking_list_data(data)
-    if normalized in {"chartInfo/chartInfo", "chartImg/chartImg"}:
-        return prepare_chart_info_data(data)
-    if normalized == "atlas/atlas":
-        return prepare_atlas_data(data)
-    if normalized == "analyzeSaveHistory/analyzeSaveHistory":
-        return prepare_analyze_save_history_data(data)
-    if normalized == "historyB30/historyB30":
-        return prepare_history_b30_data(data)
-    if normalized == "chap/chap":
-        return prepare_chap_data(data)
-    if normalized in {"score/score", "score/scoreOld", "score/scoreRankList"}:
-        return prepare_score_data(data)
-    if normalized == "update/update":
-        return prepare_update_data(data)
-    if normalized in {"userinfo/userinfo", "userinfo/userinfo-old"}:
-        return prepare_userinfo_data(data)
-    if normalized == "arcgrosB19/arcgrosB19":
-        return prepare_arcgros_b19_data(data)
-    if normalized == "b19/dss2":
-        return prepare_dss2_data(data)
-    if normalized == "suggest/suggest":
-        return prepare_suggest_data(data)
-    if normalized == "lvsco/lvsco":
-        return prepare_lvsco_data(data)
-    if normalized == "newnotice/newnotice":
-        return prepare_newnotice_data(data)
-    return copy.deepcopy(data)
+        prepared = prepare_rand_data(data)
+    elif normalized == "clg/clg":
+        prepared = prepare_clg_data(data)
+    elif normalized == "setting/userSetting":
+        prepared = prepare_user_setting_data(data)
+    elif normalized == "ill/ill":
+        prepared = prepare_ill_data(data)
+    elif normalized == "jrrp/jrrp":
+        prepared = prepare_jrrp_data(data)
+    elif normalized == "sign/sign":
+        prepared = prepare_sign_data(data)
+    elif normalized == "guess/guess":
+        prepared = prepare_guess_data(data)
+    elif normalized == "newSong/newSong":
+        prepared = prepare_newlog_data(data)
+    elif normalized == "rankingList-old/rankingList":
+        prepared = prepare_ranking_list_old_data(paths, data)
+    elif normalized == "rankingList/rankingList":
+        prepared = prepare_ranking_list_data(paths, data)
+    elif normalized in {"chartInfo/chartInfo", "chartImg/chartImg"}:
+        prepared = prepare_chart_info_data(data)
+    elif normalized == "atlas/atlas":
+        prepared = prepare_atlas_data(data)
+    elif normalized == "analyzeSaveHistory/analyzeSaveHistory":
+        prepared = prepare_analyze_save_history_data(data)
+    elif normalized == "historyB30/historyB30":
+        prepared = prepare_history_b30_data(paths, data)
+    elif normalized == "chap/chap":
+        prepared = prepare_chap_data(paths, data)
+    elif normalized in {"score/score", "score/scoreOld", "score/scoreRankList"}:
+        prepared = prepare_score_data(paths, data)
+    elif normalized == "update/update":
+        prepared = prepare_update_data(paths, data)
+    elif normalized in {"userinfo/userinfo", "userinfo/userinfo-old"}:
+        prepared = prepare_userinfo_data(paths, data)
+    elif normalized == "arcgrosB19/arcgrosB19":
+        prepared = prepare_arcgros_b19_data(paths, data)
+    elif normalized == "b19/dss2":
+        prepared = prepare_dss2_data(paths, data)
+    elif normalized == "suggest/suggest":
+        prepared = prepare_suggest_data(paths, data)
+    elif normalized == "lvsco/lvsco":
+        prepared = prepare_lvsco_data(paths, data)
+    elif normalized == "newnotice/newnotice":
+        prepared = prepare_newnotice_data(data)
+    else:
+        prepared = copy.deepcopy(data)
+    _apply_template_assets(paths, prepared)
+    return prepared
 
 
 def _score_record_data(
@@ -1030,6 +1128,7 @@ def _score_record_data(
         "rks": record.rks,
         "song": record.song_title,
         "Rating": record.rating,
+        "ratingImg": _rating_img(paths, record.rating),
         "score": _std_score(record.score),
         "acc": record.acc,
         "suggest": suggest_text,
@@ -1047,6 +1146,7 @@ def _dss2_record_data(paths: PluginPaths, record: ScoreRecord) -> dict[str, Any]
         "rks": record.rks,
         "song": record.song_title,
         "Rating": record.rating,
+        "ratingImg": _rating_img(paths, record.rating),
         "score": _std_score(record.score),
         "acc": record.acc,
         "suggest": original._record_list_suggest(record),
@@ -1259,6 +1359,7 @@ def _score_list_entry_data(paths: PluginPaths, entry: ScoreListEntry) -> dict[st
         "suggest": suggest,
         "score": score,
         "Rating": rating,
+        "ratingImg": _rating_img(paths, rating),
     }
 
 
@@ -1278,6 +1379,7 @@ def _phi_suggest_entry_data(paths: PluginPaths, entry: PhiSuggestEntry) -> dict[
         "illustration": original._chart_illustration(paths, chart),
         "apCount": int(entry.ap_count),
         "total": int(entry.total or 0),
+        "ratingImg": _rating_img(paths, "phi"),
     }
 
 
@@ -1289,19 +1391,22 @@ def _table_song_data(paths: PluginPaths, chart: ChartEntry, record: ScoreRecord 
         "rank": chart.rank,
         "illustration": original._chart_illustration(paths, chart),
         "score": score,
+        "scoreImg": _rating_img(paths, "phi" if score == 100 else "NEW"),
     }
 
 
-def _chap_chart_data(difficulty: float, record: ScoreRecord | None) -> dict[str, Any]:
+def _chap_chart_data(paths: PluginPaths, difficulty: float, record: ScoreRecord | None) -> dict[str, Any]:
     if record is None:
         return {
             "difficulty": f"{difficulty:.1f}",
             "Rating": "NEW",
+            "ratingImg": _rating_img(paths, "NEW"),
             "suggest": _chap_suggest_text(None, difficulty),
         }
     return {
         "difficulty": f"{difficulty:.1f}",
         "Rating": _rating_asset(record.rating),
+        "ratingImg": _rating_img(paths, record.rating),
         "score": _std_score(record.score),
         "acc": f"{record.acc:.4f}",
         "rks": f"{record.rks:.4f}",
@@ -1726,6 +1831,13 @@ class _ScoreData(list[dict[str, Any]]):
         raise AttributeError(name)
 
 
+def _score_data_with_assets(paths: PluginPaths, rows: list[dict[str, Any]]) -> "_ScoreData":
+    for row in rows:
+        if isinstance(row, dict):
+            row["ratingImg"] = _rating_img(paths, row.get("Rating"))
+    return _ScoreData(rows)
+
+
 def _score_template_rank_data(
     rank: str,
     difficulty: float,
@@ -1973,7 +2085,7 @@ def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
         if path is not None:
             return original._illustration_source(paths, path, song_id=song_id, background=True)
         if use_remote_illustrations(paths):
-            return background_illustration_url(song_id)
+            return background_illustration_url(song_id, paths=paths)
     return original._random_background(paths)
 
 

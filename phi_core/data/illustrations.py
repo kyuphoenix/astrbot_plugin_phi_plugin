@@ -86,13 +86,13 @@ def background_source_candidates(
     local = _available_background_illustrations(paths)
     chooser.shuffle(local)
     if use_remote_illustrations(paths):
-        remote = [background_illustration_url(path.stem) for path in local if path.stem]
+        remote = [background_illustration_url(path.stem, paths=paths) for path in local if path.stem]
         if remote:
             return remote
         ids = _available_online_illustration_ids(paths)
         chooser.shuffle(ids)
         return [
-            f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}"
+            proxied_illustration_url(paths, f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}")
             for song_id in ids[:max(0, online_limit)]
         ]
     if local:
@@ -101,7 +101,7 @@ def background_source_candidates(
     ids = _available_online_illustration_ids(paths)
     chooser.shuffle(ids)
     online = [
-        f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}"
+        proxied_illustration_url(paths, f"{ONLINE_ILL_BASE}/illBlur/{quote(f'{song_id}.png')}")
         for song_id in ids[:max(0, online_limit)]
     ]
 
@@ -116,7 +116,7 @@ def use_remote_illustrations(paths: PluginPaths) -> bool:
 
 
 def is_online_illustration_url(value: str) -> bool:
-    text = str(value or "").strip()
+    text = unproxied_illustration_url(value)
     if not text:
         return False
     parsed = urlparse(text)
@@ -130,13 +130,15 @@ def is_online_illustration_url(value: str) -> bool:
     )
 
 
-def illustration_url(song_id: str, *, prefer_low: bool = False) -> str:
+def illustration_url(song_id: str, *, prefer_low: bool = False, paths: PluginPaths | None = None) -> str:
     folder = "illLow" if prefer_low else "ill"
-    return _online_url(folder, song_id)
+    url = _online_url(folder, song_id)
+    return proxied_illustration_url(paths, url) if paths is not None else url
 
 
-def background_illustration_url(song_id: str) -> str:
-    return _online_url("illBlur", song_id)
+def background_illustration_url(song_id: str, *, paths: PluginPaths | None = None) -> str:
+    url = _online_url("illBlur", song_id)
+    return proxied_illustration_url(paths, url) if paths is not None else url
 
 
 def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
@@ -152,7 +154,7 @@ def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
             continue
         if not relative.parts:
             return None
-        return f"{ONLINE_ILL_BASE}/{quote(relative.as_posix())}"
+        return proxied_illustration_url(paths, f"{ONLINE_ILL_BASE}/{quote(relative.as_posix())}")
     return None
 
 
@@ -160,6 +162,36 @@ def _online_url(folder: str, song_id: str) -> str:
     candidates = _candidate_names(song_id)
     name = candidates[0] if candidates else str(song_id).strip()
     return f"{ONLINE_ILL_BASE}/{folder}/{quote(f'{name}.png')}"
+
+
+def proxied_illustration_url(paths: PluginPaths, url: str) -> str:
+    proxy = str(getattr(paths, "illustration_url_proxy", "") or "").strip().rstrip("/")
+    text = str(url or "").strip()
+    if not proxy or not text or not is_online_illustration_url(text):
+        return text
+    return f"{proxy}/{text}"
+
+
+def unproxied_illustration_url(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    raw_index = text.find(ONLINE_ILL_BASE)
+    if raw_index >= 0:
+        return text[raw_index:]
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        return text
+    marker = _ONLINE_ILL_PATH_PREFIX
+    path = unquote(parsed.path)
+    marker_index = path.find(marker)
+    if marker_index < 0:
+        return text
+    tail = path[marker_index + len(marker):]
+    parts = tail.split("/", 1)
+    if len(parts) != 2:
+        return text
+    return f"{ONLINE_ILL_BASE}/{parts[1]}"
 
 
 def _available_illustrations(paths: PluginPaths) -> list[Path]:

@@ -18,10 +18,10 @@ command handler
   -> jinja_adapter.<template>_data(...)
   -> render_jinja_template(ctx, "<folder>/<template>", data, name)
   -> jinja_adapter.adapt_template_data(...)
-  -> jinja_renderer.render_template(...)
-  -> inline CSS / JS / images / fonts as base64 data URIs
-  -> panel.render_html(...)
-  -> AstrBot html_render / t2i
+  -> jinja_renderer.render_template_payload(...)
+  -> flatten template inheritance and inline CSS / JS / fixed local images / fonts as base64 data URIs
+  -> panel.render_html(template, data, ...)
+  -> AstrBot html_render runs Jinja2 with the JSON data, then t2i screenshots the result
 ```
 
 ## 为什么需要数据适配层
@@ -42,6 +42,8 @@ Jinja2 和远端 AstrBot t2i 不具备这些前提，所以迁移后要把这些
 - 不要向模板传本地文件路径作为图片资源。
 - 所有本地图片、CSS 背景图、字体、脚本都必须在 `jinja_renderer.py` 内联为 `data:*;base64,...`。
 - Jinja2 模板应尽量只做展示判断和循环，不承担复杂计算。
+- 动态资源文件名应由 Python 适配层预先拼接并转成字段传入，例如 `avatarImg`、`challengeImg`、`ratingImg`、`dataImg`、`ratingImgs`、`help.imgSrc`。
+- 不要在插件本地调用 Jinja2 把业务数据预渲染成最终 HTML；最终的 Jinja2 数据填充应交给 AstrBot `html_render(template, data, ...)`。
 - 若某个模板需要特殊预处理，在 `adapt_template_data(...)` 中按模板路径分发。
 - 新增适配函数时，优先使用原版字段名，减少模板和原版差异。
 
@@ -90,6 +92,7 @@ Jinja2 和远端 AstrBot t2i 不具备这些前提，所以迁移后要把这些
 - 模板中的 `<img src="...">` 必须被转换成 base64 data URI。
 - CSS 中的 `url(...)` 必须被转换成 base64 data URI。
 - Exception: when `illustration_source=remote`, image references that point to `Catrong/phi-plugin-ill` may stay as GitHub raw URLs. This exception is only for song illustrations and blurred illustration backgrounds; local paths, fonts, CSS, JS, avatar images, rating icons, and other template assets must still be inlined as data URIs.
+- If `illustration_url_proxy` is configured, the Jinja2 data adapter may pass proxied `Catrong/phi-plugin-ill` URLs to t2i. The renderer must still recognize those proxied URLs as illustration URLs and preserve them instead of fetching/base64-encoding them.
 - 字体文件必须通过 CSS `@font-face` 或被 CSS 引用后内联。
 - 不能依赖 `file://`、绝对路径、Docker 内部路径或 Windows 路径。
 - 若背景回退到模板内置图，优先检查传入数据字段是否为空，其次检查 CSS 背景是否覆盖了数据背景。

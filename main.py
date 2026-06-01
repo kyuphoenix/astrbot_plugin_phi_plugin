@@ -32,6 +32,7 @@ class AstrBotPhiPlugin(Star):
         data_dir = Path(StarTools.get_data_dir("astrbot_plugin_phi_plugin"))
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
         self.paths.illustration_source = self.plugin_config.illustration_source
+        self.paths.illustration_url_proxy = self.plugin_config.illustration_url_proxy
         self.paths.ensure_data_dir()
         resource_result = ensure_resources_blocking(self.plugin_config, self.paths)
         self.catalog: SongCatalog = load_catalog(self.paths.info)
@@ -55,6 +56,7 @@ class AstrBotPhiPlugin(Star):
             f"{len(self.catalog)} songs; render_mode={self.plugin_config.render_mode}; "
             f"render_backend={self.plugin_config.render_backend}; "
             f"illustration_source={self.plugin_config.illustration_source}; "
+            f"illustration_url_proxy={'set' if self.plugin_config.illustration_url_proxy else 'empty'}; "
             f"data_dir={self.paths.data_dir}; font={font_path}; font_exists={Path(font_path).exists()}"
         )
         if resource_result is not None:

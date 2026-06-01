@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from PIL import Image
+from jinja2 import Environment
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_RESOURCES = ROOT.parent / "phi-plugin" / "resources"
@@ -25,6 +26,18 @@ from phi_core.query import random_challenge
 from phi_core.render import html_renderer, original, panel
 from phi_core.save import ApiBindResult, PgrTokenResult, PhiApiClient, SaveStore, TapTapLoginResult, TapTapQrLogin, TapTapQrRequest
 from phi_core.save.taptap import _is_oauth_waiting_response
+
+
+def _render_call_html(call: tuple[str, dict, bool, dict | None]) -> str:
+    template, data, _return_url, _options = call
+    cache_key = id(call)
+    cached = getattr(_render_call_html, "_cache", None)
+    if cached is None:
+        cached = {}
+        setattr(_render_call_html, "_cache", cached)
+    if cache_key not in cached:
+        cached[cache_key] = Environment().from_string(template).render(**(data or {}))
+    return cached[cache_key]
 
 
 class FakeLoginClient(PhiApiClient):
@@ -422,9 +435,10 @@ async def main() -> None:
         if "raw.githubusercontent.com" in online_help_html or "file:///" in online_help_html:
             raise SystemExit("html background should not pass remote or local file URLs to t2i")
         online_paths.illustration_source = "remote"
+        online_paths.illustration_url_proxy = "https://proxy.example"
         remote_help_html = original.help_html(online_paths)
-        if "raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in remote_help_html:
-            raise SystemExit("remote illustration mode should pass GitHub raw blurred background URLs to templates")
+        if "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/" not in remote_help_html:
+            raise SystemExit("remote illustration mode should pass proxied GitHub raw blurred background URLs to templates")
         if "data:image/png;base64,cmVtb3Rl" in remote_help_html:
             raise SystemExit("remote illustration mode should not fetch and base64-encode phi-plugin-ill URLs")
         trim_source = paths.render_cache / "trim-source.png"
@@ -661,33 +675,35 @@ async def main() -> None:
         with Image.open(html_result.value) as rendered:
             if rendered.width < 1000 or rendered.height < 500:
                 raise SystemExit(f"help image has unexpected size: {rendered.size}")
-        if not html_render_calls or 'class="help_box"' not in html_render_calls[0][0] or ".help_box" not in html_render_calls[0][0]:
+        help_template = html_render_calls[0][0]
+        help_html = _render_call_html(html_render_calls[0])
+        if not html_render_calls or 'class="help_box"' not in help_html or ".help_box" not in help_template:
             raise SystemExit("official html renderer was not called with the original help resources")
-        if "file:///" in html_render_calls[0][0]:
+        if "{{" not in help_template or not html_render_calls[0][1]:
+            raise SystemExit("official html renderer should receive a Jinja2 template and data dict")
+        if "file:///" in help_html:
             raise SystemExit("official html renderer should receive self-contained help HTML without local file URLs")
-        if "data:image/" not in html_render_calls[0][0]:
+        if "data:image/" not in help_html:
             raise SystemExit("official html renderer should inline local help images as data URIs")
-        if "themeStar()" in html_render_calls[0][0]:
+        if "themeStar()" in help_html or "Star1" in help_html:
             raise SystemExit("help html should use random blurred illustration background, not the fixed star theme")
-        if "background: #000 !important" not in html_render_calls[0][0] or "z-index: 0 !important" not in html_render_calls[0][0]:
+        if "background: #000 !important" not in help_template or "z-index: 0 !important" not in help_template:
             raise SystemExit("help html should override original body phigros fallback and negative background stacking")
-        if "position: fixed !important" in html_render_calls[0][0] or "height: 100vh !important" in html_render_calls[0][0]:
+        if "position: fixed !important" in help_template or "height: 100vh !important" in help_template:
             raise SystemExit("help html background should be page-height aware, not fixed to the viewport")
-        if 'background: url("") center no-repeat' not in html_render_calls[0][0]:
+        if 'background: url("") center no-repeat' not in help_template:
             raise SystemExit("help html should remove original common.css phigros body fallback before t2i")
-        if '<img src="data:image/' not in html_render_calls[0][0]:
+        if '<img src="data:image/' not in help_html:
             raise SystemExit("help html should inline the selected illustration into the contained background layer")
-        if 'body {\n  background-image: none !important;' not in html_render_calls[0][0]:
+        if 'body {\n  background-image: none !important;' not in help_template:
             raise SystemExit("help html should not paint the selected illustration as an unblurred body background")
-        if "overflow: hidden !important" not in html_render_calls[0][0] or "contain: paint !important" not in html_render_calls[0][0]:
+        if "overflow: hidden !important" not in help_template or "contain: paint !important" not in help_template:
             raise SystemExit("help html background should be contained so the blurred layer does not expand page width")
-        if "phiAdjustFontSize" not in html_render_calls[0][0]:
+        if "phiAdjustFontSize" not in help_template:
             raise SystemExit("official html renderer should include original auto font sizing script")
         if html_render_calls[0][2] is not False:
             raise SystemExit("official html renderer should return a local file path")
-        if html_render_calls[0][1] != {}:
-            raise SystemExit("official html renderer should receive pre-rendered HTML with an empty data dict")
-        if "@font-face" not in html_render_calls[0][0]:
+        if "@font-face" not in help_template:
             raise SystemExit("official html renderer should receive inlined original common css resources")
         if html_render_calls[0][3] is None or html_render_calls[0][3].get("type") != "png":
             raise SystemExit("official html renderer should be asked for png output")
@@ -700,7 +716,7 @@ async def main() -> None:
             raise SystemExit(f"official ill render path failed: {ill_result!r}")
         if len(html_render_calls) < 2:
             raise SystemExit("phi ill should call official html renderer in image mode")
-        ill_html = html_render_calls[-1][0]
+        ill_html = _render_call_html(html_render_calls[-1])
         if "file:///" in ill_html or "http://raw.githubusercontent" in ill_html or "https://raw.githubusercontent" in ill_html:
             raise SystemExit("phi ill should pass base64 data URIs to t2i, not local or remote URLs")
         if "data:image/" not in ill_html:
@@ -809,38 +825,42 @@ async def main() -> None:
         image_pgr = await dispatch(image_login_ctx, "login-user", "pgr", "")
         if image_pgr.kind != "image" or not Path(image_pgr.value).exists():
             raise SystemExit(f"image pgr should render an image, got {image_pgr!r}")
-        if not b30_render_calls or ".b19" not in b30_render_calls[0][0] or 'class="b19"' not in b30_render_calls[0][0]:
+        b30_template = b30_render_calls[0][0]
+        b30_html = _render_call_html(b30_render_calls[0])
+        if not b30_render_calls or ".b19" not in b30_template or 'class="b19"' not in b30_html:
             raise SystemExit("image pgr should render with original b19 resources")
-        if "file:///" in b30_render_calls[0][0]:
+        if not b30_render_calls[0][1]:
+            raise SystemExit("image pgr should pass Jinja2 data to AstrBot")
+        if "file:///" in b30_html:
             raise SystemExit("image pgr should render with self-contained HTML without local file URLs")
-        if "data:image/" not in b30_render_calls[0][0]:
+        if "data:image/" not in b30_html:
             raise SystemExit("image pgr should inline local image resources")
-        if "themeStar()" in b30_render_calls[0][0] or "Star1" in b30_render_calls[0][0]:
+        if "themeStar()" in b30_html or "Star1" in b30_html:
             raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
-        if "background: #000 !important" not in b30_render_calls[0][0] or "z-index: 0 !important" not in b30_render_calls[0][0]:
+        if "background: #000 !important" not in b30_template or "z-index: 0 !important" not in b30_template:
             raise SystemExit("image pgr should override original body phigros fallback and negative background stacking")
-        if "position: fixed !important" in b30_render_calls[0][0] or "height: 100vh !important" in b30_render_calls[0][0]:
+        if "position: fixed !important" in b30_template or "height: 100vh !important" in b30_template:
             raise SystemExit("image pgr background should be page-height aware, not fixed to the viewport")
-        if 'background: url("") center no-repeat' not in b30_render_calls[0][0]:
+        if 'background: url("") center no-repeat' not in b30_template:
             raise SystemExit("image pgr should remove original common.css phigros body fallback before t2i")
-        if '<img src="data:image/' not in b30_render_calls[0][0]:
+        if '<img src="data:image/' not in b30_html:
             raise SystemExit("image pgr should inline the selected illustration into the contained background layer")
-        if 'body {\n  background-image: none !important;' not in b30_render_calls[0][0]:
+        if 'body {\n  background-image: none !important;' not in b30_template:
             raise SystemExit("image pgr should not paint the selected illustration as an unblurred body background")
-        if "overflow: hidden !important" not in b30_render_calls[0][0] or "contain: paint !important" not in b30_render_calls[0][0]:
+        if "overflow: hidden !important" not in b30_template or "contain: paint !important" not in b30_template:
             raise SystemExit("image pgr background should be contained so the blurred layer does not expand page width")
-        if "phigros.png" in b30_render_calls[0][0]:
+        if "phigros.png" in b30_html:
             raise SystemExit("image pgr should not fall back to phigros when local illustrations exist")
-        if "Real RKS:" not in b30_render_calls[0][0]:
+        if "Real RKS:" not in b30_html:
             raise SystemExit("image pgr should include original Real RKS chip when save version is older")
-        if "phiAdjustFontSize" not in b30_render_calls[0][0]:
+        if "phiAdjustFontSize" not in b30_template:
             raise SystemExit("image pgr should include original song-name auto font sizing script")
+        if "accAvg" not in b30_template or "Avg: 99.4321%" not in b30_html:
+            raise SystemExit("image pgr should include original per-chart average acc status")
         if b30_render_calls[0][3] is None or b30_render_calls[0][3].get("viewport_width") != 1200:
             raise SystemExit("image pgr should receive an explicit 1200px viewport to avoid reused-context width drift")
         if b30_render_calls[0][3].get("scale") != "css":
             raise SystemExit("image pgr should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
-        if "accAvg" not in b30_render_calls[0][0] or "Avg: 99.4321%" not in b30_render_calls[0][0]:
-            raise SystemExit("image pgr should include original per-chart average acc status")
         for command, css_marker, body_marker in (
             ("best", ".content-box", 'class="content-box"'),
             ("p30", ".content-box", "All Perfect Mode"),
@@ -888,14 +908,15 @@ async def main() -> None:
                 raise SystemExit(f"image {command} should render an image, got {result!r}")
             if len(b30_render_calls) != before + 1:
                 raise SystemExit(f"image {command} should call the shared original html renderer")
-            html = b30_render_calls[-1][0]
-            if css_marker not in html or body_marker not in html:
+            template = b30_render_calls[-1][0]
+            html = _render_call_html(b30_render_calls[-1])
+            if css_marker not in template or body_marker not in html:
                 raise SystemExit(f"image {command} should render with original resources, missing {css_marker!r}/{body_marker!r}")
             if "file:///" in html or "raw.githubusercontent.com" in html:
                 raise SystemExit(f"image {command} should pass self-contained HTML to remote t2i")
             if "data:image/" not in html:
                 raise SystemExit(f"image {command} should inline image resources as data URIs")
-            if "phiAdjustFontSize" not in html:
+            if "phiAdjustFontSize" not in template:
                 raise SystemExit(f"image {command} should include shared auto font sizing script")
             if command == "score":
                 if "RANK_LIST" not in html or "Selected >> EZ" not in html or "AP: 25.00%" not in html:
@@ -925,7 +946,7 @@ async def main() -> None:
                 old_score = await dispatch(old_score_ctx, "login-user", "score", "Glaciaxion -dif EZ")
                 if old_score.kind != "image" or len(old_score_calls) != 1:
                     raise SystemExit(f"old score template should render one image, got {old_score!r}")
-                old_html = old_score_calls[0][0]
+                old_html = _render_call_html(old_score_calls[0])
                 if ".playerbox" not in old_html or 'class="playerbox"' not in old_html or 'class="rank-EZ"' not in old_html:
                     raise SystemExit("old score image version should render through converted score/scoreOld")
             if command == "suggest":
@@ -951,14 +972,14 @@ async def main() -> None:
                 info1 = await dispatch(image_login_ctx, "login-user", "info1", "Glaciaxion")
                 if info1.kind != "image" or len(b30_render_calls) != before_info_variant + 1:
                     raise SystemExit(f"image info1 should render through the info variant route, got {info1!r}")
-                info1_html = b30_render_calls[-1][0]
+                info1_html = _render_call_html(b30_render_calls[-1])
                 if ".Player_Info" not in info1_html or '<img src="data:image/' not in info1_html:
                     raise SystemExit("image info1 should use the current userinfo template and requested song background")
                 before_info_variant = len(b30_render_calls)
                 info2 = await dispatch(image_login_ctx, "login-user", "info2", "Glaciaxion")
                 if info2.kind != "image" or len(b30_render_calls) != before_info_variant + 1:
                     raise SystemExit(f"image info2 should render through the old info variant route, got {info2!r}")
-                info2_html = b30_render_calls[-1][0]
+                info2_html = _render_call_html(b30_render_calls[-1])
                 info2_options = b30_render_calls[-1][3] or {}
                 if ".basis-box" not in info2_html or "Basis-Info" not in info2_html:
                     raise SystemExit("image info2 should use the original old userinfo resource chain")
@@ -990,7 +1011,7 @@ async def main() -> None:
                 old_ranklist = await dispatch(old_ranklist_ctx, "login-user", "ranklist", "9")
                 if old_ranklist.kind != "image" or len(old_ranklist_calls) != 1:
                     raise SystemExit(f"old ranklist template should render one image, got {old_ranklist!r}")
-                old_html = old_ranklist_calls[0][0]
+                old_html = _render_call_html(old_ranklist_calls[0])
                 old_options = old_ranklist_calls[0][3] or {}
                 if old_options.get("viewport_width") != 800:
                     raise SystemExit(f"old ranklist should use its original 800px viewport, got {old_options!r}")
@@ -1007,7 +1028,7 @@ async def main() -> None:
                 song_comment = await dispatch(image_login_ctx, "login-user", "song", "Glaciaxion -comment")
                 if song_comment.kind != "image" or len(b30_render_calls) != before_song_comment + 1:
                     raise SystemExit(f"image song -comment should render through atlas with comments, got {song_comment!r}")
-                song_comment_html = b30_render_calls[-1][0]
+                song_comment_html = _render_call_html(b30_render_calls[-1])
                 if "comment-box" not in song_comment_html or "hello" not in song_comment_html:
                     raise SystemExit("image song -comment should render upstream atlas comment panel")
         live = await dispatch(login_ctx, "login-user", "live", "")
@@ -1143,7 +1164,7 @@ async def main() -> None:
         progress_image_update = await dispatch(progress_image_ctx, "progress-image-user", "update", "")
         if progress_image_update.kind != "image" or not Path(progress_image_update.value).exists():
             raise SystemExit(f"image update should render an image, got {progress_image_update!r}")
-        update_html = progress_render_calls[-1][0]
+        update_html = _render_call_html(progress_render_calls[-1])
         if ".record_box" not in update_html or 'class="record_box"' not in update_html:
             raise SystemExit("image update should render through original update resources")
         if "file:///" in update_html or "raw.githubusercontent.com" in update_html:

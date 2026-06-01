@@ -73,5 +73,10 @@
     "type": "string",
     "default": "local",
     "options": ["local", "remote"]
+  },
+  "illustration_url_proxy": {
+    "description": "Remote illustration URL proxy for T2I rendering. Example: https://ghproxy.net . Empty means direct GitHub raw URLs.",
+    "type": "string",
+    "default": ""
   }
 }

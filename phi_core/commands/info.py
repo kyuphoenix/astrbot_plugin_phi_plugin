@@ -54,5 +54,5 @@ def _requested_background(ctx: CommandContext, args: str) -> str | Path | None:
     if path is not None:
         return path
     if use_remote_illustrations(ctx.paths):
-        return background_illustration_url(song.id)
+        return background_illustration_url(song.id, paths=ctx.paths)
     return None

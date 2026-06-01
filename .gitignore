@@ -4,3 +4,4 @@ __pycache__/
 /data/
 .tmp_smoke_data/
 /resources/
+.tmp-debug-b30/
