@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import copy
+import base64
+import hashlib
+import logging
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -12,6 +15,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..data.illustrations import is_online_illustration_url, use_remote_illustrations
 from ..paths import PluginPaths
 from . import original
+
+logger = logging.getLogger("astrbot")
 
 _LINK_STYLESHEET_RE = re.compile(
     r"<link\b(?=[^>]*\brel=[\"']stylesheet[\"'])(?=[^>]*\bhref=[\"'](?P<href>[^\"']+)[\"'])[^>]*>",
@@ -57,6 +62,7 @@ def render_template(
         rendered,
         width=int(context.get("_viewport_width") or _DEFAULT_WIDTH),
         height=int(context["_viewport_height"]) if context.get("_viewport_height") is not None else None,
+        font_corpus=_collect_text(context),
     )
 
 
@@ -86,6 +92,7 @@ def render_template_payload(
         template,
         width=int(context.get("_viewport_width") or _DEFAULT_WIDTH),
         height=int(context["_viewport_height"]) if context.get("_viewport_height") is not None else None,
+        font_corpus=_collect_text(context),
     )
     return (
         template,
@@ -95,8 +102,16 @@ def render_template_payload(
     )
 
 
-def make_self_contained(paths: PluginPaths, root: Path, html: str, *, width: int = _DEFAULT_WIDTH, height: int | None = None) -> str:
-    html = _inline_stylesheets(paths, root, html)
+def make_self_contained(
+    paths: PluginPaths,
+    root: Path,
+    html: str,
+    *,
+    width: int = _DEFAULT_WIDTH,
+    height: int | None = None,
+    font_corpus: str = "",
+) -> str:
+    html = _inline_stylesheets(paths, root, html, font_corpus=font_corpus)
     html = _inline_scripts(paths, root, html)
     html = _inline_resource_attributes(paths, root, html)
     html = _inline_css_urls(paths, root, html)
@@ -221,13 +236,13 @@ def _rewrite_template_asset_fields(normalized: str, html: str) -> str:
     return html
 
 
-def _inline_stylesheets(paths: PluginPaths, root: Path, html: str) -> str:
+def _inline_stylesheets(paths: PluginPaths, root: Path, html: str, *, font_corpus: str = "") -> str:
     def replace(match: re.Match[str]) -> str:
         href = match.group("href")
         relative = _resource_relative(href)
         if relative is None:
             return match.group(0)
-        css = _css_text(paths, root, relative)
+        css = _css_text(paths, root, relative, font_corpus=font_corpus)
         return f"<style>{css}</style>" if css else ""
 
     return _LINK_STYLESHEET_RE.sub(replace, html)
@@ -343,7 +358,7 @@ def _data_uri(paths: PluginPaths, root: Path, value: str) -> str | None:
     return uri or None
 
 
-def _css_text(paths: PluginPaths, root: Path, relative: str) -> str:
+def _css_text(paths: PluginPaths, root: Path, relative: str, *, font_corpus: str = "") -> str:
     css_path = _resolve_resource_path(paths, root, relative)
     if css_path is None or not css_path.exists():
         return ""
@@ -354,7 +369,7 @@ def _css_text(paths: PluginPaths, root: Path, relative: str) -> str:
         resolved = _resolve_relative_to_file(paths, root, css_path, url)
         if resolved is None or not resolved.exists():
             return ""
-        return _css_text_from_file(paths, root, resolved)
+        return _css_text_from_file(paths, root, resolved, font_corpus=font_corpus)
 
     def replace(match: re.Match[str]) -> str:
         url = unquote(match.group("url").strip())
@@ -366,7 +381,9 @@ def _css_text(paths: PluginPaths, root: Path, relative: str) -> str:
         if normalized_url.endswith("/otherimg/phigros.png") or normalized_url == "../otherimg/phigros.png":
             return 'url("")'
         resolved = _resolve_relative_to_file(paths, root, css_path, url)
-        uri = original.image_data_uri(paths, resolved) if resolved is not None else ""
+        uri = _font_data_uri(paths, resolved, font_corpus=font_corpus) if _is_font_url(url, resolved) else ""
+        if not uri:
+            uri = original.image_data_uri(paths, resolved) if resolved is not None else ""
         if not uri:
             return 'url("")'
         return f'url("{uri}")'
@@ -375,7 +392,91 @@ def _css_text(paths: PluginPaths, root: Path, relative: str) -> str:
     return _RES_URL_RE.sub(replace, css)
 
 
-def _css_text_from_file(paths: PluginPaths, root: Path, css_path: Path) -> str:
+def _is_font_url(url: str, path: Path | None) -> bool:
+    suffix = (path.suffix if path is not None else Path(url).suffix).lower()
+    return suffix in {".ttf", ".otf", ".ttc", ".woff", ".woff2"}
+
+
+def _font_data_uri(paths: PluginPaths, font_path: Path | None, *, font_corpus: str = "") -> str:
+    if font_path is None or not font_path.exists() or not font_path.is_file():
+        return ""
+    try:
+        subset_path = _subset_font(paths, font_path, font_corpus=font_corpus)
+        payload = base64.b64encode(subset_path.read_bytes()).decode("ascii")
+        return f"data:font/ttf;base64,{payload}"
+    except Exception as exc:
+        logger.warning("phi jinja font subset failed for %s: %s", font_path, exc)
+        payload = base64.b64encode(font_path.read_bytes()).decode("ascii")
+        return f"data:font/ttf;base64,{payload}"
+
+
+def _subset_font(paths: PluginPaths, font_path: Path, *, font_corpus: str = "") -> Path:
+    from fontTools import subset
+
+    chars = _font_subset_corpus(font_corpus)
+    stat = font_path.stat()
+    digest = hashlib.sha1(
+        f"{font_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:{chars}".encode("utf-8")
+    ).hexdigest()[:20]
+    cache_dir = paths.cache / "fonts"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    output = cache_dir / f"{font_path.stem}-jinja-{digest}.ttf"
+    if output.exists() and output.stat().st_size > 0:
+        return output
+
+    options = subset.Options()
+    options.flavor = None
+    options.layout_features = "*"
+    font = subset.load_font(str(font_path), options)
+    subsetter = subset.Subsetter(options=options)
+    subsetter.populate(text=chars)
+    subsetter.subset(font)
+    subset.save_font(font, str(output), options)
+    return output
+
+
+def _font_subset_corpus(extra: str = "") -> str:
+    base = (
+        "Phi Plugin Phigros AstrBot "
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
+        ".,:;!?+-*/%=#()[]{}<>_&|~'\"`^ "
+        "一二三四五六七八九十百千万亿年月日时分秒"
+        "帮助命令玩家成绩曲绘排行统计更新信息绑定登录进步建议"
+        "平均准确率分数难度等级收藏完成全连理论新增历史查询随机"
+        "中文变量循环显示面板"
+    )
+    return "".join(sorted(set(base + (extra or ""))))
+
+
+def _collect_text(value: Any) -> str:
+    parts: list[str] = []
+
+    def visit(item: Any) -> None:
+        if item is None:
+            return
+        if isinstance(item, str):
+            lowered = item[:64].lower()
+            if lowered.startswith(("data:", "base64://", "http://", "https://", "file://")):
+                return
+            if len(item) <= 5000:
+                parts.append(item)
+            return
+        if isinstance(item, Mapping):
+            for child in item.values():
+                visit(child)
+            return
+        if isinstance(item, (list, tuple, set)):
+            for child in item:
+                visit(child)
+            return
+        if isinstance(item, (int, float, bool)):
+            parts.append(str(item))
+
+    visit(value)
+    return "".join(parts)
+
+
+def _css_text_from_file(paths: PluginPaths, root: Path, css_path: Path, *, font_corpus: str = "") -> str:
     try:
         relative = css_path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
@@ -383,7 +484,7 @@ def _css_text_from_file(paths: PluginPaths, root: Path, css_path: Path) -> str:
             relative = css_path.resolve().relative_to((paths.resources / "html").resolve()).as_posix()
         except ValueError:
             return css_path.read_text(encoding="utf-8")
-    return _css_text(paths, root, relative)
+    return _css_text(paths, root, relative, font_corpus=font_corpus)
 
 
 def _read_text_resource(paths: PluginPaths, root: Path, relative: str) -> str:
