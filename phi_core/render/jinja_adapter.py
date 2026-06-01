@@ -8,7 +8,12 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from ..data.loader import SongCatalog
-from ..data.illustrations import background_illustration_url, find_background_illustration_file, use_remote_illustrations
+from ..data.illustrations import (
+    background_illustration_url,
+    find_background_illustration_file,
+    is_known_online_illustration_id,
+    use_remote_illustrations,
+)
 from ..data.resources import latest_version_log, load_version_log
 from ..models import (
     Best30Result,
@@ -2170,13 +2175,15 @@ def _info_intro(snapshot: SaveSnapshot, summary: UserSummary) -> str:
 def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
     raw_user = snapshot.raw.get("gameuser") if isinstance(snapshot.raw.get("gameuser"), dict) else {}
     song_id = str(raw_user.get("background") or "")
+    if not song_id or song_id.casefold() == "introduction":
+        return original.asset_uri(paths, "html/otherimg/phigros.png") or original._random_background(paths)
     if song_id:
         path = find_background_illustration_file(paths, song_id)
         if path is not None:
             return original._illustration_source(paths, path, song_id=song_id, background=True)
-        if use_remote_illustrations(paths):
+        if use_remote_illustrations(paths) and is_known_online_illustration_id(paths, song_id):
             return background_illustration_url(song_id, paths=paths)
-    return original._random_background(paths)
+    return original.asset_uri(paths, "html/otherimg/phigros.png") or original._random_background(paths)
 
 
 def _info_stats(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> dict[str, dict[str, Any]]:

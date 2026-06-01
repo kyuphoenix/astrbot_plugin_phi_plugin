@@ -146,6 +146,17 @@ def background_illustration_url(song_id: str, *, paths: PluginPaths | None = Non
     return proxied_illustration_url(paths, url) if paths is not None else url
 
 
+def is_known_online_illustration_id(paths: PluginPaths, song_id: str) -> bool:
+    ids = set(_available_online_illustration_ids(paths))
+    if not ids:
+        return False
+    for candidate in _candidate_names(song_id):
+        normalized = candidate.removesuffix(".0")
+        if normalized in ids:
+            return True
+    return False
+
+
 def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
     try:
         resolved = path.resolve()

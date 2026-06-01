@@ -125,6 +125,8 @@ async def main() -> None:
     else:
         _write_image(remote_paths.resources / "html" / "otherimg" / "phigros.png", (1, 2, 3))
         _write_image(remote_paths.resources / "html" / "otherimg" / "icon.png", (4, 5, 6))
+    remote_paths.info.mkdir(parents=True, exist_ok=True)
+    (remote_paths.info / "info.csv").write_text("id\nGlaciaxion.SunsetRay.0\n", encoding="utf-8")
     (remote_paths.downloaded_original_ill / "illLow").mkdir(parents=True, exist_ok=True)
     _write_image(remote_paths.downloaded_original_ill / "illLow" / "RemoteSong.Smoke.png", (30, 31, 32))
     song = Song(
@@ -183,6 +185,31 @@ async def main() -> None:
             "remote info background should strip the save-id .0 suffix before building the image URL, "
             f"got {info_data['gameuser'].get('backgroundurl')!r}"
         )
+    invalid_info_snapshot = SaveSnapshot(
+        user_id="remote-info-invalid",
+        ranking_score=12.34,
+        raw={
+            "gameuser": {"background": "Introduction", "name": "Remote Info"},
+            "saveInfo": {
+                "PlayerId": "REMOTE_INFO",
+                "summary": {"rankingScore": 12.34, "challengeModeRank": 512, "avatar": "Introduction"},
+            },
+            "gameProgress": {"money": [1, 0, 0, 0, 0]},
+            "gameRecord": {},
+        },
+    )
+    invalid_info_data = jinja_adapter.userinfo_data(
+        remote_paths,
+        UserSummary("REMOTE_INFO", "Remote Info", 12.34, 512, 123, 0, 0, 0),
+        snapshot=invalid_info_snapshot,
+        history={},
+        catalog=catalog,
+    )
+    invalid_background = invalid_info_data["gameuser"].get("backgroundurl", "")
+    if "Introduction.png" in invalid_background or "raw.githubusercontent.com" in invalid_background:
+        raise SystemExit(f"unknown info background should fall back to default image, got {invalid_background!r}")
+    if not str(invalid_background).startswith("data:image/"):
+        raise SystemExit(f"unknown info background fallback should be an inline default image, got {invalid_background!r}")
     remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
     if expected_remote_url not in remote_html:
         raise SystemExit("proxied remote illustration URL should survive Jinja2 self-contained rendering")

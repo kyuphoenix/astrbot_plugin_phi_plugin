@@ -25,6 +25,7 @@ from ..data.illustrations import (
     find_background_illustration_file,
     find_illustration_file,
     illustration_url,
+    is_known_online_illustration_id,
     is_online_illustration_url,
     online_url_for_local_path,
     use_remote_illustrations,
@@ -1772,13 +1773,15 @@ def _info_stats_block(paths: PluginPaths, stats: dict[str, Any]) -> str:
 
 def _info_background(paths: PluginPaths, snapshot: SaveSnapshot) -> str:
     song = str((snapshot.raw.get("gameuser") or {}).get("background") or "")
+    if not song or song.casefold() == "introduction":
+        return asset_uri(paths, "html/otherimg/phigros.png") or _random_background(paths)
     if song:
         path = find_background_illustration_file(paths, song)
         if path is not None:
             return _illustration_source(paths, path, song_id=song, background=True)
-        if use_remote_illustrations(paths):
+        if use_remote_illustrations(paths) and is_known_online_illustration_id(paths, song):
             return background_illustration_url(song, paths=paths)
-    return _random_background(paths)
+    return asset_uri(paths, "html/otherimg/phigros.png") or _random_background(paths)
 
 
 def _ranking_large_line(paths: PluginPaths, me: dict[str, Any], catalog: SongCatalog | None) -> dict[str, Any]:
