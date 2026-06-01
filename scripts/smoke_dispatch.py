@@ -968,6 +968,8 @@ async def main() -> None:
                     raise SystemExit("image info should include a left/right original-layout guard")
                 if "Phi-Plugin" not in html or "v0.1.0" not in html or "data-watermark-fit" in html:
                     raise SystemExit("image info should render the compact fixed watermark without adaptive scaling")
+                if "(v0.1.0)" in html or '<sup class="watermark-version">v0.1.0</sup>' not in html:
+                    raise SystemExit("image info watermark version should render as a superscript, not parentheses")
                 if html.count("<line x1=") < 20:
                     raise SystemExit("image info should render long API history, not only the last 12 points")
                 info_fetches = [item for item in login_client.history_fetches if item["user_id"] == "login-user"]

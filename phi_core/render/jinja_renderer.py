@@ -241,7 +241,7 @@ def _rewrite_userinfo_watermark(html: str) -> str:
     replacement = """
         <div class="createdbox">
             <div class="phi-plugin">
-                <p>{{ _plugin }}<span class="watermark-version">({{ Version.ver }})</span></p>
+                <p>{{ _plugin }}<sup class="watermark-version">{{ Version.ver }}</sup></p>
             </div>
         </div>"""
     return re.sub(
@@ -354,6 +354,8 @@ body {{
 }}
 .createdbox .watermark-version {{
   font-size: 0.58em;
+  line-height: 0;
+  vertical-align: super;
   text-shadow: 0 0 20px #fff700;
 }}
 </style>"""
