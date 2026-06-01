@@ -165,7 +165,8 @@ def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
 
 def _online_url(folder: str, song_id: str) -> str:
     candidates = _candidate_names(song_id)
-    name = candidates[0] if candidates else str(song_id).strip()
+    raw = candidates[0] if candidates else str(song_id).strip()
+    name = raw.removesuffix(".0") or raw
     return f"{ONLINE_ILL_BASE}/{folder}/{quote(f'{name}.png')}"
 
 

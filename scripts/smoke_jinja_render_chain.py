@@ -21,7 +21,7 @@ from phi_core.data import SongCatalog, SongSearcher
 from phi_core.paths import PluginPaths
 from phi_core.save import PhiApiClient, SaveStore
 from phi_core.render import jinja_adapter, jinja_renderer
-from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord, Song, SongChart
+from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord, Song, SongChart, UserSummary
 
 
 def _write_image(path: Path, color: tuple[int, int, int]) -> None:
@@ -154,9 +154,35 @@ async def main() -> None:
     if template_source != expected_remote_url:
         raise SystemExit(f"remote template illustration should use illustration_url_proxy, got {template_source!r}")
     jrrp_data = jinja_adapter.jrrp_data(remote_paths, jrrp_panel_data(remote_ctx, [88, 0]))
-    expected_jrrp_url = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/ShineAfter.ADeanJocularACE.0.png"
+    expected_jrrp_url = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illLow/ShineAfter.ADeanJocularACE.png"
     if jrrp_data.get("bkg") != expected_jrrp_url:
         raise SystemExit(f"remote jrrp background should use proxied GitHub raw URL, got {jrrp_data.get('bkg')!r}")
+    info_snapshot = SaveSnapshot(
+        user_id="remote-info",
+        ranking_score=12.34,
+        raw={
+            "gameuser": {"background": "Glaciaxion.SunsetRay.0", "name": "Remote Info"},
+            "saveInfo": {
+                "PlayerId": "REMOTE_INFO",
+                "summary": {"rankingScore": 12.34, "challengeModeRank": 512, "avatar": "Introduction"},
+            },
+            "gameProgress": {"money": [1, 0, 0, 0, 0]},
+            "gameRecord": {},
+        },
+    )
+    info_data = jinja_adapter.userinfo_data(
+        remote_paths,
+        UserSummary("REMOTE_INFO", "Remote Info", 12.34, 512, 123, 0, 0, 0),
+        snapshot=info_snapshot,
+        history={},
+        catalog=catalog,
+    )
+    expected_info_background = "https://proxy.example/https://raw.githubusercontent.com/Catrong/phi-plugin-ill/main/illBlur/Glaciaxion.SunsetRay.png"
+    if info_data["gameuser"].get("backgroundurl") != expected_info_background:
+        raise SystemExit(
+            "remote info background should strip the save-id .0 suffix before building the image URL, "
+            f"got {info_data['gameuser'].get('backgroundurl')!r}"
+        )
     remote_html = jinja_renderer.render_template(remote_paths, "atlas/atlas", remote_data)
     if expected_remote_url not in remote_html:
         raise SystemExit("proxied remote illustration URL should survive Jinja2 self-contained rendering")
