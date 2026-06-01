@@ -96,5 +96,10 @@
     "description": "Remote illustration URL proxy for T2I rendering. Example: https://ghproxy.net . Empty means direct GitHub raw URLs.",
     "type": "string",
     "default": ""
+  },
+  "game_reply_listener": {
+    "description": "开启后，phi guess / phi tipgame / phi ltr 小游戏进行中可直接回复答案、tip、ans、open A 等内容，无需再次唤醒机器人。关闭时保留原命令/唤醒方式。",
+    "type": "bool",
+    "default": false
   }
 }

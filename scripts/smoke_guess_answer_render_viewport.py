@@ -54,10 +54,24 @@ async def main() -> None:
     _write_image(paths.downloaded_original_ill / "illLow" / f"{song.id}.png", (512, 270), (20, 90, 160))
 
     render_calls: list[tuple[str, dict, bool, dict | None]] = []
+    render_started: list[dict | None] = []
+    release_first_answer_render = asyncio.Event()
+    answer_render_started = 0
+    concurrent_answer_render = False
 
     async def fake_html_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
+        nonlocal answer_render_started, concurrent_answer_render
         render_calls.append((template, data, return_url, options))
-        output = paths.render_cache / f"guess-render-{len(render_calls)}.png"
+        call_index = len(render_calls)
+        render_started.append(options)
+        if len(render_calls) >= 2:
+            answer_render_started += 1
+            if answer_render_started == 1:
+                await release_first_answer_render.wait()
+            else:
+                concurrent_answer_render = True
+                release_first_answer_render.set()
+        output = paths.render_cache / f"guess-render-{call_index}.png"
         _write_image(output, (1200, 800), (8, 24, 50))
         return str(output)
 
@@ -80,11 +94,16 @@ async def main() -> None:
     started = await dispatch(ctx, "guess-user", "guess", "")
     if started.kind != "image":
         raise SystemExit(f"guess should start with an image, got {started!r}")
-    answered = await dispatch(ctx, "guess-user", "guess", "Glaciaxion")
+    try:
+        answered = await asyncio.wait_for(dispatch(ctx, "guess-user", "guess", "Glaciaxion"), timeout=5)
+    except TimeoutError as exc:
+        raise SystemExit("guess answer render did not run concurrently") from exc
     if answered.kind != "image":
         raise SystemExit(f"guess answer should return atlas image, got {answered!r}")
     if len(render_calls) != 3:
         raise SystemExit(f"expected start/reveal/atlas render calls, got {len(render_calls)}")
+    if not concurrent_answer_render:
+        raise SystemExit("guess answer should request reveal and atlas renders concurrently")
 
     reveal_options = render_calls[1][3] or {}
     atlas_options = render_calls[2][3] or {}

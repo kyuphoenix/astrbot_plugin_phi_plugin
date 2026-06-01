@@ -24,6 +24,7 @@ class PluginConfig:
     github_proxy: str = ""
     illustration_source: str = "remote"
     illustration_url_proxy: str = ""
+    game_reply_listener: bool = False
 
     @classmethod
     def from_astrbot(cls, config: Any | None) -> "PluginConfig":
@@ -80,4 +81,5 @@ class PluginConfig:
             github_proxy=str(get("github_proxy", "") or "").strip().rstrip("/"),
             illustration_source=illustration_source,
             illustration_url_proxy=str(get("illustration_url_proxy", "") or "").strip().rstrip("/"),
+            game_reply_listener=bool(get("game_reply_listener", False)),
         )

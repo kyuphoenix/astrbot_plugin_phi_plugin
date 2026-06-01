@@ -3,13 +3,16 @@ from __future__ import annotations
 import base64
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 import astrbot.api.message_components as Comp
 from astrbot.api.all import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event.filter import CustomFilter
 from astrbot.api.star import Context, Star, StarTools
 
 from .phi_core.commands import CommandContext, CommandResult, dispatch
+from .phi_core.commands._games import handle_game_reply, has_active_game_session
 from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
@@ -25,10 +28,25 @@ _FC_ALIASES = {f"fc{index}" for index in range(1, 101)} - {"fc30"}
 _ARCGROS_ALIASES = {f"arcgrosb{index}" for index in range(1, 101)}
 
 
+class ActivePhiGameFilter(CustomFilter):
+    enabled = False
+
+    def filter(self, event: AstrMessageEvent, cfg: Any) -> bool:
+        del cfg
+        if not self.enabled:
+            return False
+        message = (event.get_message_str() or "").strip()
+        if not message or message.casefold().startswith("phi "):
+            return False
+        session_id = AstrBotPhiPlugin._event_session_id(event)
+        return has_active_game_session(session_id, event.get_sender_id())
+
+
 class AstrBotPhiPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.plugin_config = PluginConfig.from_astrbot(config)
+        ActivePhiGameFilter.enabled = self.plugin_config.game_reply_listener
         root = Path(__file__).resolve().parent
         data_dir = Path(StarTools.get_data_dir("astrbot_plugin_phi_plugin"))
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
@@ -364,19 +382,38 @@ class AstrBotPhiPlugin(Star):
     async def phi_x30(self, event: AstrMessageEvent):
         yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'x30')
 
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=10)
+    @filter.custom_filter(ActivePhiGameFilter, False)
+    async def phi_game_reply_listener(self, event: AstrMessageEvent):
+        if not self.plugin_config.game_reply_listener:
+            return
+        message = (event.get_message_str() or "").strip()
+        if not message or message.casefold().startswith("phi "):
+            return
+        sender_id = event.get_sender_id()
+        event.stop_event()
+        command_context = self._command_context_for_event(event, sender=self._event_sender(event))
+        result = await handle_game_reply(command_context, sender_id, message)
+        if result is None:
+            return
+        yield await self._send_command_result(event, result)
+
     async def _dispatch_phi_command(self, event: AstrMessageEvent, command: str, *, grouped: bool = True):
         event.stop_event()
         args = self._extract_command_args(event.get_message_str(), grouped=grouped)
 
+        command_context = self._command_context_for_event(event, sender=self._event_sender(event))
+        result = await dispatch(command_context, event.get_sender_id(), command, args)
+        return await self._send_command_result(event, result)
+
+    def _event_sender(self, event: AstrMessageEvent) -> Callable[[CommandResult], Awaitable[None]]:
         async def send_intermediate(result: CommandResult) -> None:
             if result.kind == "image":
                 await self._send_image_with_fallback(event, result.value)
                 return
             await event.send(event.plain_result(result.value))
 
-        command_context = self._command_context_for_event(event, sender=send_intermediate)
-        result = await dispatch(command_context, event.get_sender_id(), command, args)
-        return await self._send_command_result(event, result)
+        return send_intermediate
 
     def _command_context_for_event(
         self,

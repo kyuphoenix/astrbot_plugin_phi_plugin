@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import random
 import re
 import time
@@ -120,6 +121,14 @@ _ILL_WEIGHTS: dict[str, dict[str, float]] = {}
 _LETTER_WEIGHTS: dict[str, dict[str, float]] = {}
 
 
+def has_active_game(ctx: CommandContext, user_id: str) -> bool:
+    return _current_game(ctx, user_id) is not None
+
+
+def has_active_game_session(session_id: str, user_id: str) -> bool:
+    return bool(_ACTIVE_GAMES.get(session_id or user_id))
+
+
 async def handle_guess(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     state = _current_game(ctx, user_id)
     if args.strip():
@@ -189,6 +198,25 @@ async def handle_open(ctx: CommandContext, user_id: str, args: str) -> CommandRe
     return _letter_open(ctx, user_id, state, letter[0])
 
 
+async def handle_game_reply(ctx: CommandContext, user_id: str, message: str) -> CommandResult | None:
+    state = _current_game(ctx, user_id)
+    if state is None:
+        return None
+    text = (message or "").strip()
+    if not text:
+        return None
+    command, args = _parse_listener_action(text)
+    if command == "ans":
+        return await handle_ans(ctx, user_id, args)
+    if command == "tip":
+        return await handle_tip(ctx, user_id, args)
+    if command == "open":
+        return await handle_open(ctx, user_id, args)
+    if isinstance(state, LetterGame):
+        return _guess_letter_answer(ctx, user_id, state, text)
+    return await _guess_song_answer(ctx, user_id, text, state)
+
+
 async def _start_guess_ill(ctx: CommandContext, user_id: str) -> CommandResult:
     key = _session_key(ctx, user_id)
     song = _weighted_song(ctx, key, _ILL_WEIGHTS, _songs_with_illustrations(ctx), decay=0.4)
@@ -207,7 +235,7 @@ async def _start_guess_ill(ctx: CommandContext, user_id: str) -> CommandResult:
     message = "\n".join(
         [
             "下面开始进行猜曲绘！",
-            "请使用 phi guess <曲名> 回答；phi tip 获取提示；phi ans 公布答案。",
+            _game_start_hint(ctx, "guess_ill"),
             f"本局难度：{level}；干扰类型：{'、'.join(image.chosen_interferences) or '无'}",
         ]
     )
@@ -224,10 +252,7 @@ def _start_tip_game(ctx: CommandContext, user_id: str) -> CommandResult:
     tips = tips[:DEFAULT_TIP_NUM]
     image = _new_guess_image(ctx, song, crop_min=100, crop_max=150)
     _ACTIVE_GAMES[key] = TipGame(song_id=song.id, tips=tips, image=image)
-    return CommandResult.text(
-        "下面开始进行提示猜歌！请使用 phi guess <曲名> 回答，phi tip 获取下一条提示，phi ans 公布答案。\n\n"
-        + _tip_list(tips, 1)
-    )
+    return CommandResult.text("下面开始进行提示猜歌！" + _game_start_hint(ctx, "tip_game") + "\n\n" + _tip_list(tips, 1))
 
 
 def _start_letter_game(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
@@ -252,10 +277,21 @@ def _start_letter_game(ctx: CommandContext, user_id: str, args: str) -> CommandR
         selected_range=label,
     )
     _ACTIVE_GAMES[key] = state
-    return CommandResult.text(
-        "开字母猜歌开启成功！使用 phi ltr n1 <曲名> 回答指定编号，phi open A 翻开字符，phi tip 随机提示，phi ans 公布答案。\n\n"
-        + _letter_puzzle_text(state)
-    )
+    return CommandResult.text("开字母猜歌开启成功！" + _game_start_hint(ctx, "letter_game") + "\n\n" + _letter_puzzle_text(state))
+
+
+def _game_start_hint(ctx: CommandContext, kind: GameKind) -> str:
+    if kind == "letter_game":
+        if ctx.config.game_reply_listener:
+            return "可直接回复 n1 <曲名>；发送 open A 翻开字符；发送 tip 随机提示；发送 ans 公布答案。也仍可使用 phi ltr n1 <曲名> / phi open A / phi tip / phi ans。"
+        return "请使用 phi ltr n1 <曲名> 回答指定编号，phi open A 翻开字符，phi tip 随机提示，phi ans 公布答案。"
+    if kind == "tip_game":
+        if ctx.config.game_reply_listener:
+            return "可直接回复曲名；发送 tip 获取下一条提示；发送 ans 公布答案。也仍可使用 phi guess <曲名> / phi tip / phi ans。"
+        return "请使用 phi guess <曲名> 回答，phi tip 获取下一条提示，phi ans 公布答案。"
+    if ctx.config.game_reply_listener:
+        return "可直接回复曲名；发送 tip 获取提示；发送 ans 公布答案。也仍可使用 phi guess <曲名> / phi tip / phi ans。"
+    return "请使用 phi guess <曲名> 回答；phi tip 获取提示；phi ans 公布答案。"
 
 
 async def _guess_song_answer(ctx: CommandContext, user_id: str, query: str, state: GuessIllGame | TipGame) -> CommandResult:
@@ -360,22 +396,40 @@ def _letter_tip(ctx: CommandContext, user_id: str, state: LetterGame) -> Command
     return _letter_open(ctx, user_id, state, random.choice(candidates))
 
 
+def _parse_listener_action(text: str) -> tuple[str, str]:
+    match = re.match(r"^(?:phi\s+)?(ans|answer|答案|结束|tip|提示|open|打开|翻开|揭开|开)\b\s*(.*)$", text, flags=re.I)
+    if not match:
+        return "", text
+    command = match.group(1).casefold()
+    args = match.group(2).strip()
+    if command in {"answer", "答案", "结束"}:
+        return "ans", args
+    if command in {"提示"}:
+        return "tip", args
+    if command in {"打开", "翻开", "揭开", "开"}:
+        return "open", args
+    return command, args
+
+
 async def _finish_with_answer(ctx: CommandContext, message: str, song: Song, state: GuessIllGame | TipGame) -> CommandResult:
     reveal = state.image
     reveal.style = 1
     reveal.ans = reveal.illustration
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         if ctx.sender is not None:
-            await ctx.sender(CommandResult.text(f"{message}\n正确答案是：{song.title}"))
-            reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
-            await ctx.sender(CommandResult.image(reveal_path))
-            song_path = await render_jinja_template(
-                ctx,
-                "atlas/atlas",
-                jinja_adapter.atlas_data(ctx.paths, song),
-                "guess-song",
-                width=2048,
+            reveal_task = asyncio.create_task(_render_guess_image(ctx, reveal, "guess-answer"))
+            song_task = asyncio.create_task(
+                render_jinja_template(
+                    ctx,
+                    "atlas/atlas",
+                    jinja_adapter.atlas_data(ctx.paths, song),
+                    "guess-song",
+                    width=2048,
+                )
             )
+            reveal_path, song_path = await asyncio.gather(reveal_task, song_task)
+            await ctx.sender(CommandResult.text(f"{message}\n正确答案是：{song.title}"))
+            await ctx.sender(CommandResult.image(reveal_path))
             return CommandResult.image(song_path)
         reveal_path = await _render_guess_image(ctx, reveal, "guess-answer")
         return CommandResult.image(reveal_path)
