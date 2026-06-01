@@ -864,11 +864,17 @@ async def main() -> None:
             raise SystemExit("image pgr should receive an explicit 1200px viewport to avoid reused-context width drift")
         if b30_render_calls[0][3].get("scale") != "css":
             raise SystemExit("image pgr should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
+        best_before = len(b30_render_calls)
+        image_best = await dispatch(image_login_ctx, "login-user", "best", "")
+        if image_best.kind != "text" or "Best 19" not in image_best.value:
+            raise SystemExit(f"best should stay text-only even in image mode, got {image_best!r}")
+        if len(b30_render_calls) != best_before:
+            raise SystemExit("best should not call the image renderer")
+
         for command, css_marker, body_marker in (
-            ("best", ".content-box", 'class="content-box"'),
-            ("p30", ".content-box", "All Perfect Mode"),
-            ("x30", ".content-box", "1 Good Mode"),
-            ("fc30", ".content-box", "Full Combo Mode"),
+            ("p30", ".b19", "All Perfect Mode"),
+            ("x30", ".b19", "1 Good Mode"),
+            ("fc30", ".b19", "Full Combo Mode"),
             ("info", ".Player_Info", "PLAYER_INFO"),
             ("lmtacc", ".content-box", "Limit ACC Mode"),
             ("list", ".list_box", 'class="list_box"'),
@@ -877,7 +883,7 @@ async def main() -> None:
             ("suggest", ".group_list", 'class="group_list"'),
             ("score", ".scoreHistory", "SCORE_DATA"),
             ("chap", ".song-box", 'class="song-box"'),
-            ("achievement", ".list_box", "Player Achievements"),
+            ("achievement", ".tableBox", "Player Achievements"),
             ("hisb30", ".main-box", 'class="main-box"'),
             ("2025history", ".page", 'class="page"'),
             ("rand", ".box-left", 'class="box-left"'),
@@ -1030,6 +1036,14 @@ async def main() -> None:
                     raise SystemExit("old ranklist should inline image resources as data URIs")
             if command == "randclg" and ('class="notes-info tap"' not in html or ">Tap<" not in html):
                 raise SystemExit("image randclg should render original tap/drag/hold/flick note breakdown")
+            if command == "rand":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 2048 or options.get("viewport_height") != 1080:
+                    raise SystemExit(f"image rand should use original 2048x1080 viewport, got {options!r}")
+            if command == "randclg":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 1920 or options.get("viewport_height") != 1200:
+                    raise SystemExit(f"image randclg should use original 1920x1200 viewport, got {options!r}")
             if command == "song":
                 before_song_comment = len(b30_render_calls)
                 song_comment = await dispatch(image_login_ctx, "login-user", "song", "Glaciaxion -comment")

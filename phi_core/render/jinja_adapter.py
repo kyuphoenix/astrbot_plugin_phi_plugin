@@ -56,15 +56,25 @@ def help_data(paths: PluginPaths, *, cmd_head: str = "phi", is_master: bool = Fa
     }
 
 
-def b30_data(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -> dict[str, Any]:
+def b30_data(
+    paths: PluginPaths,
+    result: Best30Result,
+    snapshot: SaveSnapshot,
+    *,
+    sp_info: list[str] | None = None,
+    display_rks: float | None = None,
+) -> dict[str, Any]:
     records = result.records
     phi_records = result.phi_records[:3] or [record for record in records if record.acc >= 100][:3]
     background = original._random_background_for_records(paths, [*phi_records, *records])
+    gameuser = _with_user_assets(paths, original._gameuser(snapshot))
+    if display_rks is not None:
+        gameuser["rks"] = display_rks
     return {
-        "gameuser": _with_user_assets(paths, original._gameuser(snapshot)),
+        "gameuser": gameuser,
         "Date": format_datetime(extract_modified_datetime(snapshot.raw)),
         "stats": original._level_stats(records),
-        "spInfo": _b30_sp_info(paths, result, snapshot),
+        "spInfo": sp_info if sp_info is not None else _b30_sp_info(paths, result, snapshot),
         "phi": [_score_record_data(paths, record, f"P{index}", result=result, index=index, phi=True) for index, record in enumerate(phi_records, 1)],
         "b19_list": [
             _score_record_data(paths, record, f"#{index}", result=result, index=index, phi=False)
@@ -143,6 +153,7 @@ def table_data(
     *,
     difficulty: float,
     version_label: str = "current",
+    title_dec: str = "Constant Table",
     record_map: dict[tuple[str, str], ScoreRecord] | None = None,
     snapshot: SaveSnapshot | None = None,
 ) -> dict[str, Any]:
@@ -159,6 +170,7 @@ def table_data(
             "version": version_label,
             "total": len(charts),
             "difficulty": f"{difficulty:g}",
+            "dec": title_dec,
         },
         "gameuser": gameuser,
         "spInfo": [],
@@ -1372,6 +1384,9 @@ def _score_list_entry_data(paths: PluginPaths, entry: ScoreListEntry) -> dict[st
 
 def _suggest_entry_data(paths: PluginPaths, entry: SuggestEntry) -> dict[str, Any]:
     base = _score_list_entry_data(paths, ScoreListEntry(chart=entry.chart, record=entry.current))
+    if entry.current is None:
+        base["score"] = ""
+        base["Rating"] = ""
     base["suggest"] = entry.target_acc
     return base
 

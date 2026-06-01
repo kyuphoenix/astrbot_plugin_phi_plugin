@@ -4,6 +4,7 @@ import re
 
 from .common import CommandContext, CommandResult
 from ._rendering import render_jinja_template
+from ..models import Best30Result
 from ..query import compute_average_rks, top_records
 from ..render import jinja_adapter
 from ..render import text as render
@@ -19,15 +20,24 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     records = top_records(snapshot, ctx.catalog, limit=limit, mode="fc")
     average_rks = compute_average_rks(records)
     if ctx.config.render_mode == "image":
+        image_limit = max(33, limit)
+        image_records = top_records(snapshot, ctx.catalog, limit=image_limit, mode="fc")
+        image_average_rks = compute_average_rks(image_records)
+        result = Best30Result(
+            official_rks=snapshot.ranking_score,
+            computed_rks=image_average_rks,
+            records=image_records,
+            total_records=len(image_records),
+        )
         path = await render_jinja_template(
             ctx,
-            "b19/dss2",
-            jinja_adapter.dss2_record_list_data(
+            "b19/b19",
+            jinja_adapter.b30_data(
                 ctx.paths,
-                records,
+                result,
                 snapshot,
-                sp_info=["Full Combo Mode", f"Computed RKS: {average_rks:.4f}"],
-                computed_rks=average_rks,
+                sp_info=["Full Combo Mode", f"Computed RKS: {image_average_rks:.4f}"],
+                display_rks=image_average_rks,
             ),
             "fc30",
         )

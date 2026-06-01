@@ -18,7 +18,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         return CommandResult.text(_not_found_text(ctx, args))
     song, chart = result
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
-        path = await render_jinja_template(ctx, "rand/rand", jinja_adapter.rand_data(ctx.paths, song, chart), "rand")
+        path = await render_jinja_template(ctx, "rand/rand", jinja_adapter.rand_data(ctx.paths, song, chart), "rand", width=2048, height=1080)
         return CommandResult.image(path)
     return CommandResult.text(_render_random_chart(song, chart))
 

@@ -310,7 +310,7 @@ def random_challenge(catalog: SongCatalog, args: str, *, rng: random.Random | No
     entries = all_chart_entries(catalog)
     max_diff = max((entry.difficulty for entry in entries), default=18.0)
     target_args, chart_args = _split_challenge_args(args)
-    parsed_range = parse_range(target_args, default=(20.0, 45.0), max_value=51.0, int_bucket=True)
+    parsed_range = parse_range(target_args, default=(0.0, 51.0), max_value=51.0, int_bucket=True)
     target_levels = parse_levels(target_args)
     chart_range = parse_range(chart_args, default=(0.0, max_diff), max_value=max_diff, int_bucket=True)
     chart_levels = parse_levels(chart_args)
@@ -320,34 +320,27 @@ def random_challenge(catalog: SongCatalog, args: str, *, rng: random.Random | No
         if entry.rank in target_levels
         and entry.rank in chart_levels
         and chart_range.contains(entry.difficulty)
+        and entry.difficulty < parsed_range.high
     ]
     by_floor: dict[int, list[ChartEntry]] = {}
     for chart in charts:
         by_floor.setdefault(int(math.floor(chart.difficulty)), []).append(chart)
-    targets = list(range(max(1, int(parsed_range.low)), int(parsed_range.high) + 1))
+    targets = list(range(max(0, int(parsed_range.low)), int(parsed_range.high) + 1))
     rng.shuffle(targets)
     for target in targets:
-        for _ in range(1500):
-            parts = _random_three_parts(target, by_floor.keys(), rng)
-            if not parts:
-                continue
-            selected: list[ChartEntry] = []
-            used: set[tuple[str, str]] = set()
-            ok = True
-            for part in parts:
-                candidates = by_floor.get(part, [])
-                if not candidates:
-                    ok = False
-                    break
-                candidate = rng.choice(candidates)
-                key = (candidate.song_id, candidate.rank)
-                if key in used:
-                    ok = False
-                    break
-                used.add(key)
-                selected.append(candidate)
-            if ok and len(selected) == 3:
-                return target, selected
+        parts = _random_challenge_parts(target, by_floor, rng)
+        if not parts:
+            continue
+        selected: list[ChartEntry] = []
+        pools = {floor: list(items) for floor, items in by_floor.items()}
+        for part in parts:
+            pool = pools.get(part) or []
+            if not pool:
+                selected = []
+                break
+            selected.append(pool.pop(rng.randrange(len(pool))))
+        if len(selected) == 3:
+            return target, selected
     return None
 
 
@@ -359,16 +352,24 @@ def _split_challenge_args(args: str) -> tuple[str, str]:
     return outer, match.group(1).strip()
 
 
-def _random_three_parts(target: int, available: Iterable[int], rng: random.Random) -> list[int] | None:
-    values = sorted(set(available))
+def _random_challenge_parts(target: int, by_floor: dict[int, list[ChartEntry]], rng: random.Random) -> list[int] | None:
+    values = [value for value in range(1, min(max(by_floor.keys(), default=0), target - 2) + 1) if by_floor.get(value)]
     if not values:
         return None
-    for _ in range(80):
-        a = rng.choice(values)
-        b = rng.choice(values)
-        c = target - a - b
-        if c in values:
-            return [a, b, c]
+    left = list(values)
+    right = list(values)
+    rng.shuffle(left)
+    rng.shuffle(right)
+    for a in left:
+        for b in right:
+            if a + b >= target:
+                continue
+            c = target - a - b
+            counts: dict[int, int] = {}
+            for part in (a, b, c):
+                counts[part] = counts.get(part, 0) + 1
+            if all(len(by_floor.get(part, [])) >= count for part, count in counts.items()):
+                return [a, b, c]
     return None
 
 

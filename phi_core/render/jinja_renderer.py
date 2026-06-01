@@ -234,6 +234,8 @@ def _rewrite_template_asset_fields(normalized: str, html: str) -> str:
     )
     if normalized in {"userinfo/userinfo.html", "userinfo/userinfo-old.html"}:
         html = _rewrite_userinfo_watermark(html)
+    if normalized == "table/table.html":
+        html = html.replace("<p>Constant Table</p>", '<p>{{ title.dec|default("Constant Table") }}</p>')
     return html
 
 
