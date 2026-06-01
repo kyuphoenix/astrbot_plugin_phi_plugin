@@ -687,18 +687,16 @@ async def main() -> None:
             raise SystemExit("official html renderer should inline local help images as data URIs")
         if "themeStar()" in help_html or "Star1" in help_html:
             raise SystemExit("help html should use random blurred illustration background, not the fixed star theme")
-        if "background: #000 !important" not in help_template or "z-index: 0 !important" not in help_template:
-            raise SystemExit("help html should override original body phigros fallback and negative background stacking")
+        if "background: #000" not in help_template or "body > :not(.background)" in help_template:
+            raise SystemExit("help html should set viewport reset without overriding original template positioning")
         if "position: fixed !important" in help_template or "height: 100vh !important" in help_template:
             raise SystemExit("help html background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in help_template:
             raise SystemExit("help html should remove original common.css phigros body fallback before t2i")
         if '<img src="data:image/' not in help_html:
             raise SystemExit("help html should inline the selected illustration into the contained background layer")
-        if 'body {\n  background-image: none !important;' not in help_template:
+        if "background: transparent !important" not in help_template:
             raise SystemExit("help html should not paint the selected illustration as an unblurred body background")
-        if "overflow: hidden !important" not in help_template or "contain: paint !important" not in help_template:
-            raise SystemExit("help html background should be contained so the blurred layer does not expand page width")
         if "phiAdjustFontSize" not in help_template:
             raise SystemExit("official html renderer should include original auto font sizing script")
         if html_render_calls[0][2] is not False:
@@ -837,18 +835,16 @@ async def main() -> None:
             raise SystemExit("image pgr should inline local image resources")
         if "themeStar()" in b30_html or "Star1" in b30_html:
             raise SystemExit("image pgr should use random blurred illustration background, not the fixed star theme")
-        if "background: #000 !important" not in b30_template or "z-index: 0 !important" not in b30_template:
-            raise SystemExit("image pgr should override original body phigros fallback and negative background stacking")
+        if "background: #000" not in b30_template or "body > :not(.background)" in b30_template:
+            raise SystemExit("image pgr should set viewport reset without overriding original template positioning")
         if "position: fixed !important" in b30_template or "height: 100vh !important" in b30_template:
             raise SystemExit("image pgr background should be page-height aware, not fixed to the viewport")
         if 'background: url("") center no-repeat' not in b30_template:
             raise SystemExit("image pgr should remove original common.css phigros body fallback before t2i")
         if '<img src="data:image/' not in b30_html:
             raise SystemExit("image pgr should inline the selected illustration into the contained background layer")
-        if 'body {\n  background-image: none !important;' not in b30_template:
+        if "background: transparent !important" not in b30_template:
             raise SystemExit("image pgr should not paint the selected illustration as an unblurred body background")
-        if "overflow: hidden !important" not in b30_template or "contain: paint !important" not in b30_template:
-            raise SystemExit("image pgr background should be contained so the blurred layer does not expand page width")
         if "phigros.png" in b30_html:
             raise SystemExit("image pgr should not fall back to phigros when local illustrations exist")
         if "Real RKS:" not in b30_html:

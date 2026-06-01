@@ -27,6 +27,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
                     history=ctx.store.load_history(user_id),
                 ),
                 "update",
+                width=800,
             )
             return CommandResult.image(path)
         return CommandResult.text(render.render_update_progress(result.progress))

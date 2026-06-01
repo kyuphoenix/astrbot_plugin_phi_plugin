@@ -299,8 +299,40 @@ def _apply_viewport_width(html: str, width: int) -> str:
 
 
 def _inject_reset_css(paths: PluginPaths, html: str, *, width: int, height: int | None = None) -> str:
+    del paths
     height_var = f"--phi-viewport-height: {int(height)}px;" if height is not None else ""
-    style = f"<style>:root {{--phi-viewport-width: {int(width)}px;{height_var}}}\n{original._render_reset_css('data:image/placeholder;base64,', width=width)}</style>"
+    height_css = (
+        f"""
+  height: {int(height)}px !important;
+  min-height: {int(height)}px !important;
+  max-height: {int(height)}px !important;"""
+        if height is not None
+        else ""
+    )
+    style = f"""<style>
+:root {{
+  --phi-viewport-width: {int(width)}px;
+  {height_var}
+}}
+html {{
+  margin: 0;
+  padding: 0;
+  width: {int(width)}px !important;
+  min-width: {int(width)}px !important;
+  max-width: {int(width)}px !important;
+  background: #000;
+  overflow-x: hidden !important;{height_css}
+}}
+body {{
+  margin: 0;
+  padding: 0;
+  width: {int(width)}px !important;
+  min-width: {int(width)}px !important;
+  max-width: {int(width)}px !important;
+  background: transparent !important;
+  overflow-x: hidden !important;
+}}
+</style>"""
     if "</head>" in html:
         return html.replace("</head>", f"{style}\n</head>", 1)
     return f"{style}\n{html}"

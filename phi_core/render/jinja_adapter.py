@@ -1992,63 +1992,113 @@ def _series_lines(
     *,
     current: tuple[str, Any] | None = None,
     money: bool = False,
-) -> tuple[list[list[str]], list[float], list[str]]:
+) -> tuple[list[list[float]], list[float], list[str]]:
     raw_series = history.get(key) if isinstance(history.get(key), list) else []
-    points: list[tuple[str, float]] = []
+    points: list[tuple[datetime, float]] = []
     for item in raw_series:
         if not isinstance(item, dict):
             continue
         value = item.get("value")
         number = money_to_kib(value) if money else _as_float(value)
-        points.append((_date_label(item.get("date")), float(number)))
+        date = _series_datetime(item.get("date"))
+        if date is not None and number is not None:
+            points.append((date, float(number)))
     if current is not None:
         current_number = money_to_kib(current[1]) if money else _as_float(current[1])
-        if not any(label == current[0] for label, _ in points):
-            points.append((current[0], float(current_number)))
-    points = _sample_series_points(points, max_points=96)
+        current_date = _series_datetime(current[0])
+        if current_date is not None and current_number is not None and not any(date == current_date for date, _ in points):
+            points.append((current_date, float(current_number)))
+    points.sort(key=lambda item: item[0])
+    if not points:
+        return [], [0.0, 0.0], ["", ""]
+    compacted, value_range = _compact_series_points(points)
+    date_range = [compacted[0][0].timestamp(), compacted[-1][0].timestamp()]
+    lines = _numeric_series_to_lines([(date.timestamp(), value) for date, value in compacted], value_range=value_range, x_range=date_range)
+    if not lines and compacted:
+        lines = [[0.0, 50.0, 100.0, 50.0]]
+    return lines, value_range, [_format_series_date(compacted[0][0]), _format_series_date(compacted[-1][0])]
+
+
+def _compact_series_points(points: list[tuple[datetime, float]]) -> tuple[list[tuple[datetime, float]], list[float]]:
+    compacted: list[tuple[datetime, float]] = []
+    value_range = [float("inf"), 0.0]
+    for index, item in enumerate(points):
+        if index <= 1 or not compacted or item[1] != compacted[-2][1]:
+            compacted.append(item)
+            value_range[0] = min(value_range[0], item[1])
+            value_range[1] = max(value_range[1], item[1])
+        else:
+            compacted[-1] = item
+    if value_range[0] == float("inf"):
+        value_range = [0.0, 0.0]
+    return compacted, value_range
+
+
+def _numeric_series_to_lines(
+    points: list[tuple[float, float]],
+    *,
+    value_range: list[float] | None = None,
+    x_range: list[float] | None = None,
+) -> list[list[float]]:
     if len(points) < 2:
-        return [], [0.0, 0.0], ["", points[-1][0] if points else ""]
-    lines, value_range = _numeric_series_to_lines([(index, value) for index, (_, value) in enumerate(points)])
-    return lines, value_range, [points[0][0], points[-1][0]]
-
-
-def _sample_series_points(points: list[tuple[str, float]], *, max_points: int) -> list[tuple[str, float]]:
-    if len(points) <= max_points:
-        return points
-    sampled: list[tuple[str, float]] = []
-    last_index = len(points) - 1
-    for sample_index in range(max_points):
-        source_index = round(sample_index * last_index / (max_points - 1))
-        point = points[source_index]
-        if not sampled or sampled[-1] != point:
-            sampled.append(point)
-    return sampled
-
-
-def _numeric_series_to_lines(points: list[tuple[float, float]]) -> tuple[list[list[str]], list[float]]:
-    if len(points) < 2:
-        return [], [0.0, 0.0]
+        return []
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    x_span = max(max_x - min_x, 1e-9)
-    y_span = max(max_y - min_y, 1e-9)
-    result: list[list[str]] = []
+    x_bounds = x_range or [min(xs), max(xs)]
+    y_bounds = value_range or [min(ys), max(ys)]
+    min_x, max_x = x_bounds[0], x_bounds[-1]
+    min_y, max_y = y_bounds[0], y_bounds[-1]
+    result: list[list[float]] = []
     for left, right in zip(points, points[1:]):
-        x1 = (left[0] - min_x) / x_span * 100
-        x2 = (right[0] - min_x) / x_span * 100
-        y1 = 100 - (left[1] - min_y) / y_span * 100
-        y2 = 100 - (right[1] - min_y) / y_span * 100
-        result.append([f"{x1:.4f}", f"{y1:.4f}", f"{x2:.4f}", f"{y2:.4f}"])
-    return result, [min_y, max_y]
+        x1 = _range_percent(left[0], [min_x, max_x])
+        x2 = _range_percent(right[0], [min_x, max_x])
+        y1 = _range_percent(left[1], [min_y, max_y])
+        y2 = _range_percent(right[1], [min_y, max_y])
+        result.append([x1, y1, x2, y2])
+    return result
+
+
+def _range_percent(value: float, bounds: list[float]) -> float:
+    start = float(bounds[0])
+    end = float(bounds[-1])
+    if start == end:
+        return 50.0
+    return abs((float(value) - start) / (end - start) * 100)
+
+
+def _series_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone().replace(tzinfo=None) if value.tzinfo is not None else value
+    if isinstance(value, (int, float)):
+        timestamp = float(value)
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000
+        return datetime.fromtimestamp(timestamp)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        for candidate in (
+            text,
+            text.replace("Z", "+00:00"),
+            text.replace("/", "-"),
+        ):
+            try:
+                parsed = datetime.fromisoformat(candidate)
+                return parsed.astimezone().replace(tzinfo=None) if parsed.tzinfo is not None else parsed
+            except ValueError:
+                continue
+    return None
+
+
+def _format_series_date(value: datetime) -> str:
+    return format_datetime(value)
 
 
 def _date_label(value: Any) -> str:
-    if isinstance(value, datetime):
-        return format_datetime(value)
-    if isinstance(value, str):
-        return value.replace("T", " ").replace("+00:00", "").split(".", 1)[0]
+    parsed = _series_datetime(value)
+    if parsed is not None:
+        return _format_series_date(parsed)
     return str(value or "")
 
 
@@ -2171,40 +2221,91 @@ def _dominant_record_rating(records: list[ScoreRecord], rank: str) -> str:
     return max(counts, key=lambda key: (counts[key], order.get(key, -2)))
 
 
-def _info_acc_rks(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> tuple[list[list[str]], list[float], list[list[float]]]:
+def _info_acc_rks(snapshot: SaveSnapshot, catalog: SongCatalog | None) -> tuple[list[list[float]], list[float], list[list[float]]]:
     if catalog is None:
         return [], [0.0, 1.0], []
     records = sorted(iter_score_records(snapshot, catalog), key=lambda item: item.rks, reverse=True)
     phi_records = sorted((record for record in records if record.acc >= 100), key=lambda item: item.rks, reverse=True)[:3]
     phi_rks = sum(record.rks for record in phi_records)
-    b27_source = records[:27]
+    acc_records = list(records)
+    b27_source = acc_records[:27]
     if not b27_source:
         return [], [0.0, 1.0], []
     min_acc = min(record.acc for record in b27_source)
+    acc_range: list[float] = [100.0]
+    for record in b27_source:
+        acc_range[0] = min(acc_range[0], record.acc)
     samples: list[tuple[float, float]] = []
-    step_count = 40
-    for index in range(step_count + 1):
-        threshold = min_acc + (100.0 - min_acc) * index / step_count
-        filtered = [record for record in b27_source if record.acc >= threshold][:27]
-        rks = (phi_rks + sum(record.rks for record in filtered)) / 30 if filtered or phi_records else 0.0
+    value_range = [100.0, 0.0]
+    threshold = acc_range[0]
+    while threshold <= 100.0:
+        sum_rks = 0.0
+        if not acc_records:
+            break
+        index = 0
+        while index < len(acc_records) and index < 27:
+            if acc_records[index].acc < threshold:
+                acc_range.append(threshold)
+            while index < len(acc_records) and acc_records[index].acc < threshold:
+                acc_records.pop(index)
+            if index < len(acc_records):
+                sum_rks += acc_records[index].rks
+            else:
+                break
+            index += 1
+        rks = (sum_rks + phi_rks) / 30
         samples.append((threshold, rks))
-    lines, value_range = _numeric_series_to_lines(samples)
-    labels = _acc_labels(min_acc)
+        value_range[0] = min(value_range[0], rks)
+        value_range[1] = max(value_range[1], rks)
+        threshold += 0.01
+    if acc_range[-1] < 100:
+        acc_range.append(100.0)
+    lines = _acc_rks_lines(samples, value_range, acc_range)
+    labels = _acc_range_labels(acc_range)
     return lines, value_range, labels
 
 
-def _acc_labels(min_acc: float) -> list[list[float]]:
-    values: list[float] = [min_acc]
-    step = max((100.0 - min_acc) / 5, 0.01)
-    value = min_acc + step
-    while value < 99.99:
-        values.append(value)
-        value += step
-    values.append(100.0)
-    if len(values) <= 1:
-        return [[values[0] if values else 0.0, 0.0]]
-    last_index = len(values) - 1
-    return [[value, index / last_index * 100] for index, value in enumerate(values)]
+def _acc_rks_lines(
+    samples: list[tuple[float, float]],
+    value_range: list[float],
+    acc_range: list[float],
+) -> list[list[float]]:
+    lines: list[list[float]] = []
+    for previous, current in zip(samples, samples[1:]):
+        if lines and previous[1] == current[1]:
+            lines[-1][2] = _range_percent(current[0], acc_range)
+        else:
+            lines.append([
+                _range_percent(previous[0], acc_range),
+                _range_percent(previous[1], value_range),
+                _range_percent(current[0], acc_range),
+                _range_percent(current[1], value_range),
+            ])
+    return lines
+
+
+def _acc_range_labels(acc_range: list[float]) -> list[list[float]]:
+    values = list(acc_range)
+    if not values:
+        return []
+    if values[0] == 100:
+        values[0] = 0.0
+    acc_length = 100.0 - values[0]
+    if acc_length <= 0:
+        return [[values[0], 0.0]]
+    while len(values) >= 2 and 100.0 - values[-2] < acc_length / 10:
+        values.pop(-2)
+    min_acc = values[0]
+    labels = [[values[0], 0.0]]
+    index = 1
+    while index < len(values):
+        while index < len(values) and values[index] - values[index - 1] < acc_length / 10:
+            values.pop(index)
+        if index >= len(values):
+            break
+        labels.append([values[index], (values[index] - min_acc) / acc_length * 100])
+        index += 1
+    return labels
 
 
 def _ensure_length(value: Any, length: int, default: Any) -> list[Any]:
