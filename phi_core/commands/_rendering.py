@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .common import CommandContext
+from ._user_settings import normalize_settings
 from ..render import jinja_adapter, jinja_renderer, panel
 
 
@@ -18,7 +19,10 @@ async def render_jinja_template(
     width: int | None = None,
     height: int | None = None,
 ) -> Path:
-    prepared = jinja_adapter.adapt_template_data(ctx.paths, template_path, dict(data or {}))
+    render_data = _apply_user_theme(ctx, template_path, dict(data or {}))
+    if _selected_theme(render_data) == "dss2" and template_path.replace("\\", "/").removesuffix(".html") == "b19/b19":
+        template_path = "b19/dss2"
+    prepared = jinja_adapter.adapt_template_data(ctx.paths, template_path, render_data)
     template, render_data, viewport_width, viewport_height = jinja_renderer.render_template_payload(
         ctx.paths,
         template_path,
@@ -34,6 +38,28 @@ async def render_jinja_template(
         viewport_width=viewport_width,
         viewport_height=viewport_height,
     )
+
+
+def _apply_user_theme(ctx: CommandContext, template_path: str, data: dict[str, Any]) -> dict[str, Any]:
+    if template_path.replace("\\", "/").removesuffix(".html") == "setting/userSetting":
+        return data
+    theme = _current_theme(ctx)
+    if theme == "default":
+        data.setdefault("theme", "default")
+        return data
+    if str(data.get("theme") or "default") in {"", "default", "common"}:
+        data["theme"] = theme
+    return data
+
+
+def _current_theme(ctx: CommandContext) -> str:
+    if not ctx.current_user_id:
+        return "default"
+    return str(normalize_settings(ctx.store.load_user_settings(ctx.current_user_id)).get("theme") or "default")
+
+
+def _selected_theme(data: dict[str, Any]) -> str:
+    return str(data.get("theme") or "default")
 
 
 async def render_original_html(

@@ -80,6 +80,7 @@ def b30_data(
             _score_record_data(paths, record, f"#{index}", result=result, index=index, phi=False)
             for index, record in enumerate(records, 1)
         ],
+        "BSIllPath": original._record_illustration(paths, records[0]) if records else background,
         "background": background,
         "theme": "default",
     }

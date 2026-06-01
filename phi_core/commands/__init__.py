@@ -47,10 +47,15 @@ async def dispatch(ctx: CommandContext, user_id: str, command: str, args: str) -
             dynamic_args = f"{limit_text} {args}".strip()
     if handler is None:
         return CommandResult.text(render.render_unsupported(f"phi {command}"))
-    result = handler(ctx, user_id, dynamic_args)
-    if inspect.isawaitable(result):
-        return await result
-    return result
+    previous_user_id = ctx.current_user_id
+    ctx.current_user_id = user_id
+    try:
+        result = handler(ctx, user_id, dynamic_args)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+    finally:
+        ctx.current_user_id = previous_user_id
 
 
 def _dynamic_score_command(command: str) -> tuple[str, str] | None:

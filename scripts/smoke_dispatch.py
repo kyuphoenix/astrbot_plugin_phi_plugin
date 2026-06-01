@@ -676,7 +676,7 @@ async def main() -> None:
             client=PhiApiClient(config),
             html_render=fake_html_render,
         )
-        html_result = await dispatch(html_ctx, "smoke-user", "help", "")
+        html_result = await dispatch(html_ctx, "default-theme-user", "help", "")
         if html_result.kind != "image" or not Path(html_result.value).exists():
             raise SystemExit(f"official html render path failed: {html_result!r}")
         with Image.open(html_result.value) as rendered:
@@ -864,6 +864,23 @@ async def main() -> None:
             raise SystemExit("image pgr should receive an explicit 1200px viewport to avoid reused-context width drift")
         if b30_render_calls[0][3].get("scale") != "css":
             raise SystemExit("image pgr should use css screenshot scale so 1200 CSS pixels are not emitted as high-DPR half-cropped images")
+        image_login_ctx.store.save_user_settings("theme-user", {"theme": "snow"})
+        before_theme_help = len(b30_render_calls)
+        themed_help = await dispatch(image_login_ctx, "theme-user", "help", "")
+        if themed_help.kind != "image" or len(b30_render_calls) != before_theme_help + 1:
+            raise SystemExit(f"image help should render with user theme settings, got {themed_help!r}")
+        themed_help_html = _render_call_html(b30_render_calls[-1])
+        if "themeSnow()" not in themed_help_html:
+            raise SystemExit("image help should apply the selected snow theme")
+        image_login_ctx.store.save_user_settings("login-user", {"theme": "dss2"})
+        before_dss2 = len(b30_render_calls)
+        dss2_pgr = await dispatch(image_login_ctx, "login-user", "pgr", "")
+        if dss2_pgr.kind != "image" or len(b30_render_calls) != before_dss2 + 1:
+            raise SystemExit(f"image pgr should render with dss2 theme settings, got {dss2_pgr!r}")
+        dss2_html = _render_call_html(b30_render_calls[-1])
+        if 'class="content-box"' not in dss2_html or "RKS" not in dss2_html:
+            raise SystemExit("image pgr with dss2 theme should use the original dss2 template")
+        image_login_ctx.store.save_user_settings("login-user", {"theme": "default"})
         best_before = len(b30_render_calls)
         image_best = await dispatch(image_login_ctx, "login-user", "best", "")
         if image_best.kind != "text" or "Best 19" not in image_best.value:
