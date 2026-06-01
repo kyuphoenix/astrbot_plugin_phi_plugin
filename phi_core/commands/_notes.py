@@ -371,6 +371,29 @@ def _classic_task_rows(ctx: CommandContext, snapshot: SaveSnapshot | None, notes
     return rows
 
 
+def build_update_task_rows(ctx: CommandContext, snapshot: SaveSnapshot | None, notes: dict[str, Any]) -> list[dict[str, Any] | None]:
+    rows = _classic_task_rows(ctx, snapshot, notes)
+    if not any(isinstance(row, dict) for row in rows):
+        return []
+    result: list[dict[str, Any] | None] = []
+    for row in rows[:5]:
+        if not isinstance(row, dict):
+            result.append(None)
+            continue
+        prepared = dict(row)
+        request = dict(prepared.get("request") if isinstance(prepared.get("request"), dict) else {})
+        task_type = str(request.get("type") or "acc").casefold()
+        if task_type == "score":
+            request["value"] = str(_as_int(request.get("value"))).zfill(6)
+        else:
+            request["value"] = f"{_as_float(request.get('value')):.2f}%"
+        prepared["request"] = request
+        result.append(prepared)
+    while len(result) < 5:
+        result.append(None)
+    return result
+
+
 async def _api_average_tasks(
     ctx: CommandContext,
     snapshot: SaveSnapshot,

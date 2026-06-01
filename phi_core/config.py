@@ -14,6 +14,9 @@ class PluginConfig:
     ranklist_image_version: str = "modern"
     max_b30: int = 33
     list_score_max_num: int = 80
+    history_day_num: int = 10
+    history_score_date: int = 10
+    history_score_num: int = 50
     api_base_url: str = "https://phib19.top:8080"
     request_timeout: int = 10
     qrcode_timeout: int = 270
@@ -67,6 +70,9 @@ class PluginConfig:
             ranklist_image_version=ranklist_image_version,
             max_b30=max(33, min(50, int(get("max_b30", 33)))),
             list_score_max_num=max(1, min(500, int(get("list_score_max_num", 80)))),
+            history_day_num=max(2, min(50, int(get("history_day_num", 10)))),
+            history_score_date=max(1, min(60, int(get("history_score_date", 10)))),
+            history_score_num=max(1, min(300, int(get("history_score_num", 50)))),
             api_base_url=str(get("api_base_url", "https://phib19.top:8080")).rstrip("/"),
             request_timeout=max(3, int(get("request_timeout", 10))),
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),

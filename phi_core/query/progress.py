@@ -9,9 +9,12 @@ from ..models import ProgressDay, ProgressScoreChange, SaveSnapshot, ScoreRecord
 from .b30 import iter_score_records, rating_from_score, rks_from_acc
 
 HISTORY_VERSION = 3
-MAX_DAYS = 4
-MAX_PER_DAY = 4
-MAX_TOTAL = 12
+MAX_DAYS = 10
+MAX_PER_DAY = 10
+MAX_TOTAL = 50
+UPSTREAM_HISTORY_DAYS = MAX_DAYS
+UPSTREAM_HISTORY_PER_DAY = MAX_PER_DAY
+UPSTREAM_HISTORY_TOTAL = MAX_TOTAL
 
 
 def update_progress_history(
@@ -20,6 +23,9 @@ def update_progress_history(
     history: dict[str, Any],
     *,
     previous_snapshot: SaveSnapshot | None = None,
+    max_days: int = UPSTREAM_HISTORY_DAYS,
+    max_per_day: int = UPSTREAM_HISTORY_PER_DAY,
+    max_total: int = UPSTREAM_HISTORY_TOTAL,
 ) -> tuple[dict[str, Any], UpdateProgressSummary]:
     normalized = normalize_history(history)
     before = deepcopy(normalized)
@@ -39,7 +45,7 @@ def update_progress_history(
     if snapshot.challenge_mode_rank is not None:
         _append_series_value(normalized, "challengeModeRank", modified_dt, snapshot.challenge_mode_rank)
 
-    recent_days = recent_progress_days(normalized, catalog)
+    recent_days = recent_progress_days(normalized, catalog, max_days=max_days, max_per_day=max_per_day, max_total=max_total)
     modified_text = format_datetime(modified_dt)
     current_update_count = _count_scores_on_date(normalized, modified_text)
     shown_changes = sum(len(day.changes) for day in recent_days)

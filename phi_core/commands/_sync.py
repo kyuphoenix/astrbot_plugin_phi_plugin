@@ -61,7 +61,7 @@ async def sync_save_with_progress(ctx: CommandContext, user_id: str) -> Progress
     api_id = ctx.store.get_api_id(user_id)
     history = ctx.store.load_history(user_id)
     used_remote_history = False
-    if api_id:
+    if token or api_id:
         try:
             remote_history = await ctx.client.fetch_history(
                 user_id,
@@ -78,6 +78,9 @@ async def sync_save_with_progress(ctx: CommandContext, user_id: str) -> Progress
         ctx.catalog,
         history,
         previous_snapshot=result.previous_snapshot,
+        max_days=ctx.config.history_score_date,
+        max_per_day=ctx.config.history_day_num,
+        max_total=ctx.config.history_score_num,
     )
     ctx.store.save_history(user_id, updated_history)
     if used_remote_history or token:

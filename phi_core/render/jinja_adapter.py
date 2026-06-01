@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import random
 from datetime import datetime
 from collections.abc import MutableMapping
 from typing import Any
@@ -1945,20 +1946,59 @@ def _score_ranklist_user_data(item: dict[str, Any], user_rank: int) -> dict[str,
 
 
 def _update_box_lines(paths: PluginPaths, days: list[Any]) -> list[list[dict[str, Any]]]:
-    box_line: list[list[dict[str, Any]]] = []
+    pending: list[dict[str, Any]] = []
     for day in days:
         changes = getattr(day, "changes", []) or []
         songs = [_update_change_song(paths, change) for change in changes]
         if not songs:
             continue
-        box_line.append([{
+        pending.append({
             "date": getattr(day, "date", ""),
-            "color": "#fff382",
+            "color": _random_update_title_color(),
             "update_num": getattr(day, "update_count", 0),
-            "width": max(135, min(755, len(songs) * 155 - 20)),
             "song": songs,
-        }])
+        })
+    box_line: list[list[dict[str, Any]]] = []
+    line_num = 5
+    continued_day = False
+    while pending:
+        day = pending[0]
+        if line_num == 5:
+            entry = _update_box_segment(day, 5, include_date=not continued_day)
+            box_line.append([entry])
+            line_num = len(entry["song"])
+        else:
+            entry = _update_box_segment(day, 5 - line_num, include_date=not continued_day)
+            box_line[-1].append(entry)
+            line_num += len(entry["song"])
+        continued_day = True
+        if not day["song"]:
+            entry["update_num"] = day["update_num"]
+            pending.pop(0)
+            continued_day = False
     return box_line
+
+
+def _update_box_segment(day: dict[str, Any], limit: int, *, include_date: bool) -> dict[str, Any]:
+    songs = day["song"][:limit]
+    del day["song"][:limit]
+    entry = {
+        "color": day["color"],
+        "update_num": 0,
+        "width": _update_segment_width(len(songs)),
+        "song": songs,
+    }
+    if include_date:
+        entry["date"] = day["date"]
+    return entry
+
+
+def _update_segment_width(count: int) -> int:
+    return max(135, count * 135 + 20 * count - 20)
+
+
+def _random_update_title_color() -> str:
+    return "#" + "".join(f"{random.randint(0, 200):02x}" for _ in range(3))
 
 
 def _update_change_song(paths: PluginPaths, change: Any) -> dict[str, Any]:

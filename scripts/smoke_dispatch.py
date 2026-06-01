@@ -302,6 +302,7 @@ class FakeTapTapLogin(TapTapQrLogin):
 class FakeProgressClient(PhiApiClient):
     def __init__(self, config: PluginConfig):
         super().__init__(config)
+        self.history_fetches: list[dict[str, object]] = []
         self.saves = [
             sample_save(rks=11.1111, score=930000, acc=96.5, modified="2026-05-29T13:00:00+00:00"),
             sample_save(rks=11.2222, score=970000, acc=99.1, modified="2026-05-29T14:00:00+00:00"),
@@ -313,10 +314,16 @@ class FakeProgressClient(PhiApiClient):
         return self.saves[0]
 
     async def fetch_history(self, user_id: str, *, token=None, api_id=None, fields=None):  # type: ignore[override]
+        self.history_fetches.append({"user_id": user_id, "token": token, "api_id": api_id, "fields": fields})
         return {}
 
     async def set_history(self, user_id: str, history: dict, *, token=None, api_id=None):  # type: ignore[override]
         return None
+
+
+class TokenOnlyProgressClient(FakeProgressClient):
+    async def fetch_cloud_save(self, token=None, user_id=None, api_id=None):  # type: ignore[override]
+        return sample_save(rks=11.1111, score=930000, acc=96.5, modified="2026-05-29T13:00:00+00:00", api_id="")
 
 
 class EmptyLiveClient(PhiApiClient):
@@ -1139,6 +1146,19 @@ async def main() -> None:
             raise SystemExit(f"second update should show rks progress, got {second_update.value!r}")
         if "Glaciaxion" not in second_update.value or "+40,000" not in second_update.value:
             raise SystemExit(f"second update should show score progress, got {second_update.value!r}")
+        token_only_client = TokenOnlyProgressClient(config)
+        token_only_ctx = CommandContext(
+            config=config,
+            paths=paths,
+            catalog=catalog,
+            searcher=SongSearcher(catalog),
+            store=SaveStore(paths.data_dir),
+            client=token_only_client,
+        )
+        token_only_ctx.store.bind("token-history-user", "T" * 25)
+        await dispatch(token_only_ctx, "token-history-user", "update", "")
+        if not token_only_client.history_fetches or token_only_client.history_fetches[-1]["token"] != "T" * 25:
+            raise SystemExit(f"token-only update should fetch long remote history with token, got {token_only_client.history_fetches!r}")
         progress_render_calls: list[tuple[str, dict, bool, dict | None]] = []
 
         async def fake_progress_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
@@ -1161,8 +1181,15 @@ async def main() -> None:
         if progress_image_update.kind != "image" or not Path(progress_image_update.value).exists():
             raise SystemExit(f"image update should render an image, got {progress_image_update!r}")
         update_html = _render_call_html(progress_render_calls[-1])
+        update_data = progress_render_calls[-1][1]
         if ".record_box" not in update_html or 'class="record_box"' not in update_html:
             raise SystemExit("image update should render through original update resources")
+        if "Task_table" not in update_html:
+            raise SystemExit("image update should render today's task table above history rows")
+        if not update_data.get("task_data") or not any(item for item in update_data["task_data"]):
+            raise SystemExit("image update should pass today's task rows into the original update template")
+        if not any(line.get("color") != "#fff382" for row in update_data.get("box_line", []) for line in row):
+            raise SystemExit("image update history titles should use upstream random colors, not the task-table yellow")
         if "file:///" in update_html or "raw.githubusercontent.com" in update_html:
             raise SystemExit("image update should pass self-contained HTML to remote t2i")
         if "data:image/" not in update_html:
