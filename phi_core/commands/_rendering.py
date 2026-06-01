@@ -18,6 +18,7 @@ async def render_jinja_template(
     *,
     width: int | None = None,
     height: int | None = None,
+    full_page: bool = True,
 ) -> Path:
     render_data = _apply_user_theme(ctx, template_path, dict(data or {}))
     if _selected_theme(render_data) == "dss2" and template_path.replace("\\", "/").removesuffix(".html") == "b19/b19":
@@ -37,6 +38,7 @@ async def render_jinja_template(
         data=render_data,
         viewport_width=viewport_width,
         viewport_height=viewport_height,
+        full_page=full_page,
     )
 
 
@@ -70,6 +72,7 @@ async def render_original_html(
     data: dict[str, Any] | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
+    full_page: bool = True,
 ) -> Path:
     viewport_width = viewport_width or _viewport_value(html, "--phi-viewport-width")
     viewport_height = viewport_height or _viewport_value(html, "--phi-viewport-height")
@@ -82,6 +85,7 @@ async def render_original_html(
         data=data,
         viewport_width=viewport_width,
         viewport_height=viewport_height,
+        full_page=full_page,
     )
 
 

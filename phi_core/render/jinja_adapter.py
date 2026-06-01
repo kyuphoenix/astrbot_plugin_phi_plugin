@@ -3,15 +3,20 @@ from __future__ import annotations
 import copy
 import json
 import random
+import urllib.request
 from datetime import datetime
 from collections.abc import MutableMapping
+from pathlib import Path
 from typing import Any
 
 from ..data.loader import SongCatalog
 from ..data.illustrations import (
     background_illustration_url,
+    chart_image_url,
     find_background_illustration_file,
+    find_chart_image_file,
     is_known_online_illustration_id,
+    unproxied_illustration_url,
     use_remote_illustrations,
 )
 from ..data.resources import latest_version_log, load_version_log
@@ -325,6 +330,8 @@ def chart_info_data(
     note_info = _chart_note_info(paths, song.id, rank, chart.combo)
     words = _chart_words(tags or {}, user_tags or [])
     words_max = max([item["value"] for item in words], default=1)
+    chart_img = chart_img or _chart_image_source(paths, song.id, rank)
+    chart_width, chart_height = _chart_image_size(paths, song.id, rank)
     return {
         "song": song.title,
         "length": song.length or "-",
@@ -345,7 +352,103 @@ def chart_info_data(
         "chartImg": chart_img,
         "theme": "default",
         "background": illustration,
+        "_viewport_width": chart_width,
+        "_viewport_height": chart_height,
     }
+
+
+def _chart_image_source(paths: PluginPaths, song_id: str, rank: str) -> str:
+    path = find_chart_image_file(paths, song_id, rank)
+    if path is not None:
+        return original._illustration_source(paths, path, song_id=song_id)
+    if use_remote_illustrations(paths):
+        return chart_image_url(song_id, rank, paths=paths)
+    return ""
+
+
+def _chart_image_size(paths: PluginPaths, song_id: str, rank: str) -> tuple[int, int]:
+    default = (2048, 1080)
+    path = find_chart_image_file(paths, song_id, rank)
+    if path is not None:
+        size = _image_size(path)
+        if size is not None:
+            return _chart_viewport_size(size)
+    if not use_remote_illustrations(paths):
+        return default
+    size = _remote_chart_image_size(paths, song_id, rank)
+    return _chart_viewport_size(size) if size is not None else default
+
+
+def _chart_viewport_size(image_size: tuple[int, int]) -> tuple[int, int]:
+    width, height = image_size
+    return max(1, int(width)), max(1, int(height) + 500)
+
+
+def _image_size(path: Path) -> tuple[int, int] | None:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return int(image.width), int(image.height)
+    except Exception:
+        return None
+
+
+def _remote_chart_image_size(paths: PluginPaths, song_id: str, rank: str) -> tuple[int, int] | None:
+    url = chart_image_url(song_id, rank, paths=paths)
+    cache_dir = paths.cache / "remote_chartimg_size"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in f"{song_id}-{rank}")[:160]
+    cache_path = cache_dir / f"{safe_name}.json"
+    if cache_path.exists():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            width = _as_int(cached.get("width"))
+            height = _as_int(cached.get("height"))
+            if width > 0 and height > 0:
+                return width, height
+        except Exception:
+            pass
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Range": "bytes=0-65535",
+                "Accept": "image/png,image/*;q=0.8,*/*;q=0.5",
+                "User-Agent": "astrbot-phi-plugin/1.0",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = response.read(65536)
+        size = _png_size(payload)
+    except Exception:
+        size = None
+    if size is None:
+        raw_url = unproxied_illustration_url(url)
+        if raw_url and raw_url != url:
+            try:
+                request = urllib.request.Request(
+                    raw_url,
+                    headers={
+                        "Range": "bytes=0-65535",
+                        "Accept": "image/png,image/*;q=0.8,*/*;q=0.5",
+                        "User-Agent": "astrbot-phi-plugin/1.0",
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=8) as response:
+                    payload = response.read(65536)
+                size = _png_size(payload)
+            except Exception:
+                size = None
+    if size is not None:
+        cache_path.write_text(json.dumps({"width": size[0], "height": size[1]}), encoding="utf-8")
+    return size
+
+
+def _png_size(payload: bytes) -> tuple[int, int] | None:
+    if len(payload) < 24 or not payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        return None
+    return int.from_bytes(payload[16:20], "big"), int.from_bytes(payload[20:24], "big")
 
 
 def rand_data(paths: PluginPaths, song: Song, chart: ChartEntry) -> dict[str, Any]:

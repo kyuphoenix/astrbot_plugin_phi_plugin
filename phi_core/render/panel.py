@@ -12,6 +12,7 @@ from . import html_renderer
 
 HtmlRenderFunc = Callable[[str, dict, bool, dict | None], Awaitable[str | bytes]]
 logger = logging.getLogger("astrbot")
+_TRIM_MAX_PIXELS = 48_000_000
 
 async def render_help_panel(config: PluginConfig, paths: PluginPaths, html_render: HtmlRenderFunc | None = None) -> Path:
     if html_render is None:
@@ -36,6 +37,7 @@ async def render_html(
     data: dict | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
+    full_page: bool = True,
 ) -> Path:
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
@@ -47,6 +49,7 @@ async def render_html(
             data=data,
             viewport_width=viewport_width,
             viewport_height=viewport_height,
+            full_page=full_page,
         )
         result = _render_result_path(paths, rendered, name)
         if result is not None:
@@ -83,6 +86,9 @@ def render_diagnostics(config: PluginConfig, paths: PluginPaths) -> str:
         [
             f"render_mode: {config.render_mode}",
             f"render_backend: {config.render_backend}",
+            f"render_selector_screenshot: {config.render_selector_screenshot}",
+            f"render_wait_for_resources: {config.render_wait_for_resources}",
+            f"render_resource_timeout: {config.render_resource_timeout}",
             f"resources: {paths.resources}",
             f"data_dir: {paths.data_dir}",
             f"downloaded_original_ill: {paths.downloaded_original_ill}",
@@ -113,12 +119,23 @@ async def _render_with_retries(
     data: dict | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
+    full_page: bool = True,
 ) -> str | bytes:
     attempts = max(1, config.render_max_retries + 1)
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            return await html_render(html, data or {}, False, _options(viewport_width=viewport_width, viewport_height=viewport_height))
+            return await html_render(
+                html,
+                data or {},
+                False,
+                _options(
+                    config,
+                    viewport_width=viewport_width,
+                    viewport_height=viewport_height,
+                    full_page=full_page,
+                ),
+            )
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:
@@ -136,9 +153,15 @@ async def _render_with_retries(
     raise last_exc
 
 
-def _options(*, viewport_width: int | None = None, viewport_height: int | None = None) -> dict:
-    return {
-        "full_page": True,
+def _options(
+    config: PluginConfig,
+    *,
+    viewport_width: int | None = None,
+    viewport_height: int | None = None,
+    full_page: bool = True,
+) -> dict:
+    options = {
+        "full_page": full_page,
         "type": "png",
         "device_scale_factor_level": "ultra",
         "scale": "css",
@@ -146,6 +169,22 @@ def _options(*, viewport_width: int | None = None, viewport_height: int | None =
         "viewport_width": viewport_width or 1200,
         "viewport_height": viewport_height or 1000,
     }
+    if config.render_selector_screenshot:
+        options.update(
+            {
+                "selector": "#container",
+                "fallback_selector": "body",
+                "selector_timeout": 1000,
+            }
+        )
+    if config.render_wait_for_resources:
+        options.update(
+            {
+                "wait_for_resources": True,
+                "resource_timeout": config.render_resource_timeout,
+            }
+        )
+    return options
 
 
 def _render_result_path(paths: PluginPaths, rendered: str | bytes, name: str) -> Path | None:
@@ -172,14 +211,27 @@ def _trim_right_border(paths: PluginPaths, path: Path, name: str) -> Path:
     try:
         from PIL import Image
 
-        with Image.open(path) as image:
-            crop_right = _right_content_edge(image.convert("RGB"))
-            if crop_right >= image.width - 1 or crop_right < int(image.width * 0.8):
-                return path
-            paths.render_cache.mkdir(parents=True, exist_ok=True)
-            output = paths.render_cache / f"html-{name}-trim-{uuid.uuid4().hex[:10]}{path.suffix or '.png'}"
-            image.crop((0, 0, crop_right + 1, image.height)).save(output)
-            return output
+        previous_limit = Image.MAX_IMAGE_PIXELS
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(path) as image:
+                if image.width * image.height > _TRIM_MAX_PIXELS:
+                    logger.info(
+                        "phi html render right-border trim skipped for large image %s: %sx%s",
+                        path,
+                        image.width,
+                        image.height,
+                    )
+                    return path
+                crop_right = _right_content_edge(image.convert("RGB"))
+                if crop_right >= image.width - 1 or crop_right < int(image.width * 0.8):
+                    return path
+                paths.render_cache.mkdir(parents=True, exist_ok=True)
+                output = paths.render_cache / f"html-{name}-trim-{uuid.uuid4().hex[:10]}{path.suffix or '.png'}"
+                image.crop((0, 0, crop_right + 1, image.height)).save(output)
+                return output
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_limit
     except Exception as exc:
         logger.warning("phi html render right-border trim skipped for %s: %s", path, exc)
     return path

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from phi_core.render.send_variants import build_image_send_variants
+from phi_core.render.send_variants import MAX_LOSSY_SIDE, build_image_send_variant, build_image_send_variants
 
 
 def main() -> None:
@@ -34,6 +34,18 @@ def main() -> None:
         raise SystemExit("webp variant is not a WebP file")
     if min(len(original), len(jpg), len(webp)) <= 0:
         raise SystemExit("image variants should not be empty")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tall_path = Path(tmpdir) / "tall.png"
+        Image.new("RGB", (256, MAX_LOSSY_SIDE + 1024), (20, 40, 80)).save(tall_path, format="PNG")
+        tall_jpg = build_image_send_variant(tall_path, "jpg")
+        if not tall_jpg.data.startswith(b"\xff\xd8"):
+            raise SystemExit("large fallback jpg variant is not a JPEG file")
+        from io import BytesIO
+
+        with Image.open(BytesIO(tall_jpg.data)) as compressed:
+            if max(compressed.size) > MAX_LOSSY_SIDE:
+                raise SystemExit(f"large fallback image should be resized before sending, got {compressed.size}")
 
     print("image send variants smoke passed")
 

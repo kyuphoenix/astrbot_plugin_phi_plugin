@@ -27,9 +27,10 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
     if ctx.config.render_mode == "image" and ctx.html_render is not None:
         path = await render_jinja_template(
             ctx,
-            "chartInfo/chartInfo",
+            "chartImg/chartImg",
             jinja_adapter.chart_info_data(ctx.paths, song, rank, tags=tags, user_tags=user_tags),
             "chart",
+            full_page=False,
         )
         return CommandResult.image(path)
     return CommandResult.text(_render_chart_text(song, rank, tags))

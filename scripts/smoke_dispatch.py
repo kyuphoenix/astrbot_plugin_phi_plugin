@@ -387,6 +387,9 @@ async def main() -> None:
         downloaded_ill = paths.downloaded_original_ill / "illLow"
         downloaded_ill.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (32, 24), (120, 40, 90)).save(downloaded_ill / "Glaciaxion.SunsetRay.png")
+        downloaded_chartimg = paths.downloaded_original_ill / "chartimg" / "EZ"
+        downloaded_chartimg.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (64, 32), (40, 100, 160)).save(downloaded_chartimg / "Glaciaxion.SunsetRay.png")
         Image.new("RGB", (32, 24), (80, 120, 40)).save(paths.downloaded_original_ill / "RootOnly.Smoke.png")
         if find_background_illustration_file(paths, "RootOnly.Smoke") is None:
             raise SystemExit("background lookup should also find illustrations saved in original_ill root")
@@ -909,7 +912,7 @@ async def main() -> None:
             ("rand", ".box-left", 'class="box-left"'),
             ("randclg", ".tot-box", 'class="tot-box"'),
             ("song", ".big-box", 'class="big-box"'),
-            ("chart", ".chart-info", "Chart Information"),
+            ("chart", ".totalBox", 'class="totalBox"'),
             ("jrrp", ".jrrpBkg", "今日运势"),
             ("myset", ".page-wrap", "Phi-Plugin 用户设置"),
             ("guess", ".img", 'id="phiLineArt"'),
@@ -1078,6 +1081,16 @@ async def main() -> None:
                 song_comment_html = _render_call_html(b30_render_calls[-1])
                 if "comment-box" not in song_comment_html or "hello" not in song_comment_html:
                     raise SystemExit("image song -comment should render upstream atlas comment panel")
+            if command == "chart":
+                options = b30_render_calls[-1][3] or {}
+                if ".totalBox" not in template or 'class="totalBox"' not in html:
+                    raise SystemExit("image chart should render the upstream chartImg template with chart image resource")
+                if "data:image/" not in html:
+                    raise SystemExit("image chart should inline local chart image resources as data URIs")
+                if options.get("viewport_width") != 64 or options.get("viewport_height") != 532:
+                    raise SystemExit(f"image chart should use the original chartImg body-sized viewport, got {options!r}")
+                if options.get("full_page") is not False:
+                    raise SystemExit(f"image chart should disable full-page screenshot to avoid huge chart image capture, got {options!r}")
         live = await dispatch(login_ctx, "login-user", "live", "")
         if "Smoke Live" not in live.value:
             raise SystemExit(f"live should render API content, got {live.value!r}")

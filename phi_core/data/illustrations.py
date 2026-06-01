@@ -64,6 +64,18 @@ def find_background_illustration_file(paths: PluginPaths, song_id: str) -> Path 
     return None
 
 
+def find_chart_image_file(paths: PluginPaths, song_id: str, rank: str) -> Path | None:
+    folders = [
+        paths.downloaded_original_ill / "chartimg" / rank,
+        paths.original_ill / "chartimg" / rank,
+    ]
+    for folder in folders:
+        found = _find_named_illustration(folder, song_id)
+        if found is not None:
+            return found
+    return None
+
+
 def random_illustration_file(paths: PluginPaths, *, rng: random.Random | None = None) -> Path | None:
     candidates = _available_illustrations(paths)
     if not candidates:
@@ -146,6 +158,12 @@ def background_illustration_url(song_id: str, *, paths: PluginPaths | None = Non
     return proxied_illustration_url(paths, url) if paths is not None else url
 
 
+def chart_image_url(song_id: str, rank: str, *, paths: PluginPaths | None = None) -> str:
+    name = _online_name(song_id)
+    url = f"{ONLINE_ILL_BASE}/chartimg/{quote(str(rank).upper())}/{quote(f'{name}.png')}"
+    return proxied_illustration_url(paths, url) if paths is not None else url
+
+
 def is_known_online_illustration_id(paths: PluginPaths, song_id: str) -> bool:
     ids = set(_available_online_illustration_ids(paths))
     if not ids:
@@ -175,10 +193,14 @@ def online_url_for_local_path(paths: PluginPaths, path: Path) -> str | None:
 
 
 def _online_url(folder: str, song_id: str) -> str:
+    name = _online_name(song_id)
+    return f"{ONLINE_ILL_BASE}/{folder}/{quote(f'{name}.png')}"
+
+
+def _online_name(song_id: str) -> str:
     candidates = _candidate_names(song_id)
     raw = candidates[0] if candidates else str(song_id).strip()
-    name = raw.removesuffix(".0") or raw
-    return f"{ONLINE_ILL_BASE}/{folder}/{quote(f'{name}.png')}"
+    return raw.removesuffix(".0") or raw
 
 
 def proxied_illustration_url(paths: PluginPaths, url: str) -> str:

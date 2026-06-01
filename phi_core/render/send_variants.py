@@ -6,6 +6,9 @@ from pathlib import Path
 
 from PIL import Image
 
+MAX_LOSSY_PIXELS = 16_000_000
+MAX_LOSSY_SIDE = 4096
+
 
 @dataclass(frozen=True)
 class ImageSendVariant:
@@ -23,14 +26,41 @@ def build_image_send_variant(path: str | Path, name: str) -> ImageSendVariant:
     if name == "original":
         return ImageSendVariant("original", image_path.read_bytes())
 
-    with Image.open(image_path) as image:
-        flattened = _flatten_for_lossy(image)
+    with _open_image_for_fallback(image_path) as image:
+        flattened = _resize_for_send(_flatten_for_lossy(image))
         if name == "jpg":
             return ImageSendVariant("jpg", _save_to_bytes(flattened, "JPEG", quality=86, optimize=True))
         if name == "webp":
             return ImageSendVariant("webp", _save_to_bytes(flattened, "WEBP", quality=82, method=6))
 
     raise ValueError(f"unsupported image send variant: {name}")
+
+
+def _open_image_for_fallback(image_path: Path) -> Image.Image:
+    previous_limit = Image.MAX_IMAGE_PIXELS
+    try:
+        Image.MAX_IMAGE_PIXELS = None
+        image = Image.open(image_path)
+        image.load()
+        return image
+    finally:
+        Image.MAX_IMAGE_PIXELS = previous_limit
+
+
+def _resize_for_send(image: Image.Image) -> Image.Image:
+    width, height = image.size
+    if width <= 0 or height <= 0:
+        return image
+    scale = min(
+        1.0,
+        MAX_LOSSY_SIDE / max(width, height),
+        (MAX_LOSSY_PIXELS / (width * height)) ** 0.5,
+    )
+    if scale >= 1.0:
+        return image
+    resized = image.resize((max(1, int(width * scale)), max(1, int(height * scale))), Image.Resampling.LANCZOS)
+    image.close()
+    return resized
 
 
 def _flatten_for_lossy(image: Image.Image) -> Image.Image:

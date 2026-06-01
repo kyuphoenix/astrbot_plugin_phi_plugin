@@ -21,6 +21,9 @@ class PluginConfig:
     request_timeout: int = 10
     qrcode_timeout: int = 270
     render_max_retries: int = 2
+    render_selector_screenshot: bool = True
+    render_wait_for_resources: bool = True
+    render_resource_timeout: int = 10000
     github_proxy: str = ""
     illustration_source: str = "remote"
     illustration_url_proxy: str = ""
@@ -78,6 +81,9 @@ class PluginConfig:
             request_timeout=max(3, int(get("request_timeout", 10))),
             qrcode_timeout=max(30, min(600, int(get("qrcode_timeout", 270)))),
             render_max_retries=max(0, min(5, int(get("render_max_retries", 2)))),
+            render_selector_screenshot=bool(get("render_selector_screenshot", True)),
+            render_wait_for_resources=bool(get("render_wait_for_resources", True)),
+            render_resource_timeout=max(1000, min(60000, int(get("render_resource_timeout", 10000)))),
             github_proxy=str(get("github_proxy", "") or "").strip().rstrip("/"),
             illustration_source=illustration_source,
             illustration_url_proxy=str(get("illustration_url_proxy", "") or "").strip().rstrip("/"),

@@ -86,6 +86,25 @@
     "slider": {"min": 0, "max": 5, "step": 1},
     "hint": "远端 T2I 服务偶发断连时会自动重试。"
   },
+  "render_selector_screenshot": {
+    "description": "按页面容器截图",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后向 T2I 传入 selector=#container、fallback_selector=body，优先按模板容器实际尺寸截图，减少右侧空白或黑边。旧版 T2I 服务会忽略该参数。"
+  },
+  "render_wait_for_resources": {
+    "description": "截图前等待远程资源",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后向 T2I 传入 wait_for_resources=true，等待远程曲绘、图片和字体资源加载后再截图。旧版 T2I 服务会忽略该参数。"
+  },
+  "render_resource_timeout": {
+    "description": "远程资源等待超时（毫秒）",
+    "type": "int",
+    "default": 10000,
+    "slider": {"min": 1000, "max": 60000, "step": 1000},
+    "hint": "仅在“截图前等待远程资源”开启时生效。资源提前加载完会立即截图，超时后继续截图以避免卡死。"
+  },
   "github_proxy": {
     "description": "GitHub 下载代理地址",
     "type": "string",
