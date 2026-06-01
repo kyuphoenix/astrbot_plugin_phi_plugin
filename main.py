@@ -13,6 +13,7 @@ from astrbot.api.star import Context, Star, StarTools
 
 from .phi_core.commands import CommandContext, CommandResult, dispatch
 from .phi_core.commands._games import handle_game_reply, has_active_game_session
+from .phi_core.concurrency import AsyncKeyedLock
 from .phi_core.config import PluginConfig
 from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalog
 from .phi_core.paths import PluginPaths
@@ -26,6 +27,7 @@ _P_ALIASES = {f"p{index}" for index in range(1, 101)} - {"p30"}
 _X_ALIASES = {f"x{index}" for index in range(1, 101)} - {"x30"}
 _FC_ALIASES = {f"fc{index}" for index in range(1, 101)} - {"fc30"}
 _ARCGROS_ALIASES = {f"arcgrosb{index}" for index in range(1, 101)}
+_GAME_STATE_COMMANDS = {"guess", "tipgame", "ltr", "tip", "ans", "open"}
 
 
 class ActivePhiGameFilter(CustomFilter):
@@ -47,6 +49,8 @@ class AstrBotPhiPlugin(Star):
         super().__init__(context)
         self.plugin_config = PluginConfig.from_astrbot(config)
         ActivePhiGameFilter.enabled = self.plugin_config.game_reply_listener
+        self._user_command_locks = AsyncKeyedLock()
+        self._game_session_locks = AsyncKeyedLock()
         root = Path(__file__).resolve().parent
         data_dir = Path(StarTools.get_data_dir("astrbot_plugin_phi_plugin"))
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
@@ -392,8 +396,12 @@ class AstrBotPhiPlugin(Star):
             return
         sender_id = event.get_sender_id()
         event.stop_event()
-        command_context = self._command_context_for_event(event, sender=self._event_sender(event))
-        result = await handle_game_reply(command_context, sender_id, message)
+        result = await self._run_with_command_locks(
+            event,
+            sender_id,
+            "__game_reply__",
+            lambda: self._handle_game_reply(event, sender_id, message),
+        )
         if result is None:
             return
         yield await self._send_command_result(event, result)
@@ -402,8 +410,35 @@ class AstrBotPhiPlugin(Star):
         event.stop_event()
         args = self._extract_command_args(event.get_message_str(), grouped=grouped)
 
+        sender_id = event.get_sender_id()
+        return await self._run_with_command_locks(
+            event,
+            sender_id,
+            command,
+            lambda: self._run_phi_command(event, sender_id, command, args),
+        )
+
+    async def _run_with_command_locks(
+        self,
+        event: AstrMessageEvent,
+        sender_id: str,
+        command: str,
+        action: Callable[[], Awaitable[Any]],
+    ):
+        async def run_after_user_lock():
+            if self._uses_game_session_lock(command):
+                return await self._game_session_locks.run(self._game_lock_key(event), action)
+            return await action()
+
+        return await self._user_command_locks.run(self._user_lock_key(sender_id), run_after_user_lock)
+
+    async def _handle_game_reply(self, event: AstrMessageEvent, sender_id: str, message: str) -> CommandResult | None:
         command_context = self._command_context_for_event(event, sender=self._event_sender(event))
-        result = await dispatch(command_context, event.get_sender_id(), command, args)
+        return await handle_game_reply(command_context, sender_id, message)
+
+    async def _run_phi_command(self, event: AstrMessageEvent, sender_id: str, command: str, args: str):
+        command_context = self._command_context_for_event(event, sender=self._event_sender(event))
+        result = await dispatch(command_context, sender_id, command, args)
         return await self._send_command_result(event, result)
 
     def _event_sender(self, event: AstrMessageEvent) -> Callable[[CommandResult], Awaitable[None]]:
@@ -445,6 +480,19 @@ class AstrBotPhiPlugin(Star):
             if value:
                 return str(value)
         return ""
+
+    @staticmethod
+    def _user_lock_key(sender_id: str) -> str:
+        return f"user:{sender_id}"
+
+    @classmethod
+    def _game_lock_key(cls, event: AstrMessageEvent) -> str:
+        session_id = cls._event_session_id(event)
+        return f"game:{session_id}"
+
+    @staticmethod
+    def _uses_game_session_lock(command: str) -> bool:
+        return command.casefold() in _GAME_STATE_COMMANDS or command == "__game_reply__"
 
     @staticmethod
     def _extract_command_args(message: str, *, grouped: bool) -> str:
