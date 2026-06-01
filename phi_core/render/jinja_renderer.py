@@ -30,6 +30,9 @@ _RES_ATTR_RE = re.compile(r"(?P<prefix>\b(?:src|href)=[\"'])(?P<url>[^\"']+)(?P<
 _RES_URL_RE = re.compile(r"url\((?P<quote>[\"']?)(?P<url>[^)\"']+)(?P=quote)\)", re.IGNORECASE)
 _CSS_IMPORT_RE = re.compile(r"@import\s+(?:url\()?['\"](?P<url>[^'\")]+)['\"]\)?\s*;", re.IGNORECASE)
 _VIEWPORT_RE = re.compile(r"<meta\b(?=[^>]*\bname=[\"']viewport[\"'])(?=[^>]*\bcontent=[\"'](?P<content>[^\"']*)[\"'])[^>]*>", re.IGNORECASE)
+_BODY_OPEN_RE = re.compile(r"<body\b[^>]*>", re.IGNORECASE)
+_BODY_CLOSE_RE = re.compile(r"</body\s*>", re.IGNORECASE)
+_CONTAINER_ID_RE = re.compile(r"\bid=[\"']container[\"']", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"{%\s*block\s+(?P<name>\w+)\s*%}(?P<body>.*?){%\s*endblock\s*%}", re.DOTALL)
 _EXTENDS_RE = re.compile(r"{%\s*extends\s+[\"'](?P<path>[^\"']+)[\"']\s*%}")
 
@@ -116,6 +119,7 @@ def make_self_contained(
     html = _inline_resource_attributes(paths, root, html)
     html = _inline_css_urls(paths, root, html)
     html = _apply_viewport_width(html, width)
+    html = _ensure_screenshot_container(html)
     html = _inject_reset_css(paths, html, width=width, height=height)
     html = _inject_auto_font_script(html)
     return html
@@ -320,9 +324,23 @@ def _apply_viewport_width(html: str, width: int) -> str:
     return html.replace("<head>", f'<head>\n<meta name="viewport" content="width={width}">', 1)
 
 
+def _ensure_screenshot_container(html: str) -> str:
+    if _CONTAINER_ID_RE.search(html):
+        return html
+    body_open = _BODY_OPEN_RE.search(html)
+    body_close_matches = list(_BODY_CLOSE_RE.finditer(html))
+    if body_open is None or not body_close_matches:
+        return html
+    body_close = body_close_matches[-1]
+    body_inner = html[body_open.end():body_close.start()]
+    wrapped = f'\n<div id="container" class="phi-screenshot-container">{body_inner}</div>\n'
+    return f"{html[:body_open.end()]}{wrapped}{html[body_close.start():]}"
+
+
 def _inject_reset_css(paths: PluginPaths, html: str, *, width: int, height: int | None = None) -> str:
     del paths
     height_var = f"--phi-viewport-height: {int(height)}px;" if height is not None else ""
+    container_min_height = f"{int(height)}px" if height is not None else "100vh"
     height_css = (
         f"""
   height: {int(height)}px !important;
@@ -354,6 +372,21 @@ body {{
   background: transparent !important;
   overflow-x: hidden !important;
   isolation: isolate;
+}}
+#container.phi-screenshot-container {{
+  position: relative;
+  width: {int(width)}px !important;
+  min-width: {int(width)}px !important;
+  max-width: {int(width)}px !important;
+  min-height: {container_min_height};
+  overflow-x: hidden !important;
+  isolation: isolate;
+}}
+#container.phi-screenshot-container > .background {{
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
 }}
 .background {{
   z-index: -1 !important;
