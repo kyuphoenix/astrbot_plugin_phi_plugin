@@ -3405,6 +3405,15 @@ def _record_illustration(paths: PluginPaths, record: ScoreRecord) -> str:
         return _illustration_source(paths, path, song_id=record.song_id, prefer_low=True)
     if use_remote_illustrations(paths):
         return illustration_url(record.song_id, prefer_low=True, paths=paths)
+    for raw in (getattr(record, "illustration", ""), getattr(record, "illustration_big", "")):
+        if not raw:
+            continue
+        uri = _source_data_uri(paths, raw)
+        if uri:
+            return uri
+        uri = _source_data_uri(paths, paths.other_ill / raw)
+        if uri:
+            return uri
     return asset_uri(paths, "html/otherimg/phigros.png")
 
 

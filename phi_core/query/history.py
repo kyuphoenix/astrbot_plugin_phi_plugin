@@ -211,6 +211,8 @@ def iter_history_score_events(history: dict[str, Any], catalog: SongCatalog) -> 
                         rating=rating_from_score(score, fc),
                         difficulty=difficulty,
                         rks=rks_from_acc(acc, difficulty),
+                        illustration=song.illustration,
+                        illustration_big=song.illustration_big,
                     ),
                 ))
     events.sort(key=lambda item: item.date)

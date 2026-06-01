@@ -70,6 +70,8 @@ def iter_score_records(snapshot: SaveSnapshot, catalog: SongCatalog) -> list[Sco
                 rating=rating_from_score(score, fc),
                 difficulty=difficulty,
                 rks=rks_from_acc(acc, difficulty),
+                illustration=song.illustration,
+                illustration_big=song.illustration_big,
             ))
     return records
 

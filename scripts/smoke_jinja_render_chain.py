@@ -20,7 +20,7 @@ from phi_core.data import SongCatalog, SongSearcher
 from phi_core.paths import PluginPaths
 from phi_core.save import PhiApiClient, SaveStore
 from phi_core.render import jinja_adapter, jinja_renderer
-from phi_core.models import Song, SongChart
+from phi_core.models import Best30Result, SaveSnapshot, ScoreRecord, Song, SongChart
 
 
 def _write_image(path: Path, color: tuple[int, int, int]) -> None:
@@ -142,6 +142,60 @@ async def main() -> None:
         raise SystemExit("remote mode should still inline non-illustration font assets")
     if "file:///" in remote_html or "D:\\" in remote_html:
         raise SystemExit("remote mode html must not contain local paths")
+
+    fallback_paths = PluginPaths.from_root(ROOT, tmp / "fallback-ill")
+    fallback_paths.ensure_data_dir()
+    if JINJA2_TEMPLATES.exists():
+        shutil.copytree(JINJA2_TEMPLATES, fallback_paths.resources / "html", dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
+    (fallback_paths.other_ill).mkdir(parents=True, exist_ok=True)
+    _write_image(fallback_paths.other_ill / "FallbackA.png", (200, 10, 10))
+    _write_image(fallback_paths.other_ill / "FallbackB.png", (10, 200, 10))
+    fallback_records = [
+        ScoreRecord(
+            song_id="MissingA",
+            song_title="Missing A",
+            rank="IN",
+            score=1_000_000,
+            acc=100.0,
+            fc=True,
+            rating="phi",
+            difficulty=15.0,
+            rks=15.0,
+            illustration="FallbackA.png",
+        ),
+        ScoreRecord(
+            song_id="MissingB",
+            song_title="Missing B",
+            rank="IN",
+            score=999_999,
+            acc=99.99,
+            fc=True,
+            rating="FC",
+            difficulty=14.0,
+            rks=14.0,
+            illustration="FallbackB.png",
+        ),
+    ]
+    fallback_snapshot = SaveSnapshot(user_id="fallback", ranking_score=14.5, raw={"gameuser": {}, "saveInfo": {}})
+    fallback_result = Best30Result(
+        official_rks=14.5,
+        computed_rks=14.5,
+        records=fallback_records,
+        total_records=len(fallback_records),
+        phi_records=fallback_records[:1],
+    )
+    fallback_data = jinja_adapter.adapt_template_data(
+        fallback_paths,
+        "b19/b19",
+        jinja_adapter.b30_data(fallback_paths, fallback_result, fallback_snapshot),
+    )
+    fallback_images = [
+        item["illustration"]
+        for item in [*fallback_data["phi"], *fallback_data["b19_list"]]
+        if item.get("illustration")
+    ]
+    if len(set(fallback_images)) < 2:
+        raise SystemExit("b30 records should keep per-song fallback illustrations instead of one default image")
     print("smoke_jinja_render_chain passed")
 
 

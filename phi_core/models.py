@@ -73,6 +73,8 @@ class ScoreRecord:
     rating: str
     difficulty: float
     rks: float
+    illustration: str = ""
+    illustration_big: str = ""
     acc_avg: float | None = None
     acc_kind: str = ""
 
