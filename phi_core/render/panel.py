@@ -18,11 +18,13 @@ async def render_help_panel(config: PluginConfig, paths: PluginPaths, html_rende
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await _render_with_retries(config, html_render, html_renderer.help_html(paths))
-        result = _render_result_path(paths, rendered, "help")
-        if result is not None:
-            return result
-        raise RuntimeError(f"AstrBot html_render returned a missing or invalid image path: {rendered!r}")
+        return await _render_with_retries(
+            config,
+            paths,
+            html_render,
+            html_renderer.help_html(paths),
+            "help",
+        )
     except Exception as exc:
         logger.warning("phi html help render failed; Pillow fallback is disabled: %s", exc)
         raise
@@ -42,19 +44,17 @@ async def render_html(
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await _render_with_retries(
+        return await _render_with_retries(
             config,
+            paths,
             html_render,
             html,
+            name,
             data=data,
             viewport_width=viewport_width,
             viewport_height=viewport_height,
             full_page=full_page,
         )
-        result = _render_result_path(paths, rendered, name)
-        if result is not None:
-            return result
-        raise RuntimeError(f"AstrBot html_render returned a missing or invalid image path: {rendered!r}")
     except Exception as exc:
         logger.warning("phi original html render failed; Pillow fallback is disabled: %s", exc)
         raise
@@ -70,11 +70,13 @@ async def render_text_panel(
     if html_render is None:
         raise RuntimeError("AstrBot html_render is not available; Pillow panel fallback has been removed.")
     try:
-        rendered = await _render_with_retries(config, html_render, html_renderer.text_html(paths, text, title=title))
-        result = _render_result_path(paths, rendered, "panel")
-        if result is not None:
-            return result
-        raise RuntimeError(f"AstrBot html_render returned a missing or invalid image path: {rendered!r}")
+        return await _render_with_retries(
+            config,
+            paths,
+            html_render,
+            html_renderer.text_html(paths, text, title=title),
+            "panel",
+        )
     except Exception as exc:
         logger.warning("phi html text render failed; Pillow fallback is disabled: %s", exc)
         raise
@@ -113,19 +115,21 @@ def _count_files(path: Path) -> int:
 
 async def _render_with_retries(
     config: PluginConfig,
+    paths: PluginPaths,
     html_render: HtmlRenderFunc,
     html: str,
+    name: str,
     *,
     data: dict | None = None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
     full_page: bool = True,
-) -> str | bytes:
+) -> Path:
     attempts = max(1, config.render_max_retries + 1)
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            return await html_render(
+            rendered = await html_render(
                 html,
                 data or {},
                 False,
@@ -135,6 +139,13 @@ async def _render_with_retries(
                     viewport_height=viewport_height,
                     full_page=full_page,
                 ),
+            )
+            result = _render_result_path(paths, rendered, name)
+            if result is not None:
+                return result
+            raise RuntimeError(
+                "AstrBot html_render returned a missing or invalid image path: "
+                f"{_render_result_label(rendered)}"
             )
         except Exception as exc:
             last_exc = exc
@@ -199,12 +210,50 @@ def _render_result_path(paths: PluginPaths, rendered: str | bytes, name: str) ->
         paths.render_cache.mkdir(parents=True, exist_ok=True)
         output = paths.render_cache / f"html-{name}-{uuid.uuid4().hex[:10]}{suffix}"
         output.write_bytes(rendered)
+        if not _is_valid_image_file(output):
+            return None
         return _trim_right_border(paths, output, name)
 
     result = Path(rendered)
-    if result.exists():
+    if result.exists() and _is_valid_image_file(result):
         return _trim_right_border(paths, result, name)
     return None
+
+
+def _render_result_label(rendered: str | bytes) -> str:
+    if isinstance(rendered, bytes):
+        return f"bytes[{len(rendered)}]={rendered[:32]!r}"
+    return repr(rendered)
+
+
+def _is_valid_image_file(path: Path) -> bool:
+    try:
+        from PIL import Image
+
+        previous_limit = Image.MAX_IMAGE_PIXELS
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(path) as image:
+                image.verify()
+            return True
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_limit
+    except Exception as exc:
+        logger.warning(
+            "phi html render returned invalid image file %s: %s; first_bytes=%r",
+            path,
+            exc,
+            _read_file_head(path),
+        )
+        return False
+
+
+def _read_file_head(path: Path, size: int = 64) -> bytes:
+    try:
+        with path.open("rb") as file:
+            return file.read(size)
+    except OSError:
+        return b""
 
 
 def _trim_right_border(paths: PluginPaths, path: Path, name: str) -> Path:
