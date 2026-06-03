@@ -96,367 +96,440 @@ class AstrBotPhiPlugin(Star):
     @filter.command("pgr", alias={"\u5c41\u80a1\u8089"}, desc="快速查看当前绑定玩家的 B30/RKS 成绩面板。")
     async def pgr_shortcut(self, event: AstrMessageEvent):
         """快速查看当前绑定玩家的 B30/RKS 成绩面板。"""
-        yield await self._dispatch_phi_command(event, "pgr", grouped=False)
+        async for result in self._dispatch_phi_command(event, "pgr", grouped=False):
+            yield result
 
     @phi.command('achievement', alias={'ahv'}, desc="查看玩家成就统计与完成情况。")
     async def phi_achievement(self, event: AstrMessageEvent):
         """查看玩家成就统计与完成情况。"""
-        yield await self._dispatch_phi_command(event, 'achievement')
+        async for result in self._dispatch_phi_command(event, 'achievement'):
+            yield result
 
     @phi.command('addtag', alias={'retag', 'subtag'}, desc="为谱面添加或提交标签。")
     async def phi_addtag(self, event: AstrMessageEvent):
         """为谱面添加或提交标签。"""
-        yield await self._dispatch_phi_command(event, 'addtag')
+        async for result in self._dispatch_phi_command(event, 'addtag'):
+            yield result
 
     @phi.command('alias', desc="查询、添加或管理曲目别名。")
     async def phi_alias(self, event: AstrMessageEvent):
         """查询、添加或管理曲目别名。"""
-        yield await self._dispatch_phi_command(event, 'alias')
+        async for result in self._dispatch_phi_command(event, 'alias'):
+            yield result
 
     @phi.command('api', desc="查看 Phi 查分平台 API 相关帮助。")
     async def phi_api(self, event: AstrMessageEvent):
         """查看 Phi 查分平台 API 相关帮助。"""
-        yield await self._dispatch_phi_command(event, 'api')
+        async for result in self._dispatch_phi_command(event, 'api'):
+            yield result
 
     @phi.command('ans', alias={'\u7b54\u6848', '\u7ed3\u675f'}, desc="公布当前小游戏答案并结束游戏。")
     async def phi_ans(self, event: AstrMessageEvent):
         """公布当前小游戏答案并结束游戏。"""
-        yield await self._dispatch_phi_command(event, 'ans')
+        async for result in self._dispatch_phi_command(event, 'ans'):
+            yield result
 
     @phi.command('arcgros', alias=_ARCGROS_ALIASES, desc="以 Arcgros 风格查看 B19/B30 等成绩面板。")
     async def phi_arcgros(self, event: AstrMessageEvent):
         """以 Arcgros 风格查看 B19/B30 等成绩面板。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'arcgros')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'arcgros'):
+            yield result
 
     @phi.command('auth', alias={'login', '\u767b\u5f55'}, desc="使用查分平台 API Token 登录并绑定账号。")
     async def phi_auth(self, event: AstrMessageEvent):
         """使用查分平台 API Token 登录并绑定账号。"""
-        yield await self._dispatch_phi_command(event, 'auth')
+        async for result in self._dispatch_phi_command(event, 'auth'):
+            yield result
 
     @phi.command('b30', alias=_B_ALIASES, desc="查看 Best 30/Best N 成绩与 RKS 面板。")
     async def phi_b30(self, event: AstrMessageEvent):
         """查看 Best 30/Best N 成绩与 RKS 面板。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'b30')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'b30'):
+            yield result
 
     @phi.command('best', desc="生成文字版 B30 成绩列表。")
     async def phi_best(self, event: AstrMessageEvent):
         """生成文字版 B30 成绩列表。"""
-        yield await self._dispatch_phi_command(event, 'best')
+        async for result in self._dispatch_phi_command(event, 'best'):
+            yield result
 
     @phi.command('bind', alias={'\u7ed1\u5b9a'}, desc="绑定 sessionToken、查询 ID 或 TapTap 二维码登录。")
     async def phi_bind(self, event: AstrMessageEvent):
         """绑定 sessionToken、查询 ID 或 TapTap 二维码登录。"""
-        yield await self._dispatch_phi_command(event, 'bind')
+        async for result in self._dispatch_phi_command(event, 'bind'):
+            yield result
 
     @phi.command('chap', desc="按章节查询曲目列表。")
     async def phi_chap(self, event: AstrMessageEvent):
         """按章节查询曲目列表。"""
-        yield await self._dispatch_phi_command(event, 'chap')
+        async for result in self._dispatch_phi_command(event, 'chap'):
+            yield result
 
     @phi.command('chart', desc="查询指定曲目的谱面信息与标签。")
     async def phi_chart(self, event: AstrMessageEvent):
         """查询指定曲目的谱面信息与标签。"""
-        yield await self._dispatch_phi_command(event, 'chart')
+        async for result in self._dispatch_phi_command(event, 'chart'):
+            yield result
 
     @phi.command('clean', desc="清理当前用户的绑定与本地缓存数据。")
     async def phi_clean(self, event: AstrMessageEvent):
         """清理当前用户的绑定与本地缓存数据。"""
-        yield await self._dispatch_phi_command(event, 'clean')
+        async for result in self._dispatch_phi_command(event, 'clean'):
+            yield result
 
     @phi.command('cnbind', alias={'cn\u7ed1\u5b9a'}, desc="按国服方式绑定账号或查询 ID。")
     async def phi_cnbind(self, event: AstrMessageEvent):
         """按国服方式绑定账号或查询 ID。"""
-        yield await self._dispatch_phi_command(event, 'cnbind')
+        async for result in self._dispatch_phi_command(event, 'cnbind'):
+            yield result
 
     @phi.command('com', alias={'\u8ba1\u7b97'}, desc="根据分数、准确率和定数计算单曲 RKS。")
     async def phi_com(self, event: AstrMessageEvent):
         """根据分数、准确率和定数计算单曲 RKS。"""
-        yield await self._dispatch_phi_command(event, 'com')
+        async for result in self._dispatch_phi_command(event, 'com'):
+            yield result
 
     @phi.command('comment', alias={'cmt', '\u8bc4\u4ef7', '\u8bc4\u8bba'}, desc="查看或发布曲目在线评论。")
     async def phi_comment(self, event: AstrMessageEvent):
         """查看或发布曲目在线评论。"""
-        yield await self._dispatch_phi_command(event, 'comment')
+        async for result in self._dispatch_phi_command(event, 'comment'):
+            yield result
 
     @phi.command('data', desc="查看当前存档的 Data 数量与进度信息。")
     async def phi_data(self, event: AstrMessageEvent):
         """查看当前存档的 Data 数量与进度信息。"""
-        yield await self._dispatch_phi_command(event, 'data')
+        async for result in self._dispatch_phi_command(event, 'data'):
+            yield result
 
     @phi.command('delnick', alias={'delnic', '\u5220\u9664\u522b\u540d'}, desc="删除已设置的曲目别名。")
     async def phi_delnick(self, event: AstrMessageEvent):
         """删除已设置的曲目别名。"""
-        yield await self._dispatch_phi_command(event, 'delnick')
+        async for result in self._dispatch_phi_command(event, 'delnick'):
+            yield result
 
     @phi.command('down', alias={'downill', 'download', 'illupdate', '\u4e0b\u8f7d', '\u4e0b\u8f7d\u66f2\u7ed8', '\u66f4\u65b0\u66f2\u7ed8'}, desc="下载或更新插件资源、曲绘资源。")
     async def phi_down(self, event: AstrMessageEvent):
         """下载或更新插件资源、曲绘资源。"""
-        yield await self._dispatch_phi_command(event, 'down')
+        async for result in self._dispatch_phi_command(event, 'down'):
+            yield result
 
     @phi.command('fc30', alias=_FC_ALIASES, desc="查看 Full Combo 模式下的 Top N 成绩。")
     async def phi_fc30(self, event: AstrMessageEvent):
         """查看 Full Combo 模式下的 Top N 成绩。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'fc30')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'fc30'):
+            yield result
 
     @phi.command('gbbind', alias={'gb\u7ed1\u5b9a'}, desc="按国际服方式绑定账号或查询 ID。")
     async def phi_gbbind(self, event: AstrMessageEvent):
         """按国际服方式绑定账号或查询 ID。"""
-        yield await self._dispatch_phi_command(event, 'gbbind')
+        async for result in self._dispatch_phi_command(event, 'gbbind'):
+            yield result
 
     @phi.command('guess', alias={'\u731c\u66f2\u7ed8'}, desc="开始猜曲绘小游戏，或回答当前猜歌。")
     async def phi_guess(self, event: AstrMessageEvent):
         """开始猜曲绘小游戏，或回答当前猜歌。"""
-        yield await self._dispatch_phi_command(event, 'guess')
+        async for result in self._dispatch_phi_command(event, 'guess'):
+            yield result
 
     @phi.command('help', alias={'\u547d\u4ee4', '\u5e2e\u52a9', '\u6307\u4ee4', '\u83dc\u5355'}, desc="查看 Phi-Plugin 帮助菜单。")
     async def phi_help(self, event: AstrMessageEvent):
         """查看 Phi-Plugin 帮助菜单。"""
-        yield await self._dispatch_phi_command(event, 'help')
+        async for result in self._dispatch_phi_command(event, 'help'):
+            yield result
 
     @phi.command('hisb30', desc="查看历史 B30 变化记录。")
     async def phi_hisb30(self, event: AstrMessageEvent):
         """查看历史 B30 变化记录。"""
-        yield await self._dispatch_phi_command(event, 'hisb30')
+        async for result in self._dispatch_phi_command(event, 'hisb30'):
+            yield result
 
     @phi.command('2025history', alias={'\u5e74\u5ea6\u603b\u7ed3'}, desc="查看 2025 年度总结。")
     async def phi_history2025(self, event: AstrMessageEvent):
         """查看 2025 年度总结。"""
-        yield await self._dispatch_phi_command(event, '2025history')
+        async for result in self._dispatch_phi_command(event, '2025history'):
+            yield result
 
     @phi.command('id', alias={'apiid', 'uid', '\u67e5\u8be2id'}, desc="查看当前绑定的查询 ID、PlayerId 与玩家名。")
     async def phi_id(self, event: AstrMessageEvent):
         """查看当前绑定的查询 ID、PlayerId 与玩家名。"""
-        yield await self._dispatch_phi_command(event, 'id')
+        async for result in self._dispatch_phi_command(event, 'id'):
+            yield result
 
     @phi.command('ill', alias={'\u66f2\u7ed8'}, desc="查看指定曲目的曲绘。")
     async def phi_ill(self, event: AstrMessageEvent):
         """查看指定曲目的曲绘。"""
-        yield await self._dispatch_phi_command(event, 'ill')
+        async for result in self._dispatch_phi_command(event, 'ill'):
+            yield result
 
     @phi.command('info', desc="查看玩家信息总览面板。")
     async def phi_info(self, event: AstrMessageEvent):
         """查看玩家信息总览面板。"""
-        yield await self._dispatch_phi_command(event, 'info')
+        async for result in self._dispatch_phi_command(event, 'info'):
+            yield result
 
     @phi.command('info1', desc="查看玩家信息面板第一页。")
     async def phi_info1(self, event: AstrMessageEvent):
         """查看玩家信息面板第一页。"""
-        yield await self._dispatch_phi_command(event, 'info1')
+        async for result in self._dispatch_phi_command(event, 'info1'):
+            yield result
 
     @phi.command('info2', desc="查看玩家信息面板第二页。")
     async def phi_info2(self, event: AstrMessageEvent):
         """查看玩家信息面板第二页。"""
-        yield await self._dispatch_phi_command(event, 'info2')
+        async for result in self._dispatch_phi_command(event, 'info2'):
+            yield result
 
     @phi.command('jrrp', alias={'\u4eca\u65e5\u4eba\u54c1'}, desc="抽取今日人品与推荐曲目。")
     async def phi_jrrp(self, event: AstrMessageEvent):
         """抽取今日人品与推荐曲目。"""
-        yield await self._dispatch_phi_command(event, 'jrrp')
+        async for result in self._dispatch_phi_command(event, 'jrrp'):
+            yield result
 
     @phi.command('list', desc="按条件筛选并列出成绩。")
     async def phi_list(self, event: AstrMessageEvent):
         """按条件筛选并列出成绩。"""
-        yield await self._dispatch_phi_command(event, 'list')
+        async for result in self._dispatch_phi_command(event, 'list'):
+            yield result
 
     @phi.command('live', desc="查看在线服务状态与公告信息。")
     async def phi_live(self, event: AstrMessageEvent):
         """查看在线服务状态与公告信息。"""
-        yield await self._dispatch_phi_command(event, 'live')
+        async for result in self._dispatch_phi_command(event, 'live'):
+            yield result
 
     @phi.command('lmtacc', desc="按 ACC 下限筛选成绩并计算 RKS。")
     async def phi_lmtacc(self, event: AstrMessageEvent):
         """按 ACC 下限筛选成绩并计算 RKS。"""
-        yield await self._dispatch_phi_command(event, 'lmtacc')
+        async for result in self._dispatch_phi_command(event, 'lmtacc'):
+            yield result
 
     @phi.command('ltr', alias={'letter', '\u5f00\u5b57\u6bcd'}, desc="开始开字母猜歌小游戏或回答指定编号。")
     async def phi_ltr(self, event: AstrMessageEvent):
         """开始开字母猜歌小游戏或回答指定编号。"""
-        yield await self._dispatch_phi_command(event, 'ltr')
+        async for result in self._dispatch_phi_command(event, 'ltr'):
+            yield result
 
     @phi.command('lvscore', alias={'lvsco', 'scolv'}, desc="查看指定等级范围内的成绩。")
     async def phi_lvscore(self, event: AstrMessageEvent):
         """查看指定等级范围内的成绩。"""
-        yield await self._dispatch_phi_command(event, 'lvscore')
+        async for result in self._dispatch_phi_command(event, 'lvscore'):
+            yield result
 
     @phi.command('mycmt', desc="查看自己发布的在线评论。")
     async def phi_mycmt(self, event: AstrMessageEvent):
         """查看自己发布的在线评论。"""
-        yield await self._dispatch_phi_command(event, 'mycmt')
+        async for result in self._dispatch_phi_command(event, 'mycmt'):
+            yield result
 
     @phi.command('myset', alias={'mysetting', '\u7528\u6237\u8bbe\u7f6e', '\u4e2a\u4eba\u8bbe\u7f6e'}, desc="查看或修改个人插件设置。")
     async def phi_myset(self, event: AstrMessageEvent):
         """查看或修改个人插件设置。"""
-        yield await self._dispatch_phi_command(event, 'myset')
+        async for result in self._dispatch_phi_command(event, 'myset'):
+            yield result
 
     @phi.command('newlog', desc="查看 Phigros 最新版本更新日志。")
     async def phi_newlog(self, event: AstrMessageEvent):
         """查看 Phigros 最新版本更新日志。"""
-        yield await self._dispatch_phi_command(event, 'newlog')
+        async for result in self._dispatch_phi_command(event, 'newlog'):
+            yield result
 
     @phi.command('newnotice', desc="查看 Phigros 最新公告。")
     async def phi_newnotice(self, event: AstrMessageEvent):
         """查看 Phigros 最新公告。"""
-        yield await self._dispatch_phi_command(event, 'newnotice')
+        async for result in self._dispatch_phi_command(event, 'newnotice'):
+            yield result
 
     @phi.command('open', alias={'\u63ed\u5f00', '\u6253\u5f00', '\u7ffb\u5f00', '\u5f00'}, desc="在开字母猜歌中翻开指定字符。")
     async def phi_open(self, event: AstrMessageEvent):
         """在开字母猜歌中翻开指定字符。"""
-        yield await self._dispatch_phi_command(event, 'open')
+        async for result in self._dispatch_phi_command(event, 'open'):
+            yield result
 
     @phi.command('p30', alias=_P_ALIASES, desc="查看 All Perfect 模式下的 Top N 成绩。")
     async def phi_p30(self, event: AstrMessageEvent):
         """查看 All Perfect 模式下的 Top N 成绩。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'p30')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'p30'):
+            yield result
 
     @phi.command('pgr', alias={'\u5c41\u80a1\u8089'}, desc="查看当前绑定玩家的 B30/RKS 成绩面板。")
     async def phi_pgr(self, event: AstrMessageEvent):
         """查看当前绑定玩家的 B30/RKS 成绩面板。"""
-        yield await self._dispatch_phi_command(event, 'pgr')
+        async for result in self._dispatch_phi_command(event, 'pgr'):
+            yield result
 
     @phi.command('rand', alias={'random', '\u968f\u673a'}, desc="随机抽取一首曲目或谱面。")
     async def phi_rand(self, event: AstrMessageEvent):
         """随机抽取一首曲目或谱面。"""
-        yield await self._dispatch_phi_command(event, 'rand')
+        async for result in self._dispatch_phi_command(event, 'rand'):
+            yield result
 
     @phi.command('randclg', desc="生成随机课题组。")
     async def phi_randclg(self, event: AstrMessageEvent):
         """生成随机课题组。"""
-        yield await self._dispatch_phi_command(event, 'randclg')
+        async for result in self._dispatch_phi_command(event, 'randclg'):
+            yield result
 
     @phi.command('rankfind', alias={'\u67e5\u8be2\u6392\u540d'}, desc="按 RKS 查询大致排行榜位置。")
     async def phi_rankfind(self, event: AstrMessageEvent):
         """按 RKS 查询大致排行榜位置。"""
-        yield await self._dispatch_phi_command(event, 'rankfind')
+        async for result in self._dispatch_phi_command(event, 'rankfind'):
+            yield result
 
     @phi.command('ranklist', alias={'\u6392\u884c\u699c'}, desc="查看 RKS 排行榜或自己的排名。")
     async def phi_ranklist(self, event: AstrMessageEvent):
         """查看 RKS 排行榜或自己的排名。"""
-        yield await self._dispatch_phi_command(event, 'ranklist')
+        async for result in self._dispatch_phi_command(event, 'ranklist'):
+            yield result
 
     @phi.command('recmt', desc="删除自己发布的在线评论。")
     async def phi_recmt(self, event: AstrMessageEvent):
         """删除自己发布的在线评论。"""
-        yield await self._dispatch_phi_command(event, 'recmt')
+        async for result in self._dispatch_phi_command(event, 'recmt'):
+            yield result
 
     @phi.command('renderdiag', alias={'\u6e32\u67d3\u8bca\u65ad'}, desc="查看 HTML/T2I 渲染诊断信息。")
     async def phi_renderdiag(self, event: AstrMessageEvent):
         """查看 HTML/T2I 渲染诊断信息。"""
-        yield await self._dispatch_phi_command(event, 'renderdiag')
+        async for result in self._dispatch_phi_command(event, 'renderdiag'):
+            yield result
 
     @phi.command('rks', desc="查询玩家当前 RKS 信息。")
     async def phi_rks(self, event: AstrMessageEvent):
         """查询玩家当前 RKS 信息。"""
-        yield await self._dispatch_phi_command(event, 'rks')
+        async for result in self._dispatch_phi_command(event, 'rks'):
+            yield result
 
     @phi.command('retask', alias={'\u5237\u65b0\u4efb\u52a1'}, desc="刷新今日任务。")
     async def phi_retask(self, event: AstrMessageEvent):
         """刷新今日任务。"""
-        yield await self._dispatch_phi_command(event, 'retask')
+        async for result in self._dispatch_phi_command(event, 'retask'):
+            yield result
 
     @phi.command('score', alias={'\u5355\u66f2\u6210\u7ee9'}, desc="查询指定曲目的单曲成绩。")
     async def phi_score(self, event: AstrMessageEvent):
         """查询指定曲目的单曲成绩。"""
-        yield await self._dispatch_phi_command(event, 'score')
+        async for result in self._dispatch_phi_command(event, 'score'):
+            yield result
 
     @phi.command('search', alias={'\u67e5\u627e', '\u68c0\u7d22'}, desc="搜索曲目。")
     async def phi_search(self, event: AstrMessageEvent):
         """搜索曲目。"""
-        yield await self._dispatch_phi_command(event, 'search')
+        async for result in self._dispatch_phi_command(event, 'search'):
+            yield result
 
     @phi.command('sessiontoken', alias={'tk', 'token'}, desc="查看本地 sessionToken 绑定状态与帮助。")
     async def phi_sessiontoken(self, event: AstrMessageEvent):
         """查看本地 sessionToken 绑定状态与帮助。"""
-        yield await self._dispatch_phi_command(event, 'sessiontoken')
+        async for result in self._dispatch_phi_command(event, 'sessiontoken'):
+            yield result
 
     @phi.command('send', alias={'\u9001', '\u8f6c'}, desc="向其他用户转账 Notes。")
     async def phi_send(self, event: AstrMessageEvent):
         """向其他用户转账 Notes。"""
-        yield await self._dispatch_phi_command(event, 'send')
+        async for result in self._dispatch_phi_command(event, 'send'):
+            yield result
 
     @phi.command('setapitoken', desc="设置查分平台 API Token。")
     async def phi_setapitoken(self, event: AstrMessageEvent):
         """设置查分平台 API Token。"""
-        yield await self._dispatch_phi_command(event, 'setapitoken')
+        async for result in self._dispatch_phi_command(event, 'setapitoken'):
+            yield result
 
     @phi.command('setnick', alias={'setnic', '\u8bbe\u7f6e\u522b\u540d'}, desc="为曲目设置自定义别名。")
     async def phi_setnick(self, event: AstrMessageEvent):
         """为曲目设置自定义别名。"""
-        yield await self._dispatch_phi_command(event, 'setnick')
+        async for result in self._dispatch_phi_command(event, 'setnick'):
+            yield result
 
     @phi.command('settag', desc="为谱面设置或投票标签。")
     async def phi_settag(self, event: AstrMessageEvent):
         """为谱面设置或投票标签。"""
-        yield await self._dispatch_phi_command(event, 'settag')
+        async for result in self._dispatch_phi_command(event, 'settag'):
+            yield result
 
     @phi.command('song', alias={'\u66f2'}, desc="查询曲目基础信息。")
     async def phi_song(self, event: AstrMessageEvent):
         """查询曲目基础信息。"""
-        yield await self._dispatch_phi_command(event, 'song')
+        async for result in self._dispatch_phi_command(event, 'song'):
+            yield result
 
     @phi.command('sign', alias={'signin', '\u7b7e\u5230', '\u6253\u5361'}, desc="每日签到领取 Notes。")
     async def phi_sign(self, event: AstrMessageEvent):
         """每日签到领取 Notes。"""
-        yield await self._dispatch_phi_command(event, 'sign')
+        async for result in self._dispatch_phi_command(event, 'sign'):
+            yield result
 
     @phi.command('suggest', alias={'\u63a8\u5206', '\u63a8\u5206\u5efa\u8bae'}, desc="根据当前成绩生成推分建议。")
     async def phi_suggest(self, event: AstrMessageEvent):
         """根据当前成绩生成推分建议。"""
-        yield await self._dispatch_phi_command(event, 'suggest')
+        async for result in self._dispatch_phi_command(event, 'suggest'):
+            yield result
 
     @phi.command('table', alias={'\u5b9a\u6570\u8868'}, desc="查询定数表。")
     async def phi_table(self, event: AstrMessageEvent):
         """查询定数表。"""
-        yield await self._dispatch_phi_command(event, 'table')
+        async for result in self._dispatch_phi_command(event, 'table'):
+            yield result
 
     @phi.command('tag', desc="查询谱面标签统计。")
     async def phi_tag(self, event: AstrMessageEvent):
         """查询谱面标签统计。"""
-        yield await self._dispatch_phi_command(event, 'tag')
+        async for result in self._dispatch_phi_command(event, 'tag'):
+            yield result
 
     @phi.command('task', alias={'tasks', '\u6211\u7684\u4efb\u52a1'}, desc="查看今日任务与完成进度。")
     async def phi_task(self, event: AstrMessageEvent):
         """查看今日任务与完成进度。"""
-        yield await self._dispatch_phi_command(event, 'task')
+        async for result in self._dispatch_phi_command(event, 'task'):
+            yield result
 
     @phi.command('tips', desc="随机查看一条 Phigros 小提示。")
     async def phi_tips(self, event: AstrMessageEvent):
         """随机查看一条 Phigros 小提示。"""
-        yield await self._dispatch_phi_command(event, 'tips')
+        async for result in self._dispatch_phi_command(event, 'tips'):
+            yield result
 
     @phi.command('tokenlist', alias={'tkls', 'lstk'}, desc="查看查分平台 Token 列表。")
     async def phi_tokenlist(self, event: AstrMessageEvent):
         """查看查分平台 Token 列表。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'tokenlist')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'tokenlist'):
+            yield result
 
     @phi.command('tip', alias={'\u63d0\u793a'}, desc="获取当前小游戏提示。")
     async def phi_tip(self, event: AstrMessageEvent):
         """获取当前小游戏提示。"""
-        yield await self._dispatch_phi_command(event, 'tip')
+        async for result in self._dispatch_phi_command(event, 'tip'):
+            yield result
 
     @phi.command('tipgame', alias={'\u63d0\u793a\u731c\u66f2'}, desc="开始提示猜歌小游戏。")
     async def phi_tipgame(self, event: AstrMessageEvent):
         """开始提示猜歌小游戏。"""
-        yield await self._dispatch_phi_command(event, 'tipgame')
+        async for result in self._dispatch_phi_command(event, 'tipgame'):
+            yield result
 
     @phi.command('theme', desc="设置或查看个人渲染主题。")
     async def phi_theme(self, event: AstrMessageEvent):
         """设置或查看个人渲染主题。"""
-        yield await self._dispatch_phi_command(event, 'theme')
+        async for result in self._dispatch_phi_command(event, 'theme'):
+            yield result
 
     @phi.command('unbind', alias={'\u89e3\u7ed1'}, desc="解绑账号并清理当前用户缓存。")
     async def phi_unbind(self, event: AstrMessageEvent):
         """解绑账号并清理当前用户缓存。"""
-        yield await self._dispatch_phi_command(event, 'unbind')
+        async for result in self._dispatch_phi_command(event, 'unbind'):
+            yield result
 
     @phi.command('update', alias={'\u66f4\u65b0\u5b58\u6863'}, desc="同步存档并查看最近进步情况。")
     async def phi_update(self, event: AstrMessageEvent):
         """同步存档并查看最近进步情况。"""
-        yield await self._dispatch_phi_command(event, 'update')
+        async for result in self._dispatch_phi_command(event, 'update'):
+            yield result
 
     @phi.command('x30', alias=_X_ALIASES, desc="查看 1 Good 模式下的 Top N 成绩。")
     async def phi_x30(self, event: AstrMessageEvent):
         """查看 1 Good 模式下的 Top N 成绩。"""
-        yield await self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'x30')
+        async for result in self._dispatch_phi_command(event, self._extract_group_command(event.get_message_str()) or 'x30'):
+            yield result
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=10)
     @filter.custom_filter(ActivePhiGameFilter, False)
@@ -476,19 +549,23 @@ class AstrBotPhiPlugin(Star):
         )
         if result is None:
             return
-        yield await self._send_command_result(event, result)
+        response = await self._send_command_result(event, result)
+        if response is not None:
+            yield response
 
     async def _dispatch_phi_command(self, event: AstrMessageEvent, command: str, *, grouped: bool = True):
         event.stop_event()
         args = self._extract_command_args(event.get_message_str(), grouped=grouped)
 
         sender_id = event.get_sender_id()
-        return await self._run_with_command_locks(
+        response = await self._run_with_command_locks(
             event,
             sender_id,
             command,
             lambda: self._run_phi_command(event, sender_id, command, args),
         )
+        if response is not None:
+            yield response
 
     async def _run_with_command_locks(
         self,

@@ -13,6 +13,7 @@ import urllib.request
 from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -51,6 +52,7 @@ from ..query.progress import extract_modified_datetime, extract_money, extract_s
 
 _CSS_URL_RE = re.compile(r"url\((['\"]?)([^)'\"]+)\1\)")
 _CSS_IMPORT_RE = re.compile(r"@import\s+(?:url\()?['\"]([^'\")]+)['\"]\)?\s*;")
+_DATA_URI_CACHE_MAX_BYTES = 512 * 1024
 
 
 def help_html(paths: PluginPaths, *, cmd_head: str = "phi") -> str:
@@ -3521,8 +3523,18 @@ def _js_text(paths: PluginPaths, relative: str) -> str:
 def _file_data_uri(path: Path) -> str:
     if not path.exists() or not path.is_file():
         return ""
+    stat = path.stat()
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    if stat.st_size <= _DATA_URI_CACHE_MAX_BYTES:
+        return _cached_file_data_uri(str(path.resolve()), stat.st_size, stat.st_mtime_ns, mime)
     payload = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{payload}"
+
+
+@lru_cache(maxsize=128)
+def _cached_file_data_uri(abs_path: str, size: int, mtime_ns: int, mime: str) -> str:
+    del size, mtime_ns
+    payload = base64.b64encode(Path(abs_path).read_bytes()).decode("ascii")
     return f"data:{mime};base64,{payload}"
 
 

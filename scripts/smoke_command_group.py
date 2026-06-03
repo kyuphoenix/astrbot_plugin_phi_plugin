@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
 
 def main() -> None:
     source = (ROOT / "main.py").read_text(encoding="utf-8")
-    if '@filter.command_group("phi")' not in source:
+    if not re.search(r"@filter\.command_group\(\s*['\"]phi['\"](?:\s*,|\s*\))", source):
         raise SystemExit("phi commands should be registered as an AstrBot command_group")
     if "@filter.llm_tool" in source:
         raise SystemExit("phi commands should not be registered as llm tools")

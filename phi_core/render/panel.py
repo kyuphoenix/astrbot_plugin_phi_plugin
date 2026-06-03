@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 import asyncio
 import logging
 from pathlib import Path
+import time
 import uuid
 
 from ..config import PluginConfig
@@ -13,6 +14,9 @@ from . import html_renderer
 HtmlRenderFunc = Callable[[str, dict, bool, dict | None], Awaitable[str | bytes]]
 logger = logging.getLogger("astrbot")
 _TRIM_MAX_PIXELS = 48_000_000
+_RENDER_CACHE_MAX_AGE_SECONDS = 24 * 60 * 60
+_RENDER_CACHE_PRUNE_INTERVAL_SECONDS = 60 * 60
+_last_render_cache_prune = 0.0
 
 async def render_help_panel(config: PluginConfig, paths: PluginPaths, html_render: HtmlRenderFunc | None = None) -> Path:
     if html_render is None:
@@ -127,6 +131,7 @@ async def _render_with_retries(
 ) -> Path:
     attempts = max(1, config.render_max_retries + 1)
     last_exc: Exception | None = None
+    _prune_render_cache(paths)
     for attempt in range(1, attempts + 1):
         try:
             rendered = await html_render(
@@ -254,6 +259,30 @@ def _read_file_head(path: Path, size: int = 64) -> bytes:
             return file.read(size)
     except OSError:
         return b""
+
+
+def _prune_render_cache(paths: PluginPaths) -> None:
+    global _last_render_cache_prune
+    now = time.time()
+    if now - _last_render_cache_prune < _RENDER_CACHE_PRUNE_INTERVAL_SECONDS:
+        return
+    _last_render_cache_prune = now
+    try:
+        root = paths.render_cache.resolve()
+        if not root.exists() or not root.is_dir():
+            return
+        cutoff = now - _RENDER_CACHE_MAX_AGE_SECONDS
+        for path in root.glob("html-*"):
+            try:
+                resolved = path.resolve()
+                if not path.is_file() or root not in resolved.parents:
+                    continue
+                if path.stat().st_mtime < cutoff:
+                    path.unlink()
+            except OSError as exc:
+                logger.debug("phi render cache prune skipped %s: %s", path, exc)
+    except OSError as exc:
+        logger.debug("phi render cache prune skipped: %s", exc)
 
 
 def _trim_right_border(paths: PluginPaths, path: Path, name: str) -> Path:

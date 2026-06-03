@@ -54,6 +54,9 @@ def _install_astrbot_stubs() -> None:
         def command(self, *_args, **_kwargs):
             return identity_decorator()
 
+    class FakeCustomFilter:
+        pass
+
     def command_group(*_args, **_kwargs):
         def decorator(_func):
             return FakeCommandGroup()
@@ -65,6 +68,10 @@ def _install_astrbot_stubs() -> None:
     astrbot_api_event.AstrMessageEvent = object
     astrbot_api_event_filter.command = identity_decorator
     astrbot_api_event_filter.command_group = command_group
+    astrbot_api_event_filter.CustomFilter = FakeCustomFilter
+    astrbot_api_event_filter.EventMessageType = types.SimpleNamespace(ALL=object())
+    astrbot_api_event_filter.event_message_type = identity_decorator
+    astrbot_api_event_filter.custom_filter = identity_decorator
     astrbot_api_message_components.Image = FakeImageComponent
     astrbot_api_star.Context = object
     astrbot_api_star.Star = FakeStar

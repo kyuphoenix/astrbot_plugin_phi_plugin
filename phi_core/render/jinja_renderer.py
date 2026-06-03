@@ -6,6 +6,7 @@ import hashlib
 import logging
 import re
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
@@ -37,6 +38,8 @@ _BLOCK_RE = re.compile(r"{%\s*block\s+(?P<name>\w+)\s*%}(?P<body>.*?){%\s*endblo
 _EXTENDS_RE = re.compile(r"{%\s*extends\s+[\"'](?P<path>[^\"']+)[\"']\s*%}")
 
 _DEFAULT_WIDTH = 1200
+_FONT_DATA_URI_CACHE_MAX_BYTES = 2 * 1024 * 1024
+_TEXT_CACHE_MAX_BYTES = 512 * 1024
 
 
 def render_template(
@@ -151,12 +154,12 @@ def _environment(root: Path) -> Environment:
 
 
 def _template_source(root: Path, normalized: str) -> str:
-    source = (root / normalized).read_text(encoding="utf-8")
+    source = _read_text_file(root / normalized)
     match = _EXTENDS_RE.search(source)
     if not match:
         return source
     parent_path = match.group("path").replace("\\", "/").strip("/")
-    parent = (root / parent_path).read_text(encoding="utf-8")
+    parent = _read_text_file(root / parent_path)
     child_blocks = {m.group("name"): m.group("body") for m in _BLOCK_RE.finditer(source)}
 
     def replace(match: re.Match[str]) -> str:
@@ -463,7 +466,7 @@ def _css_text(paths: PluginPaths, root: Path, relative: str, *, font_corpus: str
     css_path = _resolve_resource_path(paths, root, relative)
     if css_path is None or not css_path.exists():
         return ""
-    css = css_path.read_text(encoding="utf-8")
+    css = _read_text_file(css_path)
 
     def replace_import(match: re.Match[str]) -> str:
         url = unquote(match.group("url").strip())
@@ -503,12 +506,25 @@ def _font_data_uri(paths: PluginPaths, font_path: Path | None, *, font_corpus: s
         return ""
     try:
         subset_path = _subset_font(paths, font_path, font_corpus=font_corpus)
-        payload = base64.b64encode(subset_path.read_bytes()).decode("ascii")
-        return f"data:font/ttf;base64,{payload}"
+        return _font_file_data_uri(subset_path)
     except Exception as exc:
         logger.warning("phi jinja font subset failed for %s: %s", font_path, exc)
-        payload = base64.b64encode(font_path.read_bytes()).decode("ascii")
-        return f"data:font/ttf;base64,{payload}"
+        return _font_file_data_uri(font_path)
+
+
+def _font_file_data_uri(font_path: Path) -> str:
+    stat = font_path.stat()
+    if stat.st_size <= _FONT_DATA_URI_CACHE_MAX_BYTES:
+        return _cached_font_file_data_uri(str(font_path.resolve()), stat.st_size, stat.st_mtime_ns)
+    payload = base64.b64encode(font_path.read_bytes()).decode("ascii")
+    return f"data:font/ttf;base64,{payload}"
+
+
+@lru_cache(maxsize=16)
+def _cached_font_file_data_uri(abs_path: str, size: int, mtime_ns: int) -> str:
+    del size, mtime_ns
+    payload = base64.b64encode(Path(abs_path).read_bytes()).decode("ascii")
+    return f"data:font/ttf;base64,{payload}"
 
 
 def _subset_font(paths: PluginPaths, font_path: Path, *, font_corpus: str = "") -> Path:
@@ -584,7 +600,7 @@ def _css_text_from_file(paths: PluginPaths, root: Path, css_path: Path, *, font_
         try:
             relative = css_path.resolve().relative_to((paths.resources / "html").resolve()).as_posix()
         except ValueError:
-            return css_path.read_text(encoding="utf-8")
+            return _read_text_file(css_path)
     return _css_text(paths, root, relative, font_corpus=font_corpus)
 
 
@@ -592,7 +608,20 @@ def _read_text_resource(paths: PluginPaths, root: Path, relative: str) -> str:
     path = _resolve_resource_path(paths, root, relative)
     if path is None or not path.exists():
         return ""
+    return _read_text_file(path)
+
+
+def _read_text_file(path: Path) -> str:
+    stat = path.stat()
+    if stat.st_size <= _TEXT_CACHE_MAX_BYTES:
+        return _cached_read_text(str(path.resolve()), stat.st_size, stat.st_mtime_ns)
     return path.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=256)
+def _cached_read_text(abs_path: str, size: int, mtime_ns: int) -> str:
+    del size, mtime_ns
+    return Path(abs_path).read_text(encoding="utf-8")
 
 
 def _resolve_resource_path(paths: PluginPaths, root: Path, relative: str) -> Path | None:
