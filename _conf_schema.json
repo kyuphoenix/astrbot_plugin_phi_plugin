@@ -111,6 +111,12 @@
     "default": "",
     "hint": "用于下载资源仓库和远程曲绘资源；留空则直连 GitHub。"
   },
+  "auto_update_resources": {
+    "description": "自动更新模板与曲库资源",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后插件会定时更新 Jinja2 HTML 模板、info 曲库信息和 otherill 资源；不会自动下载完整曲绘仓库。"
+  },
   "illustration_source": {
     "description": "曲绘资源模式",
     "type": "string",

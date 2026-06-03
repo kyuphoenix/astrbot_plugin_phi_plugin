@@ -23,14 +23,23 @@ async def render_jinja_template(
     render_data = _apply_user_theme(ctx, template_path, dict(data or {}))
     if _selected_theme(render_data) == "dss2" and template_path.replace("\\", "/").removesuffix(".html") == "b19/b19":
         template_path = "b19/dss2"
-    prepared = jinja_adapter.adapt_template_data(ctx.paths, template_path, render_data)
-    template, render_data, viewport_width, viewport_height = jinja_renderer.render_template_payload(
-        ctx.paths,
-        template_path,
-        prepared,
-        width=width,
-        height=height,
-    )
+    if ctx.resource_lock is None:
+        template, render_data, viewport_width, viewport_height = _build_jinja_payload(
+            ctx,
+            template_path,
+            render_data,
+            width=width,
+            height=height,
+        )
+    else:
+        async with ctx.resource_lock:
+            template, render_data, viewport_width, viewport_height = _build_jinja_payload(
+                ctx,
+                template_path,
+                render_data,
+                width=width,
+                height=height,
+            )
     return await render_original_html(
         ctx,
         template,
@@ -39,6 +48,24 @@ async def render_jinja_template(
         viewport_width=viewport_width,
         viewport_height=viewport_height,
         full_page=full_page,
+    )
+
+
+def _build_jinja_payload(
+    ctx: CommandContext,
+    template_path: str,
+    render_data: dict[str, Any],
+    *,
+    width: int | None,
+    height: int | None,
+) -> tuple[str, dict[str, Any], int | None, int | None]:
+    prepared = jinja_adapter.adapt_template_data(ctx.paths, template_path, render_data)
+    return jinja_renderer.render_template_payload(
+        ctx.paths,
+        template_path,
+        prepared,
+        width=width,
+        height=height,
     )
 
 

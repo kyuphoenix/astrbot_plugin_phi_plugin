@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -19,9 +20,11 @@ from .phi_core.data import SongCatalog, SongSearcher, apply_aliases, load_catalo
 from .phi_core.paths import PluginPaths
 from .phi_core.render import image as image_render
 from .phi_core.render.send_variants import build_image_send_variant
-from .phi_core.data.ill_download import ensure_resources_blocking
+from .phi_core.data.ill_download import ensure_resources_blocking, update_resources
 from .phi_core.save import PhiApiClient, SaveStore, TapTapQrLogin
 
+_RESOURCE_AUTO_UPDATE_INITIAL_DELAY_SECONDS = 30
+_RESOURCE_AUTO_UPDATE_INTERVAL_SECONDS = 24 * 60 * 60
 _B_ALIASES = {f"b{index}" for index in range(1, 101)} - {"b30"}
 _P_ALIASES = {f"p{index}" for index in range(1, 101)} - {"p30"}
 _X_ALIASES = {f"x{index}" for index in range(1, 101)} - {"x30"}
@@ -51,6 +54,8 @@ class AstrBotPhiPlugin(Star):
         ActivePhiGameFilter.enabled = self.plugin_config.game_reply_listener
         self._user_command_locks = AsyncKeyedLock()
         self._game_session_locks = AsyncKeyedLock()
+        self._resource_access_lock = asyncio.Lock()
+        self._resource_update_task: asyncio.Task[None] | None = None
         root = Path(__file__).resolve().parent
         data_dir = Path(StarTools.get_data_dir("astrbot_plugin_phi_plugin"))
         self.paths = PluginPaths.from_root(root, data_dir=data_dir)
@@ -72,6 +77,8 @@ class AstrBotPhiPlugin(Star):
             store=self.store,
             client=self.client,
             taptap=self.taptap,
+            reload_resources=self._reload_runtime_resources,
+            resource_lock=self._resource_access_lock,
         )
         font_path = image_render.selected_font_path(self.paths)
         logger.info(
@@ -87,6 +94,62 @@ class AstrBotPhiPlugin(Star):
                 "astrbot_plugin_phi_plugin downloaded upstream resources "
                 f"to {resource_result.target}; commit={resource_result.commit}"
             )
+
+    async def initialize(self) -> None:
+        if not self.plugin_config.auto_update_resources:
+            return
+        if self._resource_update_task is not None and not self._resource_update_task.done():
+            return
+        self._resource_update_task = asyncio.create_task(self._auto_update_resources_loop())
+        logger.info(
+            "astrbot_plugin_phi_plugin resource auto update enabled; "
+            f"interval={_RESOURCE_AUTO_UPDATE_INTERVAL_SECONDS}s"
+        )
+
+    async def terminate(self) -> None:
+        task = self._resource_update_task
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        self._resource_update_task = None
+
+    async def _auto_update_resources_loop(self) -> None:
+        try:
+            await asyncio.sleep(_RESOURCE_AUTO_UPDATE_INITIAL_DELAY_SECONDS)
+            while True:
+                await self._auto_update_resources_once()
+                await asyncio.sleep(_RESOURCE_AUTO_UPDATE_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("phi resource auto update loop stopped unexpectedly: %s", exc, exc_info=True)
+
+    async def _auto_update_resources_once(self) -> None:
+        try:
+            async with self._resource_access_lock:
+                result = await update_resources(self.plugin_config, self.paths)
+                self._reload_runtime_resources()
+        except Exception as exc:
+            logger.warning("phi resource auto update failed: %s", exc, exc_info=True)
+            return
+        logger.info(
+            "phi resource auto update completed "
+            f"action={result.action}; target={result.target}; commit={result.commit}"
+        )
+
+    def _reload_runtime_resources(self) -> None:
+        catalog = load_catalog(self.paths.info)
+        apply_aliases(catalog, self.store.load_custom_aliases())
+        searcher = SongSearcher(catalog)
+        self.catalog = catalog
+        self.searcher = searcher
+        self.command_context.catalog = catalog
+        self.command_context.searcher = searcher
+        logger.info("phi runtime resources reloaded; songs=%s", len(catalog))
 
     @filter.command_group("phi", desc="Phigros 指令组，包含查分、曲库、小游戏、资源管理等子命令。")
     def phi(self):
@@ -615,6 +678,8 @@ class AstrBotPhiPlugin(Star):
             taptap=self.command_context.taptap,
             html_render=self.html_render,
             sender=sender,
+            reload_resources=self._reload_runtime_resources,
+            resource_lock=self._resource_access_lock,
             is_admin=bool(event.is_admin()),
             session_id=self._event_session_id(event),
         )

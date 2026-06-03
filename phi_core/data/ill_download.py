@@ -15,6 +15,7 @@ HTML_TEMPLATE_REPO_URL = "https://github.com/kyuphoenix/astrbot_plugin_phi_plugi
 
 ACTION_DOWNLOAD = "download"
 ACTION_UPDATE = "update"
+_RESOURCE_UPDATE_LOCK = asyncio.Lock()
 
 
 @dataclass(slots=True)
@@ -76,6 +77,11 @@ def update_resources_blocking(config: PluginConfig, paths: PluginPaths) -> Resou
 
 
 async def update_resources(config: PluginConfig, paths: PluginPaths) -> ResourceUpdateResult:
+    async with _RESOURCE_UPDATE_LOCK:
+        return await _update_resources_unlocked(config, paths)
+
+
+async def _update_resources_unlocked(config: PluginConfig, paths: PluginPaths) -> ResourceUpdateResult:
     resource_repo = paths.cache / "phi-plugin-resource-repo"
     html_repo = paths.cache / "phi-plugin-jinja2-template-repo"
     resource_action = await _ensure_resource_repo(config, resource_repo)

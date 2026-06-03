@@ -25,6 +25,7 @@ class PluginConfig:
     render_wait_for_resources: bool = True
     render_resource_timeout: int = 10000
     github_proxy: str = ""
+    auto_update_resources: bool = False
     illustration_source: str = "remote"
     illustration_url_proxy: str = ""
     game_reply_listener: bool = False
@@ -85,6 +86,7 @@ class PluginConfig:
             render_wait_for_resources=bool(get("render_wait_for_resources", True)),
             render_resource_timeout=max(1000, min(60000, int(get("render_resource_timeout", 10000)))),
             github_proxy=str(get("github_proxy", "") or "").strip().rstrip("/"),
+            auto_update_resources=bool(get("auto_update_resources", False)),
             illustration_source=illustration_source,
             illustration_url_proxy=str(get("illustration_url_proxy", "") or "").strip().rstrip("/"),
             game_reply_listener=bool(get("game_reply_listener", False)),

@@ -39,7 +39,11 @@ async def _download_illustrations(ctx: CommandContext) -> CommandResult:
 
 async def _download_resources(ctx: CommandContext) -> CommandResult:
     try:
-        result = await update_resources(ctx.config, ctx.paths)
+        if ctx.resource_lock is None:
+            result = await _update_resources_and_reload(ctx)
+        else:
+            async with ctx.resource_lock:
+                result = await _update_resources_and_reload(ctx)
     except Exception as exc:
         return CommandResult.text(f"资源下载/更新失败：{exc}")
     action = _ACTION_TEXT.get(result.action, result.action)
@@ -50,3 +54,10 @@ async def _download_resources(ctx: CommandContext) -> CommandResult:
         "已写入 downloads/html、downloads/info、downloads/otherill。\n"
         "其中 html 来自 kyuphoenix/astrbot_plugin_phi_plugin_jinja2_template，info/otherill 暂时仍来自 Catrong/phi-plugin。"
     )
+
+
+async def _update_resources_and_reload(ctx: CommandContext):
+    result = await update_resources(ctx.config, ctx.paths)
+    if ctx.reload_resources is not None:
+        ctx.reload_resources()
+    return result

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from ..config import PluginConfig
 from ..data.illustrations import find_illustration_file, illustration_download_url, illustration_url, use_remote_illustrations
@@ -40,6 +40,8 @@ class CommandContext:
     taptap: TapTapQrLogin | None = None
     html_render: Callable[[str, dict, bool, dict | None], Awaitable[str | bytes]] | None = None
     sender: Callable[[CommandResult], Awaitable[None]] | None = None
+    reload_resources: Callable[[], None] | None = None
+    resource_lock: Any | None = None
     is_admin: bool = False
     session_id: str = ""
     current_user_id: str = ""
