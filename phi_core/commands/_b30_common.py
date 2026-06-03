@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 
 from .common import CommandContext, CommandResult
 from ._rendering import render_jinja_template
+from ._sync import sync_save_cache
+from ..models import SaveSnapshot
 from ..query import compute_b30
 from ..render import jinja_adapter
 from ..render import text as render
 from ..save.codec import SaveNotAvailable
+
+logger = logging.getLogger("astrbot")
 
 
 def _rks_range(rks: float) -> tuple[float, float]:
@@ -91,7 +96,7 @@ async def _attach_acc_averages(ctx: CommandContext, result) -> None:
 
 
 async def render_best30(ctx: CommandContext, user_id: str, args: str = "") -> CommandResult:
-    snapshot = ctx.load_snapshot(user_id)
+    snapshot = await _load_latest_or_cached_snapshot(ctx, user_id)
     if not snapshot:
         return CommandResult.text(render.render_no_cached_save())
     requested_limit = _limit_from_args(args)
@@ -102,6 +107,22 @@ async def render_best30(ctx: CommandContext, user_id: str, args: str = "") -> Co
         path = await render_jinja_template(ctx, "b19/b19", jinja_adapter.b30_data(ctx.paths, result, snapshot), "b30")
         return CommandResult.image(path)
     return CommandResult.text(render.render_b30(result, limit=limit))
+
+
+async def _load_latest_or_cached_snapshot(ctx: CommandContext, user_id: str) -> SaveSnapshot | None:
+    cached = ctx.load_snapshot(user_id)
+    try:
+        return (await sync_save_cache(ctx, user_id)).snapshot
+    except SaveNotAvailable as exc:
+        if cached is not None:
+            logger.warning("phi b30 auto sync failed; using cached save: %s", exc)
+            return cached
+        return None
+    except Exception as exc:
+        if cached is not None:
+            logger.warning("phi b30 auto sync failed; using cached save: %s", exc)
+            return cached
+        raise
 
 
 def _limit_from_args(args: str) -> int | None:
