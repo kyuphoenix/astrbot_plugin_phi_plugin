@@ -47,7 +47,7 @@ from ..models import (
 from ..models import ProgressDay, ProgressScoreChange, UpdateProgressSummary, UserSummary
 from ..paths import PluginPaths
 from ..query.b30 import iter_score_records, rks_from_acc
-from ..query.progress import extract_modified_datetime, extract_money, format_datetime, money_to_kib
+from ..query.progress import extract_modified_datetime, extract_money, extract_summary_updated_datetime, format_datetime, money_to_kib
 
 _CSS_URL_RE = re.compile(r"url\((['\"]?)([^)'\"]+)\1\)")
 _CSS_IMPORT_RE = re.compile(r"@import\s+(?:url\()?['\"]([^'\")]+)['\"]\)?\s*;")
@@ -88,7 +88,7 @@ def b30_html(paths: PluginPaths, result: Best30Result, snapshot: SaveSnapshot) -
     b_records = records
     stats = _level_stats(records)
     gameuser = _gameuser(snapshot)
-    date_text = format_datetime(extract_modified_datetime(snapshot.raw))
+    date_text = format_datetime(extract_summary_updated_datetime(snapshot.raw))
     background = _random_background_for_records(paths, [*phi_records, *records])
 
     body: list[str] = [_b30_title(paths, gameuser, stats, date_text, _b30_sp_info(paths, result, snapshot))]
@@ -232,7 +232,7 @@ def table_with_records_html(
     ]
     if gameuser is not None:
         body.append('<div class="row playerInfoRow">')
-        body.append(_table_player_info(paths, gameuser, format_datetime(extract_modified_datetime(snapshot.raw))))
+        body.append(_table_player_info(paths, gameuser, format_datetime(extract_summary_updated_datetime(snapshot.raw))))
         body.append("</div>")
     body.append('<div class="tableBox">')
     for label, label_charts in grouped.items():
@@ -290,7 +290,7 @@ def lvscore_html(paths: PluginPaths, summary: LevelScoreSummary, snapshot: SaveS
   <div class="right" id="{_esc(_rating_asset(rating))}">
     <div class="file-content"><div class="file-content-left"><p>FILE_CONTENT</p></div><div class="progress_bar-out"><div class="progress_bar-in-phi" style="width:{progress_phi:.4f}%;"><p>{progress_phi:.4f}% PHI.</p></div><div class="progress_bar-in-fc" style="width:{max(0.0, progress_fc - progress_phi):.4f}%;"><p>{progress_fc:.4f}% FullCombo.</p></div></div></div>
     <div class="right_title"><p>Total</p><div class="title_group"><div class="title_group-real"><p>{summary.played_charts}</p></div><div class="title_group-tot"><p>/{summary.total_charts} charts</p></div></div></div>
-    <div class="right_content"><div class="right_content-title"><p>收集日期</p></div><p>{_esc(format_datetime(extract_modified_datetime(snapshot.raw)))}</p><div class="right_content-title"><p>保管单位</p></div><p>{_esc(gameuser['PlayerId'])}</p><div class="right_content-title"><p>定数范围</p></div><p>{_esc(summary.range_text)}</p></div>
+    <div class="right_content"><div class="right_content-title"><p>收集日期</p></div><p>{_esc(format_datetime(extract_summary_updated_datetime(snapshot.raw)))}</p><div class="right_content-title"><p>保管单位</p></div><p>{_esc(gameuser['PlayerId'])}</p><div class="right_content-title"><p>定数范围</p></div><p>{_esc(summary.range_text)}</p></div>
     <div class="tot_Rating"><img src="{rating_img}" alt="{_esc(rating)}"></div>
     <div class="title_group" id="score"><div class="title_group-real" id="real-score"><p>{int(summary.avg_score):,}</p></div><div class="title_group-tot" id="tot-score"><p>avg score</p></div></div>
     <div class="title_group" id="highest"><div class="title_group-real" id="real-highlow"><p>{summary.highest_difficulty:.4f}</p></div><div class="title_group-tot" id="tot-highlow"><p>Highest</p></div></div>

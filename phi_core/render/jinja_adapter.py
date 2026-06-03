@@ -38,7 +38,7 @@ from ..models import (
 from ..paths import PluginPaths
 from ..query import iter_history_score_events, iter_score_records, rks_from_acc
 from ..query.progress import money_to_kib
-from ..query.progress import extract_modified_datetime, format_datetime
+from ..query.progress import extract_modified_datetime, extract_summary_updated_datetime, format_datetime
 from . import original
 
 
@@ -77,7 +77,7 @@ def b30_data(
         gameuser["rks"] = display_rks
     return {
         "gameuser": gameuser,
-        "Date": format_datetime(extract_modified_datetime(snapshot.raw)),
+        "Date": format_datetime(extract_summary_updated_datetime(snapshot.raw)),
         "stats": original._level_stats(records),
         "spInfo": sp_info if sp_info is not None else _b30_sp_info(paths, result, snapshot),
         "phi": [_score_record_data(paths, record, f"P{index}", result=result, index=index, phi=True) for index, record in enumerate(phi_records, 1)],
@@ -168,7 +168,7 @@ def table_data(
         grouped.setdefault(f"{chart.difficulty:.1f}", []).append(chart)
     gameuser = _with_user_assets(paths, original._gameuser(snapshot)) if snapshot is not None else None
     if gameuser is not None:
-        gameuser["date"] = format_datetime(extract_modified_datetime(snapshot.raw))
+        gameuser["date"] = format_datetime(extract_summary_updated_datetime(snapshot.raw))
     records = record_map or {}
     return {
         "_imgPath": "html/otherimg/",
@@ -256,7 +256,7 @@ def history_b30_data(paths: PluginPaths, changes: list[Any], snapshot: SaveSnaps
     records = _history_b30_records(changes)
     return {
         "gameuser": gameuser,
-        "Date": format_datetime(extract_modified_datetime(snapshot.raw)) if snapshot is not None else format_datetime(datetime.now()),
+        "Date": format_datetime(extract_summary_updated_datetime(snapshot.raw)) if snapshot is not None else format_datetime(datetime.now()),
         "spInfo": "History B30",
         "rows": [_history_b30_row(paths, change, index) for index, change in enumerate(changes)],
         "theme": "default",
@@ -621,7 +621,7 @@ def score_data(
         "avatar": gameuser["avatar"],
         "avatarImg": _avatar_img(paths, gameuser["avatar"]),
         "Rks": f"{float(gameuser['rks'] or 0):.4f}",
-        "Date": format_datetime(extract_modified_datetime(snapshot.raw)),
+        "Date": format_datetime(extract_summary_updated_datetime(snapshot.raw)),
         "ChallengeMode": gameuser["ChallengeMode"],
         "ChallengeModeRank": gameuser["ChallengeModeRank"],
         "challengeImg": _challenge_img(paths, gameuser["ChallengeMode"]),
@@ -759,7 +759,7 @@ def lvscore_data(paths: PluginPaths, summary: LevelScoreSummary, snapshot: SaveS
         "ratingImgs": _rating_img_map(paths),
         "progress_phi": _percentage(summary.phi_count, summary.total_charts),
         "progress_fc": _percentage(summary.fc_count, summary.total_charts),
-        "date": format_datetime(extract_modified_datetime(snapshot.raw)),
+        "date": format_datetime(extract_summary_updated_datetime(snapshot.raw)),
         "highest": summary.highest_difficulty,
         "lowest": summary.lowest_difficulty,
         "tot_acc": summary.avg_acc,

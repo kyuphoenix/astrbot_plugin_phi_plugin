@@ -183,6 +183,24 @@ def extract_modified_datetime(raw: dict[str, Any]) -> datetime:
     return _normalize_datetime(datetime.now(timezone.utc))
 
 
+def extract_summary_updated_datetime(raw: dict[str, Any]) -> datetime:
+    """Return the user-facing save update time used by upstream player panels."""
+    save_info = raw.get("saveInfo") if isinstance(raw.get("saveInfo"), dict) else {}
+    summary = save_info.get("summary") if isinstance(save_info.get("summary"), dict) else {}
+    candidates = [
+        summary.get("updatedAt"),
+        save_info.get("updatedAt"),
+        raw.get("updatedAt"),
+        save_info.get("modifiedAt"),
+        raw.get("modifiedAt"),
+    ]
+    for value in candidates:
+        parsed = _parse_display_datetime(value)
+        if parsed is not None:
+            return parsed
+    return datetime.now()
+
+
 def extract_money(raw: dict[str, Any]) -> list[int] | None:
     game_progress = raw.get("gameProgress")
     money = game_progress.get("money") if isinstance(game_progress, dict) else raw.get("money")
@@ -440,6 +458,40 @@ def _parse_datetime(value: Any) -> datetime | None:
             return _normalize_datetime(datetime.strptime(text, fmt))
         except ValueError:
             continue
+    return None
+
+
+def _parse_display_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone().replace(tzinfo=None) if value.tzinfo is not None else value
+    if isinstance(value, dict):
+        for key in ("iso", "date", "value"):
+            parsed = _parse_display_datetime(value.get(key))
+            if parsed is not None:
+                return parsed
+        return None
+    if isinstance(value, (int, float)):
+        raw = float(value)
+        if raw > 10_000_000_000:
+            raw /= 1000
+        try:
+            return datetime.fromtimestamp(raw)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        for candidate in (
+            text,
+            text.replace("Z", "+00:00"),
+            text.replace("/", "-"),
+        ):
+            try:
+                parsed = datetime.fromisoformat(candidate)
+                return parsed.astimezone().replace(tzinfo=None) if parsed.tzinfo is not None else parsed
+            except ValueError:
+                continue
     return None
 
 

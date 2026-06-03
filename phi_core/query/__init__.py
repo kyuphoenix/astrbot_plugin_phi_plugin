@@ -20,7 +20,7 @@ from .history import (
     compute_history_b30_changes,
     iter_history_score_events,
 )
-from .progress import extract_money, merge_histories, update_progress_history
+from .progress import extract_money, extract_summary_updated_datetime, merge_histories, update_progress_history
 from .score import find_song_scores
 from .user_info import summarize_user
 
@@ -37,6 +37,7 @@ __all__ = [
     "filter_score_entries",
     "find_song_scores",
     "extract_money",
+    "extract_summary_updated_datetime",
     "iter_score_records",
     "iter_history_score_events",
     "merge_histories",
