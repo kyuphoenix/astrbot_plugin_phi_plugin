@@ -13,6 +13,7 @@ class SaveSyncResult:
     snapshot: SaveSnapshot
     previous_snapshot: SaveSnapshot | None
     summary: UserSummary
+    task_reward_delta: int = 0
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class ProgressSyncResult:
     previous_snapshot: SaveSnapshot | None
     progress: UpdateProgressSummary
     used_remote_history: bool = False
+    task_reward_delta: int = 0
 
 
 async def sync_save_cache(ctx: CommandContext, user_id: str) -> SaveSyncResult:
@@ -42,16 +44,18 @@ async def sync_save_cache(ctx: CommandContext, user_id: str) -> SaveSyncResult:
     if raw_api_id and ctx.store.validate_api_id(str(raw_api_id)):
         ctx.store.set_api_id(user_id, str(raw_api_id))
     ctx.store.save_snapshot(user_id, snapshot_to_json(snapshot))
+    task_reward_delta = 0
     try:
         from ._notes import apply_task_rewards, load_notes
 
-        apply_task_rewards(ctx, user_id, snapshot, load_notes(ctx, user_id))
+        task_reward_delta = apply_task_rewards(ctx, user_id, snapshot, load_notes(ctx, user_id))
     except Exception:
         pass
     return SaveSyncResult(
         snapshot=snapshot,
         previous_snapshot=previous_snapshot,
         summary=summarize_user(snapshot, ctx.catalog),
+        task_reward_delta=task_reward_delta,
     )
 
 
@@ -93,4 +97,5 @@ async def sync_save_with_progress(ctx: CommandContext, user_id: str) -> Progress
         previous_snapshot=result.previous_snapshot,
         progress=progress,
         used_remote_history=used_remote_history,
+        task_reward_delta=result.task_reward_delta,
     )

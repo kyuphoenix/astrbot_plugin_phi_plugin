@@ -6,7 +6,7 @@ from ._sync import sync_save_with_progress
 from ._notes import build_update_task_rows, load_notes, maybe_refresh_daily_tasks, parse_datetime
 from ..render import jinja_adapter
 from ..render import text as render
-from ..query.progress import format_datetime
+from ..query.progress import extract_summary_updated_datetime, format_datetime
 from ..save import SaveNotAvailable
 
 ALIASES = {"update", "更新存档"}
@@ -33,6 +33,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
                     task_data=build_update_task_rows(ctx, result.snapshot, notes_data),
                     task_time=_format_task_time(notes_data.get("task_time")),
                     notes=_as_int(notes_data.get("money")),
+                    task_reward_delta=result.task_reward_delta,
+                    date=format_datetime(extract_summary_updated_datetime(result.snapshot.raw)),
                     theme=str(notes_data.get("theme") or "default"),
                 ),
                 "update",

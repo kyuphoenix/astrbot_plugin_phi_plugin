@@ -644,6 +644,8 @@ def update_data(
     task_data: list[dict[str, Any] | None] | None = None,
     task_time: str = "",
     notes: int | None = None,
+    task_reward_delta: int = 0,
+    date: str | None = None,
     theme: str = "default",
 ) -> dict[str, Any]:
     challenge = _as_int(summary.challenge_mode_rank)
@@ -653,18 +655,17 @@ def update_data(
         current=(summary.modified_at, summary.ranking_score),
         money=False,
     )
-    data_money = _format_money(summary.data_money)
     return {
         "PlayerId": summary.player_id or summary.player_name or "UNKNOWN",
         "Rks": f"{summary.ranking_score:.4f}",
         "ChallengeMode": max(0, min(5, challenge // 100)),
         "ChallengeModeRank": challenge % 100,
         "challengeImg": _challenge_img(paths, max(0, min(5, challenge // 100))),
-        "Notes": data_money if notes is None else f"{notes} Notes",
-        "Date": summary.modified_at,
+        "Notes": _as_int(notes) if notes is not None else 0,
+        "Date": date or summary.modified_at,
         "added_rks_notes": [
-            _signed_delta(summary.rks_delta, digits=4),
-            _signed_delta(summary.data_delta, suffix="KiB"),
+            _update_rks_delta(summary.rks_delta),
+            _update_notes_delta(task_reward_delta),
         ],
         "rks_history": rks_history,
         "rks_range": rks_range,
@@ -2275,6 +2276,22 @@ def _signed_delta(value: int | float | None, *, digits: int = 4, suffix: str = "
     else:
         text = f"{value:+d}"
     return f"{text}{suffix}"
+
+
+def _update_rks_delta(value: int | float | None) -> str:
+    if value is None:
+        return ""
+    delta = float(value)
+    if abs(delta) < 1e-4:
+        return ""
+    return f"{delta:+.4f}"
+
+
+def _update_notes_delta(value: int | float | None) -> str:
+    if value is None:
+        return ""
+    delta = _as_int(value)
+    return f"{delta:+d}" if delta else ""
 
 
 def _format_money(money: list[int] | None) -> str:
