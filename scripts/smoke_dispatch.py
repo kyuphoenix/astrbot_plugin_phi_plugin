@@ -951,6 +951,9 @@ async def main() -> None:
             if "phiAdjustFontSize" not in template:
                 raise SystemExit(f"image {command} should include shared auto font sizing script")
             if command == "score":
+                options = b30_render_calls[-1][3] or {}
+                if options.get("viewport_width") != 2400 or options.get("viewport_height") != 1300:
+                    raise SystemExit(f"image score with ranklist should use original 2400x1300 viewport, got {options!r}")
                 if "RANK_LIST" not in html or "Selected >> EZ" not in html or "AP: 25.00%" not in html:
                     raise SystemExit("image score should render online ranklist and AP/FC statistics")
                 if not login_client.score_ranklist_requests:
@@ -958,6 +961,13 @@ async def main() -> None:
                 request = login_client.score_ranklist_requests[-1]
                 if request["rank"] != "EZ" or request["order_by"] != "score":
                     raise SystemExit(f"image score did not pass -dif/-or options to API: {request!r}")
+                unrank_before = len(b30_render_calls)
+                unrank_score = await dispatch(image_login_ctx, "login-user", "score", "Glaciaxion -dif EZ -unrank")
+                if unrank_score.kind != "image" or len(b30_render_calls) != unrank_before + 1:
+                    raise SystemExit(f"unrank score template should render one image, got {unrank_score!r}")
+                unrank_options = b30_render_calls[-1][3] or {}
+                if unrank_options.get("viewport_width") != 1920 or unrank_options.get("viewport_height") != 1300:
+                    raise SystemExit(f"image score without ranklist should use original 1920x1300 viewport, got {unrank_options!r}")
                 old_score_calls: list[tuple[str, dict, bool, dict | None]] = []
 
                 async def fake_old_score_render(template: str, data: dict, return_url: bool = True, options: dict | None = None) -> str:
@@ -978,6 +988,9 @@ async def main() -> None:
                 old_score = await dispatch(old_score_ctx, "login-user", "score", "Glaciaxion -dif EZ")
                 if old_score.kind != "image" or len(old_score_calls) != 1:
                     raise SystemExit(f"old score template should render one image, got {old_score!r}")
+                old_score_options = old_score_calls[0][3] or {}
+                if old_score_options.get("viewport_width") != 2048 or old_score_options.get("viewport_height") != 1080:
+                    raise SystemExit(f"old score image version should use original 2048x1080 viewport, got {old_score_options!r}")
                 old_html = _render_call_html(old_score_calls[0])
                 if ".playerbox" not in old_html or 'class="playerbox"' not in old_html or 'class="rank-EZ"' not in old_html:
                     raise SystemExit("old score image version should render through converted score/scoreOld")

@@ -63,7 +63,9 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
         if not options.unrank:
             ranklist, ap_fc_count = await _load_online_score_data(ctx, user_id, song.id_with_suffix, selected_rank, options.order_by)
         history = await _load_score_history(ctx, user_id, song.id)
-        template = "score/scoreOld" if ctx.config.score_image_version == "old" else "score/score"
+        use_old_template = ctx.config.score_image_version == "old"
+        template = "score/scoreOld" if use_old_template else "score/score"
+        viewport_width, viewport_height = _score_viewport(use_old_template=use_old_template, has_ranklist=ranklist is not None)
         path = await render_jinja_template(
             ctx,
             template,
@@ -79,6 +81,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
                 ap_fc_count=ap_fc_count,
             ),
             "score",
+            width=viewport_width,
+            height=viewport_height,
         )
         return CommandResult.image(path)
     return CommandResult.text(render.render_score(song, records))
@@ -142,3 +146,11 @@ def _default_rank(records: list[ScoreRecord], charts: dict[str, Any]) -> str:
         if rank in charts:
             return rank
     return "IN"
+
+
+def _score_viewport(*, use_old_template: bool, has_ranklist: bool) -> tuple[int, int]:
+    if use_old_template:
+        return 2048, 1080
+    if has_ranklist:
+        return 2400, 1300
+    return 1920, 1300
