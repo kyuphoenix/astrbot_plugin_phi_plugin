@@ -86,6 +86,18 @@
     "slider": {"min": 0, "max": 5, "step": 1},
     "hint": "远端 T2I 服务偶发断连时会自动重试。"
   },
+  "send_render_wait_message": {
+    "description": "发送渲染等待提示",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，接收到可能渲染图片的命令时先发送等待提示；图片发送完成后会尝试撤回该提示。"
+  },
+  "render_wait_message": {
+    "description": "渲染等待提示内容",
+    "type": "string",
+    "default": "正在渲染图片，请稍后",
+    "hint": "仅在“发送渲染等待提示”开启时使用。"
+  },
   "render_selector_screenshot": {
     "description": "按页面容器截图",
     "type": "bool",
@@ -135,5 +147,11 @@
     "type": "bool",
     "default": false,
     "hint": "开启后，phi guess / phi tipgame / phi ltr 进行中可直接回复曲名、tip、ans、open A；关闭时仍使用原命令唤醒方式。"
+  },
+  "quote_reply": {
+    "description": "回复时引用触发消息",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后插件回复会引用触发命令的消息；关闭后直接发送普通消息。"
   }
 }

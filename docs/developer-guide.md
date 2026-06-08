@@ -153,6 +153,8 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
 | `request_timeout` | API、TapTap、TapTap 公告等 HTTP 请求超时。 |
 | `qrcode_timeout` | TapTap 二维码轮询等待时间。 |
 | `render_max_retries` | T2I 渲染失败后的额外重试次数。 |
+| `send_render_wait_message` | 是否在图片渲染命令开始时发送等待提示，并在完成后尝试撤回。 |
+| `render_wait_message` | 图片渲染等待提示的文本内容。 |
 | `render_selector_screenshot` | 向 T2I 传 `selector=#container`，优先按容器截图。 |
 | `render_wait_for_resources` | 向 T2I 传 `wait_for_resources=true`，截图前等待图片和字体。 |
 | `render_resource_timeout` | 等待远程资源的最长毫秒数。 |
@@ -161,6 +163,7 @@ async def handle(ctx: CommandContext, user_id: str, args: str) -> CommandResult:
 | `illustration_source` | 曲绘使用 `remote` 在线 URL 或 `local` 本地 base64。 |
 | `illustration_url_proxy` | 只影响传给 T2I 的远程曲绘 URL。 |
 | `game_reply_listener` | 小游戏是否监听普通消息直接回复。 |
+| `quote_reply` | 插件回复是否引用触发命令的消息，影响文本、图片和中间提示消息。 |
 
 ## 6. 资源下载与自动更新链路
 
@@ -410,6 +413,7 @@ update.handle()
 
 ```text
 CommandResult.image(path)
+  -> 可选：main.py::_send_render_wait_message() 发送等待提示
   -> build_image_send_variant(path, "original")
   -> Comp.Image.fromBytes(bytes) 或 Comp.Image.fromBase64(...)
   -> event.chain_result([Image])
@@ -417,6 +421,7 @@ CommandResult.image(path)
   -> 如果失败，转换 JPG 再发
   -> 如果仍失败，转换 WebP 再发
   -> 如果全部失败，发送文本错误提示
+  -> 可选：main.py::_recall_message() 撤回等待提示
 ```
 
 注意事项如下。
@@ -427,6 +432,7 @@ CommandResult.image(path)
 | JPG/WebP 会压缩 | `send_variants.py` 限制最大边长和最大像素，降低平台传输失败概率。 |
 | 透明图会铺白底 | 有透明通道的图片在转 JPG/WebP 前会先合成白底。 |
 | T2I 错误页不会直接发 | `panel._is_valid_image_file()` 会验证图片，不让 HTML 错误页伪装成图片。 |
+| 等待提示撤回依赖平台 | 只有 `event.send()` 返回可解析的 `message_id`，且平台支持 `delete_msg` 或 `call_action("delete_msg")` 时才会撤回。取不到 ID 时不会阻断最终图片发送。 |
 
 ## 13. 小游戏链路
 

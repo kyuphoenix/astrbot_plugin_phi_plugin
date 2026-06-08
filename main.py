@@ -31,6 +31,48 @@ _X_ALIASES = {f"x{index}" for index in range(1, 101)} - {"x30"}
 _FC_ALIASES = {f"fc{index}" for index in range(1, 101)} - {"fc30"}
 _ARCGROS_ALIASES = {f"arcgrosb{index}" for index in range(1, 101)}
 _GAME_STATE_COMMANDS = {"guess", "tipgame", "ltr", "tip", "ans", "open"}
+_RENDER_WAIT_COMMANDS = {
+    "achievement",
+    "ahv",
+    "ans",
+    "arcgros",
+    "b30",
+    "chap",
+    "chart",
+    "fc30",
+    "guess",
+    "help",
+    "hisb30",
+    "2025history",
+    "ill",
+    "info",
+    "info1",
+    "info2",
+    "jrrp",
+    "list",
+    "lmtacc",
+    "lvscore",
+    "lvsco",
+    "myset",
+    "newlog",
+    "newnotice",
+    "p30",
+    "pgr",
+    "rand",
+    "randclg",
+    "ranklist",
+    "renderdiag",
+    "retask",
+    "score",
+    "sign",
+    "song",
+    "suggest",
+    "table",
+    "task",
+    "update",
+    "x30",
+}
+_DYNAMIC_RENDER_WAIT_PREFIXES = ("b", "p", "x", "fc")
 
 
 class ActivePhiGameFilter(CustomFilter):
@@ -619,16 +661,98 @@ class AstrBotPhiPlugin(Star):
     async def _dispatch_phi_command(self, event: AstrMessageEvent, command: str, *, grouped: bool = True):
         event.stop_event()
         args = self._extract_command_args(event.get_message_str(), grouped=grouped)
+        wait_message_id = await self._send_render_wait_message(event, command)
 
         sender_id = event.get_sender_id()
-        response = await self._run_with_command_locks(
-            event,
-            sender_id,
-            command,
-            lambda: self._run_phi_command(event, sender_id, command, args),
-        )
+        try:
+            response = await self._run_with_command_locks(
+                event,
+                sender_id,
+                command,
+                lambda: self._run_phi_command(event, sender_id, command, args),
+            )
+        finally:
+            await self._recall_message(event, wait_message_id)
         if response is not None:
             yield response
+
+    async def _send_render_wait_message(self, event: AstrMessageEvent, command: str):
+        if not self._should_send_render_wait_message(command):
+            return None
+        message = self.plugin_config.render_wait_message.strip()
+        if not message:
+            return None
+        try:
+            sent = await event.send(self._plain_result(event, message))
+        except Exception as exc:
+            logger.warning("phi render wait message send failed: %s", exc, exc_info=True)
+            return None
+        return self._extract_sent_message_id(sent)
+
+    def _should_send_render_wait_message(self, command: str) -> bool:
+        if not self.plugin_config.send_render_wait_message:
+            return False
+        if self.plugin_config.render_mode != "image":
+            return False
+        if self.html_render is None:
+            return False
+        normalized = command.strip().casefold()
+        if normalized in _RENDER_WAIT_COMMANDS:
+            return True
+        if normalized.startswith("arcgrosb") and normalized.removeprefix("arcgrosb").isdigit():
+            return True
+        for prefix in _DYNAMIC_RENDER_WAIT_PREFIXES:
+            suffix = normalized.removeprefix(prefix)
+            if suffix != normalized and suffix.isdigit():
+                return True
+        return False
+
+    async def _recall_message(self, event: AstrMessageEvent, message_id: Any | None) -> None:
+        if message_id is None or message_id == "":
+            return
+        bot = getattr(event, "bot", None)
+        if bot is None:
+            logger.debug("phi render wait message recall skipped: event has no bot")
+            return
+        try:
+            delete_id = int(message_id) if str(message_id).isdigit() else message_id
+            if hasattr(bot, "delete_msg"):
+                await bot.delete_msg(message_id=delete_id)
+                return
+            if hasattr(bot, "call_action"):
+                await bot.call_action("delete_msg", message_id=delete_id)
+                return
+            logger.debug("phi render wait message recall skipped: bot has no delete_msg/call_action")
+        except Exception as exc:
+            logger.warning("phi render wait message recall failed: message_id=%s; error=%s", message_id, exc, exc_info=True)
+
+    @classmethod
+    def _extract_sent_message_id(cls, sent: Any) -> Any | None:
+        if sent is None:
+            return None
+        if isinstance(sent, (str, int)):
+            return sent
+        if isinstance(sent, dict):
+            for key in ("message_id", "messageId", "msg_id", "msgId", "id"):
+                value = sent.get(key)
+                if value is not None and value != "":
+                    return value
+            for key in ("data", "result", "ret", "echo"):
+                value = cls._extract_sent_message_id(sent.get(key))
+                if value is not None:
+                    return value
+            return None
+        if isinstance(sent, (list, tuple)):
+            for item in sent:
+                value = cls._extract_sent_message_id(item)
+                if value is not None:
+                    return value
+            return None
+        for attr in ("message_id", "messageId", "msg_id", "msgId", "id"):
+            value = getattr(sent, attr, None)
+            if value is not None and value != "":
+                return value
+        return None
 
     async def _run_with_command_locks(
         self,
@@ -658,7 +782,7 @@ class AstrBotPhiPlugin(Star):
             if result.kind == "image":
                 await self._send_image_with_fallback(event, result.value)
                 return
-            await event.send(event.plain_result(result.value))
+            await event.send(self._plain_result(event, result.value))
 
         return send_intermediate
 
@@ -731,7 +855,28 @@ class AstrBotPhiPlugin(Star):
         if result.kind == "image":
             await self._send_image_with_fallback(event, result.value)
             return None
-        return event.plain_result(result.value)
+        return self._plain_result(event, result.value)
+
+    def _plain_result(self, event: AstrMessageEvent, text: str):
+        reply = self._reply_component(event)
+        if reply is None:
+            return event.plain_result(text)
+        return event.chain_result([reply, Comp.Plain(text=text)])
+
+    def _chain_result(self, event: AstrMessageEvent, components: list[Any]):
+        reply = self._reply_component(event)
+        if reply is not None:
+            components = [reply, *components]
+        return event.chain_result(components)
+
+    def _reply_component(self, event: AstrMessageEvent):
+        if not self.plugin_config.quote_reply:
+            return None
+        message_obj = getattr(event, "message_obj", None)
+        message_id = getattr(message_obj, "message_id", None)
+        if message_id is None or message_id == "":
+            return None
+        return Comp.Reply(id=message_id)
 
     @staticmethod
     def _image_component(path: str | Path):
@@ -759,7 +904,7 @@ class AstrBotPhiPlugin(Star):
                 continue
 
             try:
-                await event.send(event.chain_result([self._image_component_from_bytes(variant.data)]))
+                await event.send(self._chain_result(event, [self._image_component_from_bytes(variant.data)]))
                 if variant.name != "original":
                     logger.info(
                         "phi image sent with fallback "
@@ -777,4 +922,4 @@ class AstrBotPhiPlugin(Star):
         message = "图片发送失败：原图、JPG 压缩图、WebP 压缩图都发送失败，请稍后重试。"
         if last_error is not None:
             message += f"\n最后一次错误：{last_error}"
-        await event.send(event.plain_result(message))
+        await event.send(self._plain_result(event, message))
