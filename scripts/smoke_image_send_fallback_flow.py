@@ -130,6 +130,7 @@ async def _run_flow_smoke() -> None:
 
             event = FakeEvent(failures=2)
             plugin = object.__new__(plugin_main.AstrBotPhiPlugin)
+            plugin.plugin_config = types.SimpleNamespace(quote_reply=False)
             await plugin._send_image_with_fallback(event, image_path)
 
         if event.failures != 0:

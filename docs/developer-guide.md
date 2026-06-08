@@ -414,6 +414,8 @@ update.handle()
 ```text
 CommandResult.image(path)
   -> 可选：main.py::_send_render_wait_message() 发送等待提示
+     -> aiocqhttp/OneBot：优先 send_group_msg/send_private_msg 直接发送并解析 message_id
+     -> 其他平台或直发失败：回退 event.send(...)，通常无法撤回
   -> build_image_send_variant(path, "original")
   -> Comp.Image.fromBytes(bytes) 或 Comp.Image.fromBase64(...)
   -> event.chain_result([Image])
@@ -432,7 +434,7 @@ CommandResult.image(path)
 | JPG/WebP 会压缩 | `send_variants.py` 限制最大边长和最大像素，降低平台传输失败概率。 |
 | 透明图会铺白底 | 有透明通道的图片在转 JPG/WebP 前会先合成白底。 |
 | T2I 错误页不会直接发 | `panel._is_valid_image_file()` 会验证图片，不让 HTML 错误页伪装成图片。 |
-| 等待提示撤回依赖平台 | 只有 `event.send()` 返回可解析的 `message_id`，且平台支持 `delete_msg` 或 `call_action("delete_msg")` 时才会撤回。取不到 ID 时不会阻断最终图片发送。 |
+| 等待提示撤回依赖平台 | AstrBot 的 `event.send()` 不一定返回协议端 `message_id`。当前等待提示在 aiocqhttp/OneBot 下优先直调 `send_group_msg/send_private_msg` 以获取 `message_id`，再用开发指南里的 `event.bot.delete_msg(message_id=int(消息ID))` 撤回。取不到 ID 时不会阻断最终图片发送。 |
 
 ## 13. 小游戏链路
 

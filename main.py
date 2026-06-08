@@ -682,6 +682,12 @@ class AstrBotPhiPlugin(Star):
         message = self.plugin_config.render_wait_message.strip()
         if not message:
             return None
+        sent, direct_sent = await self._send_recallable_wait_message(event, message)
+        if direct_sent:
+            return self._extract_sent_message_id(sent)
+        message_id = self._extract_sent_message_id(sent)
+        if message_id is not None:
+            return message_id
         try:
             sent = await event.send(self._plain_result(event, message))
         except Exception as exc:
@@ -707,6 +713,65 @@ class AstrBotPhiPlugin(Star):
                 return True
         return False
 
+    async def _send_recallable_wait_message(self, event: AstrMessageEvent, message: str) -> tuple[Any | None, bool]:
+        bot = getattr(event, "bot", None)
+        if bot is None:
+            return None, False
+        payload = self._onebot_text_message(event, message)
+        group_id = self._safe_event_value(event, "get_group_id")
+        try:
+            if group_id:
+                sent, called = await self._call_onebot_action(
+                    bot,
+                    "send_group_msg",
+                    group_id=int(group_id),
+                    message=payload,
+                )
+                return sent, called
+            user_id = self._safe_event_value(event, "get_sender_id")
+            if user_id:
+                sent, called = await self._call_onebot_action(
+                    bot,
+                    "send_private_msg",
+                    user_id=int(user_id),
+                    message=payload,
+                )
+                return sent, called
+        except Exception as exc:
+            logger.warning("phi render wait message direct send failed: %s", exc, exc_info=True)
+        return None, False
+
+    def _onebot_text_message(self, event: AstrMessageEvent, text: str) -> list[dict[str, Any]]:
+        segments: list[dict[str, Any]] = []
+        reply = self._reply_component(event)
+        reply_id = getattr(reply, "id", None)
+        if reply_id is not None and reply_id != "":
+            segments.append({"type": "reply", "data": {"id": str(reply_id)}})
+        segments.append({"type": "text", "data": {"text": text}})
+        return segments
+
+    @staticmethod
+    async def _call_onebot_action(bot: Any, action: str, **kwargs: Any) -> tuple[Any | None, bool]:
+        method = getattr(bot, action, None)
+        if callable(method):
+            return await method(**kwargs), True
+        call_action = getattr(bot, "call_action", None)
+        if callable(call_action):
+            return await call_action(action, **kwargs), True
+        api = getattr(bot, "api", None)
+        api_call_action = getattr(api, "call_action", None)
+        if callable(api_call_action):
+            return await api_call_action(action, **kwargs), True
+        return None, False
+
+    @staticmethod
+    def _safe_event_value(event: AstrMessageEvent, getter: str) -> str:
+        try:
+            value = getattr(event, getter)()
+        except Exception:
+            return ""
+        return str(value or "")
+
     async def _recall_message(self, event: AstrMessageEvent, message_id: Any | None) -> None:
         if message_id is None or message_id == "":
             return
@@ -721,6 +786,11 @@ class AstrBotPhiPlugin(Star):
                 return
             if hasattr(bot, "call_action"):
                 await bot.call_action("delete_msg", message_id=delete_id)
+                return
+            api = getattr(bot, "api", None)
+            api_call_action = getattr(api, "call_action", None)
+            if callable(api_call_action):
+                await api_call_action("delete_msg", message_id=delete_id)
                 return
             logger.debug("phi render wait message recall skipped: bot has no delete_msg/call_action")
         except Exception as exc:
